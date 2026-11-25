@@ -41,7 +41,7 @@ export const MODES = {
 };
 export const DEFAULT_MODE = 'tdm';
 
-function radial(angle, distance, offset = 0) {
+export function radial(angle, distance, offset = 0) {
   return { x: Math.sin(angle) * distance + Math.cos(angle) * offset, z: Math.cos(angle) * distance - Math.sin(angle) * offset };
 }
 
@@ -70,20 +70,28 @@ export const COVER = [
     ...radial(team.angle, 3.32), w: 2.05, d: 2.05, h: 1.67, sector, terrace: true,
   })),
   ...TEAMS.flatMap((team, sector) => [
-    { ...radial(team.angle, 19, -4.5), w: 3.0, d: 2.8, h: 2.85, sector },
-    { ...radial(team.angle, 19, 4.5), w: 3.0, d: 2.8, h: 2.85, sector },
-    { ...radial(team.angle, 11, -5.1), w: 3.15, d: 2.1, h: 1.95, sector },
-    { ...radial(team.angle, 11, 5.1), w: 3.15, d: 2.1, h: 1.95, sector },
-    { ...radial(team.angle + Math.PI / 3, 21), w: 3.7, d: 4.0, h: 3.6, sector: -1 },
-    { ...radial(team.angle + Math.PI / 3, 7.8), w: 2.7, d: 2.7, h: 2.6, sector: -1 },
-    { ...radial(team.angle + Math.PI / 3, 26.5, 3), w: 2.4, d: 3.0, h: 1.8, sector: -1 },
+    { ...radial(team.angle, 19, -4.9), w: 2.85, d: 2.8, h: 3.5, sector, angle: team.angle, profile: 'pylon' },
+    { ...radial(team.angle, 18.5, 4.9), w: 2.0, d: 4.05, h: 2.35, sector, angle: team.angle, profile: 'baffle' },
+    { ...radial(team.angle, 10.9, -5.5), w: 1.2, d: 3.8, h: 1.6, sector, angle: team.angle + 0.40, profile: 'baffle' },
+    { ...radial(team.angle, 10.5, 5.0), w: 2.7, d: 1.68, h: 2.2, sector, angle: team.angle - 0.23, profile: 'pylon' },
+    { ...radial(team.angle + Math.PI / 3, 21.5), w: 4.05, d: 3.75, h: 3.85, sector: -1, profile: 'pylon' },
+    { ...radial(team.angle + Math.PI / 3, 7.8), w: 2.7, d: 2.7, h: 2.6, sector: -1, terrace: true },
+    { ...radial(team.angle + Math.PI / 3, 4.65), w: 2.3, d: 2.75, h: 2.38, sector, angle: team.angle + Math.PI / 3, terrace: true },
+    { ...radial(team.angle + Math.PI / 3, 26.5, 3), w: 2.1, d: 3.3, h: 1.8, sector, angle: team.angle + Math.PI / 3, profile: 'baffle' },
   ]),
   { x: 0, z: 0, w: 2.25, d: 2.25, h: 4.5, sector: -1, relay: true },
-];
+].map(box => ({ ...box, cos: Math.cos(box.angle ?? 0), sin: Math.sin(box.angle ?? 0) }));
+
+function coversPoint(box, x, z, radius) {
+  const dx = x - box.x;
+  const dz = z - box.z;
+  return Math.abs(dx * box.cos - dz * box.sin) < box.w / 2 + radius
+    && Math.abs(dx * box.sin + dz * box.cos) < box.d / 2 + radius;
+}
 
 export function blocked(x, z, radius = BODY_RADIUS, y = 0) {
   if (Math.abs(x) > MAP_SIZE - radius || Math.abs(z) > MAP_SIZE - radius) return true;
-  return COVER.some(b => y < b.h - 0.0001 && Math.abs(x - b.x) < b.w / 2 + radius && Math.abs(z - b.z) < b.d / 2 + radius);
+  return COVER.some(box => y < box.h - 0.0001 && coversPoint(box, x, z, radius));
 }
 
 export function movePlayer(player, input, dt = TICK) {
@@ -104,8 +112,7 @@ export function movePlayer(player, input, dt = TICK) {
   if (player.vy <= 0) {
     for (const obstacle of COVER) {
       if (currentY + 0.0001 >= obstacle.h
-        && Math.abs(player.x - obstacle.x) < obstacle.w / 2 + BODY_RADIUS * 0.9
-        && Math.abs(player.z - obstacle.z) < obstacle.d / 2 + BODY_RADIUS * 0.9) floor = Math.max(floor, obstacle.h);
+        && coversPoint(obstacle, player.x, player.z, BODY_RADIUS)) floor = Math.max(floor, obstacle.h);
     }
   }
   player.grounded = nextY <= floor;
@@ -152,9 +159,13 @@ export function rayBox(origin, direction, min, max) {
 export function wallDistance(origin, direction, limit = 65) {
   let distance = limit;
   for (const box of COVER) {
-    distance = Math.min(distance, rayBox(origin, direction,
-      { x: box.x - box.w / 2, y: 0, z: box.z - box.d / 2 },
-      { x: box.x + box.w / 2, y: box.h, z: box.z + box.d / 2 }));
+    const x = origin.x - box.x;
+    const z = origin.z - box.z;
+    distance = Math.min(distance, rayBox(
+      { x: x * box.cos - z * box.sin, y: origin.y, z: x * box.sin + z * box.cos },
+      { x: direction.x * box.cos - direction.z * box.sin, y: direction.y, z: direction.x * box.sin + direction.z * box.cos },
+      { x: -box.w / 2, y: 0, z: -box.d / 2 },
+      { x: box.w / 2, y: box.h, z: box.d / 2 }));
   }
   for (const axis of ['x', 'z']) {
     if (Math.abs(direction[axis]) > 0.000001) {

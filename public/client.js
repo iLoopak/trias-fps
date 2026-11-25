@@ -390,7 +390,7 @@ function resetCombatFeedback() {
   hitCaptionAnimation?.cancel();
   damageAnimation?.cancel();
   $('damage-directions').replaceChildren();
-  $('damage').classList.remove('critical');
+  $('health-card').classList.remove('critical');
   hitPriority = 0;
   lastDamageAudio = -1000;
 }
@@ -420,7 +420,8 @@ function receiveHit(dx, dz, hit) {
   const lateral = dx * Math.cos(view.yaw) - dz * Math.sin(view.yaw);
   const forward = -dx * Math.sin(view.yaw) - dz * Math.cos(view.yaw);
   const angle = Math.atan2(lateral, forward);
-  const shade = hit.health > 0 ? '#ff594c' : '#66c8ff';
+  const shield = hit.absorbed > 0 && !hit.eliminated;
+  const shade = shield ? '#66c8ff' : '#ff594c';
   const strength = Math.min(0.87, 0.29 + (hit.health + hit.absorbed) / 112);
   const damage = $('damage');
   damage.style.setProperty('--damage-color', shade);
@@ -440,7 +441,7 @@ function receiveHit(dx, dz, hit) {
   animation.onfinish = () => indicator.remove();
   if (performance.now() - lastDamageAudio > 58 || hit.eliminated) {
     lastDamageAudio = performance.now();
-    audio.damage(hit.health <= 0, hit.eliminated, Math.sin(angle) * 0.44);
+    audio.damage(shield, hit.eliminated, Math.sin(angle) * 0.44);
   }
 }
 
@@ -459,7 +460,8 @@ function addFeed(event) {
   const row = node('div');
   if (event.type === 'kill') {
     const attacker = node('b', event.attacker);
-    attacker.style.setProperty('--team', joined.mode === 'ffa' ? '#ffae72' : TEAMS[event.team].color);
+    const player = state.players.find(item => item.id === event.attackerId);
+    attacker.style.setProperty('--team', player ? pilotColor(player, joined.mode) : TEAMS[event.team].color);
     row.append(attacker, document.createTextNode(' › ' + event.victim));
   } else {
     row.textContent = event.text;
@@ -491,7 +493,7 @@ function updateHUD() {
   $('team-label').textContent = ffa ? 'PILOT' : team.name;
   const accent = pilotColor(own, joined.mode);
   $('health-card').style.setProperty('--team', accent);
-  $('damage').classList.toggle('critical', own.hp > 0 && own.hp <= 25);
+  $('health-card').classList.toggle('critical', own.hp > 0 && own.hp <= 25);
   $('health').textContent = own.hp;
   $('health-bar').style.width = own.hp + '%';
   $('armor').textContent = own.armor ? 'ŠTÍT ' + own.armor : '';
