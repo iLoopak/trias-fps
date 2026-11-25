@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a1013">
+  <title>TRIAS · Orbitální aréna</title>
+  <link rel="icon" type="image/jpeg" href="/orbit.jpg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main id="lobby" class="shell">
+    <header class="top">
+      <a class="brand" href="/" aria-label="TRIAS, hlavní stránka"><span class="mark" aria-hidden="true"></span>TRIAS</a>
+      <div class="top-right">
+        <span class="server"><i></i><span id="server-status">OVĚŘUJI SERVER</span></span>
+        <button class="quiet" type="button" data-help>Ovládání <span aria-hidden="true">↗</span></button>
+      </div>
+    </header>
+
+    <section class="hero" aria-labelledby="title">
+      <div class="hero-content">
+        <p class="eyebrow"><span></span> ORBITÁLNÍ ARÉNA</p>
+        <h1 id="title">TRIAS<span>.</span></h1>
+        <p class="hero-caption">Multiplayerová FPS. Tři týmy po čtyřech.</p>
+        <div class="team-legend" aria-label="Týmy" id="teams"></div>
+      </div>
+      <div class="hero-coordinate" aria-hidden="true"><span></span> MAPA <b>RELAY STATION</b></div>
+    </section>
+
+    <div class="setup">
+      <section class="config" aria-labelledby="mode-title">
+        <div class="section-head"><h2 id="mode-title">Herní režim</h2><span id="selected-format">4 VS 4 VS 4</span></div>
+        <div id="mode-list" class="mode-list" role="group" aria-label="Výběr herního režimu"></div>
+        <p id="mode-description" class="mode-description"></p>
+      </section>
+      <form id="join-form" class="join">
+        <div class="section-head"><h2>Místnost</h2><button type="button" id="new-code" class="link-button">Nový kód</button></div>
+        <div class="fields">
+          <label>Přezdívka<input id="nickname" name="nickname" maxlength="18" autocomplete="nickname" placeholder="Pilot"></label>
+          <label>Kód místnosti<input id="room" name="room" type="text" maxlength="24" minlength="3" pattern="[A-Za-z0-9\-]{3,24}" spellcheck="false" autocomplete="off" required></label>
+        </div>
+        <label class="checkbox"><input id="bots" type="checkbox" checked> Doplnit volná místa boty</label>
+        <button id="join-button" class="primary" type="submit">Vstoupit do arény <span aria-hidden="true">↗</span></button>
+        <p id="lobby-error" class="error" role="status" hidden></p>
+      </form>
+    </div>
+  </main>
+
+  <main id="game" class="game" hidden>
+    <canvas id="arena" tabindex="-1" aria-label="3D herní aréna"></canvas>
+    <div class="hud">
+      <div class="game-top">
+        <div class="match-label"><span class="mark" aria-hidden="true"></span><div><strong id="match-mode"></strong><small id="match-room"></small></div></div>
+        <div class="top-center"><strong id="clock">00:00</strong><div id="scores" class="scores"></div><div id="objectives" class="objectives"></div></div>
+        <div class="game-actions"><button type="button" id="invite">Pozvat <span aria-hidden="true">↗</span></button><button type="button" id="score-button" aria-expanded="false" aria-controls="scoreboard">Skóre</button></div>
+      </div>
+      <div id="feed" class="feed" aria-live="off"></div>
+      <div id="crosshair" class="crosshair" aria-hidden="true"></div>
+      <div id="hit-marker" class="hit-marker" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div id="hit-caption" class="hit-caption" aria-hidden="true"></div>
+      <div id="damage" class="damage" aria-hidden="true"></div>
+      <div id="damage-directions" class="damage-directions" aria-hidden="true"></div>
+      <div class="game-bottom">
+        <div id="health-card" class="readout health"><span id="team-label"></span><strong id="health">100</strong><small id="armor"></small><div class="health-track"><i id="health-bar"></i></div></div>
+        <div class="game-center-bottom">
+          <span id="combat-status" class="combat-status"></span>
+          <span id="pickup-feedback" class="pickup-feedback" hidden></span>
+          <div id="weapons" class="weapons" aria-label="Zbraně"></div>
+        </div>
+        <div class="readout ammo"><span id="weapon-name">PULSE</span><strong><b id="ammo">24</b><small id="reserve"></small></strong></div>
+      </div>
+    </div>
+
+    <section id="pause" class="game-overlay" aria-labelledby="pause-title">
+      <div class="overlay-card">
+        <p class="eyebrow"><span></span><b id="pause-tag">RELAY STATION</b></p>
+        <h2 id="pause-title">Připraven?</h2>
+        <p id="pause-note">Kliknutím převezmeš ovládání myši.</p>
+        <button id="resume" type="button" class="primary">Hrát <span aria-hidden="true">↗</span></button>
+        <button id="manual-aim" type="button" class="quiet" hidden>Hrát bez zámku myši</button>
+        <div class="overlay-actions"><button type="button" class="quiet" data-help>Ovládání</button><button type="button" class="quiet" id="leave">Opustit zápas</button></div>
+      </div>
+    </section>
+
+    <section id="scoreboard" class="game-overlay scoreboard" aria-labelledby="score-title" hidden>
+      <div class="overlay-card">
+        <div class="section-head"><h2 id="score-title">Výsledky</h2><button type="button" id="close-score" class="quiet">Zavřít</button></div>
+        <p id="occupancy"></p>
+        <div id="score-tables"></div>
+      </div>
+    </section>
+    <div id="toast" class="toast" role="status" hidden></div>
+  </main>
+
+  <dialog id="help">
+    <div class="section-head"><h2>Ovládání</h2><form method="dialog"><button class="quiet" aria-label="Zavřít nápovědu">✕</button></form></div>
+    <dl>
+      <div><dt>Pohyb</dt><dd><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dd></div>
+      <div><dt>Míření / střelba</dt><dd>Myš / levé tlačítko</dd></div>
+      <div><dt>Skok / dvojskok</dt><dd><kbd>Mezerník</kbd> / znovu ve vzduchu</dd></div>
+      <div><dt>Změnit zbraň</dt><dd><kbd>1</kbd>–<kbd>4</kbd></dd></div>
+      <div><dt>Sprint</dt><dd><kbd>Shift</kbd></dd></div>
+      <div><dt>Přebít</dt><dd><kbd>R</kbd></dd></div>
+      <div><dt>Tabulka skóre</dt><dd><kbd>Tab</kbd></dd></div>
+      <div><dt>Uvolnit myš</dt><dd><kbd>Esc</kbd></dd></div>
+    </dl>
+  </dialog>
+  <script type="module" src="/client.js"></script>
+</body>
+</html>
