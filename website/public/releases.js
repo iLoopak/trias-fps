@@ -35,7 +35,7 @@
       const published = new Date(release.published_at);
       status.textContent = [release.prerelease ? "Pre-release / experimental" : "Public release", release.tag_name, Number.isFinite(published.getTime()) ? published.toLocaleDateString("en", {dateStyle:"medium"}) : ""].filter(Boolean).join(" · ");
       const link = safeLink(release.html_url, "tag/");
-      if (link) { notes.href = link; notes.textContent = "Release notes ↗"; }
+      if (link) { notes.href = link; notes.textContent = "Release notes"; }
       for (const asset of assets(release)) {
         const li = document.createElement("li"), a = document.createElement("a"), body = document.createElement("span"), name = document.createElement("strong"), meta = document.createElement("small"), arrow = document.createElement("span");
         a.className = "asset"; a.href = safeLink(asset.browser_download_url, "download/");
@@ -44,7 +44,7 @@
         body.append(name, meta); a.append(body, arrow); li.append(a); list.append(li);
       }
       list.hidden = false;
-      const archive = document.createElement("a"); archive.href = "https://github.com/" + repo + "/releases"; archive.className = "button secondary"; archive.textContent = "All releases ↗"; notes.after(" ", archive);
+      if (link) { const archive = document.createElement("a"); archive.href = "https://github.com/" + repo + "/releases"; archive.className = "button secondary"; archive.textContent = "All releases"; notes.after(archive); }
     } catch { status.textContent = "Automatic release lookup is temporarily unavailable. Check GitHub Releases for available builds."; }
     finally { clearTimeout(timeout); }
   }
