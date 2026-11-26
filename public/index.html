@@ -7,6 +7,7 @@
   <title>TRIAS · Orbitální aréna</title>
   <link rel="icon" type="image/jpeg" href="/orbit.jpg">
   <link rel="stylesheet" href="/style.css">
+  <script type="importmap">{"imports":{"three":"/three.module.js"}}</script>
 </head>
 <body>
   <main id="lobby" class="shell">
@@ -57,7 +58,7 @@
       <div class="game-top">
         <div class="match-label"><span class="mark" aria-hidden="true"></span><div><strong id="match-mode"></strong><small id="match-room"></small></div></div>
         <div class="top-center"><strong id="clock">00:00</strong><div id="scores" class="scores"></div><div id="objectives" class="objectives"></div></div>
-        <div class="game-actions"><button type="button" id="invite">Pozvat <span aria-hidden="true">↗</span></button><button type="button" id="score-button" aria-expanded="false" aria-controls="scoreboard">Skóre</button></div>
+        <div class="game-actions"><span id="network-latency" title="Doba cesty na server a zpět" hidden></span><button type="button" id="invite">Pozvat <span aria-hidden="true">↗</span></button><button type="button" id="score-button" aria-expanded="false" aria-controls="scoreboard">Skóre</button></div>
       </div>
       <div class="tactical-map" id="tactical-map" hidden>
         <canvas id="minimap" width="228" height="228" aria-label="Minimapa, spojenci a cíle"></canvas>

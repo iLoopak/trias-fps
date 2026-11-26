@@ -1,4 +1,5 @@
 import { drawTacticalMap } from './tactical-map.js';
+import { NETWORK_VERSION, packInput, unpackSnapshot } from './netcode.js';
 import { boardingVehicle, moveVehicle, VEHICLES } from './vehicles.js';
 import { GameAudio } from './game-audio.js';
 import {
@@ -181,6 +182,8 @@ function endMatch(message = '') {
   manualAim = false;
   queue = [];
   seq = 0;
+  $('network-latency').hidden = true;
+  ping = undefined;
   lastScoreSignature = undefined;
   clearControls();
   game.hidden = scoreboard.hidden = true;
@@ -214,7 +217,7 @@ $('join-form').addEventListener('submit', async event => {
     if (socket === connection && !joined) endMatch('Server neodpověděl včas.');
   }, 5000);
   connection.addEventListener('open', () => connection.send(JSON.stringify({
-    type: 'join', room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
+    type: 'join', v: NETWORK_VERSION, room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
   })));
   connection.addEventListener('message', event => {
     if (socket !== connection) return;
@@ -224,7 +227,15 @@ $('join-form').addEventListener('submit', async event => {
       clearTimeout(timeout);
       onJoin(message);
     }
-    if (message.type === 'state' && joined) onState(message);
+    if (message.type === 'state' && joined) onState(unpackSnapshot(message));
+    if (message.type === 'pong' && ping?.id === message.id && ping.sent) {
+      const elapsed = performance.now() - ping.sent;
+      const latency = $('network-latency');
+      latency.textContent = Math.round(elapsed) + ' ms';
+      latency.classList.toggle('slow', elapsed >= 120);
+      latency.hidden = false;
+      ping.sent = null;
+    }
   });
   connection.addEventListener('close', () => {
     clearTimeout(timeout);
@@ -255,6 +266,8 @@ function onJoin(message) {
     return;
   }
   joined = message;
+  lastHUDUpdate = lastMapUpdate = lastEngineUpdate = -Infinity;
+  if (joined.v === NETWORK_VERSION) probeLatency();
   void audio.preload();
   chooseMode(message.mode);
   chooseMap(layout.id);
@@ -391,7 +404,7 @@ document.addEventListener('keydown', event => {
   }
   if (!event.repeat) {
     if (event.code === 'KeyR') reloadClick = true;
-    if (event.code === 'KeyF' && own?.weapon === 'scatter' && own.turret < 0) altClick = true;
+    if (event.code === 'KeyF' && own?.weapon === 'scatter' && own.turret < 0 && own.vehicle < 0) altClick = !sendTrigger(true);
     if (event.code === 'KeyG') grenadeClick = true;
     if (event.code === 'KeyE') useClick = true;
   }
@@ -428,7 +441,8 @@ document.addEventListener('mousedown', event => {
     previousAim = { x: event.clientX, y: event.clientY };
   }
   if (event.button === 0) {
-    isFiring = fireClick = true;
+    isFiring = true;
+    fireClick = !sendTrigger(false);
     const [rounds, reserve] = own.loadout[ARMORY.indexOf(own.weapon)];
     if (own.turret < 0 && own.vehicle < 0 && !own.reload) {
       if (rounds) arena.anticipate();
@@ -451,6 +465,22 @@ document.addEventListener('wheel', event => {
 }, { passive: false });
 
 const down = (a, b) => Number(keys.has(a) || keys.has(b));
+function sendTrigger(alt) {
+  if (joined?.v !== NETWORK_VERSION || socket?.readyState !== WebSocket.OPEN || socket.bufferedAmount >= 2048) return false;
+  socket.send(JSON.stringify({ type: 'trigger', yaw: view.yaw, pitch: view.pitch, alt }));
+  return true;
+}
+let lastHUDUpdate = -Infinity;
+let lastMapUpdate = -Infinity;
+let lastEngineUpdate = -Infinity;
+let ping;
+function probeLatency() {
+  if (joined?.v !== NETWORK_VERSION || socket?.readyState !== WebSocket.OPEN || socket.bufferedAmount >= 2048) return;
+  ping = { id: (ping?.id ?? 0) + 1, sent: performance.now() };
+  socket.send(JSON.stringify({ type: 'ping', id: ping.id }));
+}
+setInterval(probeLatency, 2500);
+
 setInterval(() => {
   if (!own || socket?.readyState !== WebSocket.OPEN || socket.bufferedAmount > 2048) return;
   const control = canControl() && scoreboard.hidden && own.hp && !state.winner;
@@ -466,7 +496,7 @@ setInterval(() => {
   };
   fireClick = reloadClick = jumpClick = dodgeClick = altClick = grenadeClick = useClick = false;
   weaponClick = null;
-  socket.send(JSON.stringify(input));
+  socket.send(JSON.stringify(joined.v === NETWORK_VERSION ? { type: 'input', data: packInput(input) } : input));
   queue.push(input);
   if (queue.length > 24) queue.shift();
   if (own.hp && !state.winner && own.turret < 0) {
@@ -487,6 +517,10 @@ function onState(message) {
   if (!player) return;
   const spawn = own?.spawn !== player.spawn;
   const mounted = own?.turret !== player.turret || own?.vehicle !== player.vehicle;
+  const immediateHUD = spawn || mounted || own?.hp !== player.hp || own?.armor !== player.armor
+    || own?.weapon !== player.weapon || own?.reload !== player.reload || own?.grenades !== player.grenades
+    || own?.loadout[ARMORY.indexOf(player.weapon)]?.[0] !== player.loadout[ARMORY.indexOf(player.weapon)]?.[0]
+    || state?.time !== message.time || Boolean(state?.winner) !== Boolean(message.winner);
   if (spawn || mounted) {
     view = { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch };
     queue = [];
@@ -540,9 +574,16 @@ function onState(message) {
       addFeed(event);
     }
   }
-  updateHUD();
-  if (!$('tactical-map').hidden) drawTacticalMap($('minimap'), layout, state, own, joined.mode, view.yaw);
-  if (!scoreboard.hidden) renderScoreboard();
+  const time = performance.now();
+  if (immediateHUD || time - lastHUDUpdate >= 90) {
+    updateHUD();
+    if (!scoreboard.hidden) renderScoreboard();
+    lastHUDUpdate = time;
+  }
+  if (!$('tactical-map').hidden && time - lastMapUpdate >= 80) {
+    drawTacticalMap($('minimap'), layout, state, own, joined.mode, view.yaw);
+    lastMapUpdate = time;
+  }
 }
 
 function spatial(position) {
@@ -834,16 +875,19 @@ function frame(time) {
   const dt = Math.max(0, Math.min(0.1, (time - lastFrame) / 1000));
   lastFrame = time;
   if (own && !game.hidden) {
-    const blend = 1 - Math.exp(-dt * 29);
+    const blend = 1 - Math.exp(-dt * 47);
     const motion = predictedVehicle ?? predicted;
     view.x += (motion.x - view.x) * blend;
     view.y += (predicted.y - view.y) * blend;
     view.z += (motion.z - view.z) * blend;
-    if (predictedVehicle) {
-      $('drive-speed').textContent = Math.round(Math.abs(predictedVehicle.speed) * 3.6) + ' km/h';
-      if (predictedVehicle.kind === 'skimmer') $('drive-ability').textContent = 'SHIFT · TURBO ' + Math.round(predictedVehicle.boost * 100) + ' %';
+    if (time - lastEngineUpdate >= 80) {
+      lastEngineUpdate = time;
+      if (predictedVehicle) {
+        $('drive-speed').textContent = Math.round(Math.abs(predictedVehicle.speed) * 3.6) + ' km/h';
+        if (predictedVehicle.kind === 'skimmer') $('drive-ability').textContent = 'SHIFT · TURBO ' + Math.round(predictedVehicle.boost * 100) + ' %';
+      }
+      audio.engine(predictedVehicle);
     }
-    audio.engine(predictedVehicle);
     const readiness = Math.max(0, 1 - predicted.dodgeCooldown / DODGE_COOLDOWN);
     const dodge = $('dodge-ready');
     dodge.style.transform = 'scaleX(' + (own.hp ? readiness : 0) + ')';

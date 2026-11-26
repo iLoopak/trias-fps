@@ -6,6 +6,7 @@ import { botInput } from './bots.js';
 import { Fleet } from './fleet.js';
 import { Siege } from './siege.js';
 import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
+import { NETWORK_VERSION, packSnapshot } from './public/netcode.js';
 
 const EMPTY = { x: 0, z: 0, sprint: false, fire: false, reload: false, jump: false, dodge: false, crouch: false };
 const BOT_CHARACTERS = Object.keys(CHARACTERS);
@@ -21,6 +22,7 @@ export class Match {
     this.players = new Map();
     this.humans = new Set();
     this.events = [];
+    this.legacyEvents = [];
     this.nextProjectile = 0;
     this.tickNumber = 0;
     this.fleet = new Fleet(this);
@@ -123,9 +125,9 @@ export class Match {
   }
 
   input(player, message, now) {
-    if (!Number.isSafeInteger(message.seq) || message.seq <= player.ack
+    if (!Number.isSafeInteger(message.seq) || message.seq <= (player.receivedSeq ?? player.ack)
       || !['x', 'z', 'yaw', 'pitch'].every(key => Number.isFinite(message[key]))) return;
-    player.ack = message.seq;
+    player.receivedSeq = message.seq;
     player.inputAt = now;
     player.input = {
       x: Math.max(-1, Math.min(1, message.x)), z: Math.max(-1, Math.min(1, message.z)),
@@ -140,6 +142,17 @@ export class Match {
     player.grenadeRequest ||= message.grenade === true;
     player.useRequest ||= message.use === true;
     if (typeof message.weapon === 'string' && Object.hasOwn(WEAPONS, message.weapon)) player.weaponRequest = message.weapon;
+  }
+
+  trigger(player, message, now) {
+    if (player.hp <= 0 || this.restartAt || !Number.isFinite(message.yaw) || !Number.isFinite(message.pitch)) return;
+    player.triggerAim = {
+      yaw: message.yaw % (Math.PI * 2),
+      pitch: Math.max(-1.48, Math.min(1.48, message.pitch)),
+      time: now,
+    };
+    if (message.alt === true) player.altRequest = true;
+    else player.fireRequest = true;
   }
 
   hostile(attacker, target) {
@@ -500,6 +513,7 @@ export class Match {
 
   step(now) {
     this.tickNumber++;
+    for (const socket of this.humans) socket.player.ack = socket.player.receivedSeq ?? socket.player.ack;
     if (this.restartAt && now >= this.restartAt) this.reset(now);
     if (!this.restartAt) {
       for (const turret of this.turrets) {
@@ -511,7 +525,10 @@ export class Match {
           if (now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
           continue;
         }
-        const input = player.bot ? botInput(this, player, now) : now - player.inputAt < 0.24 ? player.input : EMPTY;
+        let input = player.bot ? botInput(this, player, now) : now - player.inputAt < 0.24 ? player.input : EMPTY;
+        if (player.triggerAim && (now - player.triggerAim.time) <= 0.12 && player.triggerAim.time >= player.inputAt) {
+          input = { ...input, yaw: player.triggerAim.yaw, pitch: player.triggerAim.pitch };
+        }
         if ((player.useRequest || input.use) && !this.fleet.use(player, now)) this.useTurret(player, now);
         if (player.vehicle >= 0) {
           this.fleet.drive(player, input, now);
@@ -573,16 +590,34 @@ export class Match {
       this.siege?.step();
       this.checkEnd(now);
     }
-    if (this.tickNumber % 2 === 0) this.broadcast(now);
+    this.broadcast(now);
   }
 
   clearRequests(player) {
     player.fireRequest = player.reloadRequest = player.jumpRequest = player.dodgeRequest = false;
     player.altRequest = player.grenadeRequest = player.useRequest = false;
     player.weaponRequest = null;
+    player.triggerAim = null;
   }
 
   broadcast(now) {
+    const legacyTick = this.tickNumber % 2 === 0;
+    const modern = [];
+    const legacy = [];
+    for (const socket of this.humans) {
+      if (socket.readyState !== 1) continue;
+      if (socket.bufferedAmount >= 65_536) {
+        socket.terminate();
+        continue;
+      }
+      (socket.protocolVersion === NETWORK_VERSION ? modern : legacy).push(socket);
+    }
+    if (!legacyTick && !modern.length) return;
+    if (legacy.length) this.legacyEvents.push(...this.events);
+    if (!modern.length && !legacy.length) {
+      this.events.length = this.legacyEvents.length = 0;
+      return;
+    }
     const players = [...this.players.values()].map(p => ({
       id: p.id, name: p.name, team: p.team, slot: p.slot, character: p.character, bot: p.bot, x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100,
       y: Math.round(p.y * 1000) / 1000, vx: p.vx, vy: p.vy, vz: p.vz, grounded: p.grounded, airJump: p.airJump,
@@ -591,7 +626,7 @@ export class Match {
       loadout: ARMORY.map(key => p.loadout[key] ? [p.loadout[key].ammo, Number.isFinite(p.loadout[key].reserve) ? p.loadout[key].reserve : -1] : null), kills: p.kills, deaths: p.deaths, spawn: p.spawn, ack: p.ack,
       respawn: Math.max(0, p.respawnAt - now), reload: p.reloadAt > now, reloadRemaining: Math.max(0, p.reloadAt - now), shield: p.safeUntil > now,
     }));
-    const message = JSON.stringify({
+    const state = {
       type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), time: Math.max(0, Math.ceil(this.endsAt - now)),
       points: this.mode === 'dom' ? this.points : undefined, flags: this.mode === 'ctf' ? this.flags : undefined,
       pickups: this.pickups.map(time => Math.max(0, Math.ceil(time - now))),
@@ -601,9 +636,17 @@ export class Match {
         id: shot.id, weapon: shot.weapon, x: shot.position.x, y: shot.position.y, z: shot.position.z,
         fuse: shot.fuseAt === undefined ? undefined : Math.max(0, shot.fuseAt - now),
       })), winner: this.restartAt ? this.winner : null, restart: Math.max(0, Math.ceil(this.restartAt - now)), events: this.events,
-    });
-    for (const socket of this.humans) {
-      if (socket.readyState === 1 && socket.bufferedAmount < 160_000) socket.send(message);
+    };
+    if (modern.length) {
+      const message = JSON.stringify(packSnapshot(state, this.tickNumber, now));
+      for (const socket of modern) socket.send(message);
+    }
+    if (legacyTick) {
+      if (legacy.length) {
+        const message = JSON.stringify({ ...state, events: this.legacyEvents });
+        for (const socket of legacy) socket.send(message);
+      }
+      this.legacyEvents.length = 0;
     }
     this.events.length = 0;
   }

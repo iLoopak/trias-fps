@@ -5,6 +5,7 @@ import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
 import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, TICK, roomCode } from './public/rules.js';
 import { Match } from './match.js';
+import { NETWORK_VERSION, unpackInput } from './public/netcode.js';
 
 const files = new Map([
   ...['pulse', 'scatter', 'lance', 'arc', 'pickup'].map(name => [
@@ -13,6 +14,8 @@ const files = new Map([
   ['/', ['public/index.html', 'text/html']], ['/style.css', ['public/style.css', 'text/css']],
   ['/client.js', ['public/client.js', 'text/javascript']], ['/arena.js', ['public/arena.js', 'text/javascript']],
   ['/pilot.js', ['public/pilot.js', 'text/javascript']],
+  ['/netcode.js', ['public/netcode.js', 'text/javascript']],
+  ['/snapshot-clock.js', ['public/snapshot-clock.js', 'text/javascript']],
   ['/pilot-portraits.png', ['public/pilot-portraits.png', 'image/png']],
   ['/weapon-motion.js', ['public/weapon-motion.js', 'text/javascript']],
   ['/game-audio.js', ['public/game-audio.js', 'text/javascript']],
@@ -33,6 +36,7 @@ const files = new Map([
   ['/bulkhead.jpg', ['public/bulkhead.jpg', 'image/jpeg']],
   ['/three.module.js', ['node_modules/three/build/three.module.min.js', 'text/javascript']],
   ['/three.core.min.js', ['node_modules/three/build/three.core.min.js', 'text/javascript']],
+  ['/geometry-utils.js', ['node_modules/three/examples/jsm/utils/BufferGeometryUtils.js', 'text/javascript']],
 ]);
 const assets = new Map(await Promise.all([...files].map(async ([route, [file, type]]) =>
   [route, { type, data: await readFile(new URL(file, import.meta.url)) }],
@@ -98,7 +102,14 @@ wss.on('connection', socket => {
     try { message = JSON.parse(data); } catch { return; }
     if (!message || typeof message !== 'object') return;
     if (socket.room) {
-      if (message.type === 'input') socket.room.input(socket.player, message, time);
+      if (message.type === 'input') {
+        const input = socket.protocolVersion === NETWORK_VERSION ? unpackInput(message.data) : message;
+        if (input) socket.room.input(socket.player, input, time);
+      }
+      if (socket.protocolVersion === NETWORK_VERSION && message.type === 'trigger') socket.room.trigger(socket.player, message, time);
+      if (message.type === 'ping' && Number.isSafeInteger(message.id) && socket.bufferedAmount < 8192) {
+        socket.send(JSON.stringify({ type: 'pong', id: message.id }));
+      }
       return;
     }
     if (message.type !== 'join') return;
@@ -117,7 +128,8 @@ wss.on('connection', socket => {
     }
     if (!room.join(socket, name || 'Pilot', time, pick(CHARACTERS, message.character, DEFAULT_CHARACTER))) return reject(socket, 'Místnost už má 12 hráčů.');
     socket.room = room;
-    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: CAPACITY }));
+    socket.protocolVersion = message.v === NETWORK_VERSION ? NETWORK_VERSION : 1;
+    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: CAPACITY, v: socket.protocolVersion }));
   });
   socket.on('close', () => {
     const room = socket.room;

@@ -242,6 +242,8 @@ kbd { background: #070e11; border: 1px solid var(--line); color: var(--paper); p
 .pilot-preset[aria-pressed="true"] i { border-color: var(--accent); }
 #weapon-action { color: #bfcbcd; font-size: 9px; letter-spacing: .055em; }
 #ammo.dry { color: #ff8b6c; }
+#network-latency { align-self: center; color: #adbec8; font: 600 10px monospace; white-space: nowrap; }
+#network-latency.slow { color: #ffad72; }
 @media (max-width: 560px) { .lobby-options { grid-template-columns: 1fr; gap: 9px; } }
 
 .map-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }

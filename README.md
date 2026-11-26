@@ -17,6 +17,8 @@ Na stejné síti použijte LAN adresu, kterou vypíše server. Zakladatel otevř
 
 Pro hraní přes internet spusť projekt na hostingu, který umí provozovat Node.js a WebSockety. HTTP i WebSocket cesta `/play` musí směřovat na stejný běžící server. Při použití reverzní proxy zachovej původní hlavičku `Host` a předávej WebSocket upgrade. Repo na GitHubu slouží k uložení zdrojáků. Multiplayer vyžaduje běžící Node.js server.
 
+Server simuluje 30 kroků za sekundu. Aktuální klient přijímá kompaktní snímek stavu po každém kroku. Vlastní pohyb předpovídá lokálně, vzdálené piloty vykresluje podle snímků se zásobou, která se přizpůsobuje kolísání doručení. Zobrazený ping měří cestu zprávy na server a zpět. Výstřel vyhodnocuje server ve svém aktuálním kroku.
+
 Vercel Functions podporují WebSockety, ale dvě připojení mohou skončit v různých instancích a spojení mají časový limit. Současné místnosti existují v paměti jednoho procesu. Pro samostatný deploy na Vercel by hra potřebovala sdílený stav, jednoho koordinátora simulace na místnost a obnovení spojení. [Dokumentace Vercelu](https://vercel.com/kb/guide/do-vercel-serverless-functions-support-websocket-connections)
 
 ## Mapy a piloti

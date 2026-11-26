@@ -2,6 +2,7 @@ import * as THREE from '/three.module.js';
 import { installIsland } from './island.js';
 import { buildPilot, pilotShell, posePilot } from './pilot.js';
 import { recoilPose, reloadPose } from './weapon-motion.js';
+import { presentedPose, rememberPose, SnapshotClock } from './snapshot-clock.js';
 import { SiegeView } from './siege-view.js';
 import { buildGarageView } from './vehicle-view.js';
 import { vehicleAimFrame, VEHICLES, wrapAngle } from './vehicles.js';
@@ -641,7 +642,11 @@ export class Arena {
       graphite.bumpScale = 0.025;
     }
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
+    this.maxResolution = Math.min(devicePixelRatio, 1.6);
+    this.resolution = this.maxResolution;
+    this.renderer.setPixelRatio(this.resolution);
+    this.frameCost = 16.7;
+    this.resolutionCheck = performance.now() + 2600;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -680,6 +685,7 @@ export class Arena {
     this.weapon = viewModel(this.camera);
     this.effects = new ArenaEffects(this.scene, this.camera, this.weapon.muzzle);
     this.pilots = new Map();
+    this.snapshotClock = new SnapshotClock();
     this.corpses = [];
     this.previous = performance.now();
   }
@@ -701,6 +707,7 @@ export class Arena {
   }
 
   reset() {
+    this.snapshotClock = new SnapshotClock();
     for (const corpse of this.corpses) corpse.model.root.removeFromParent();
     this.corpses.length = 0;
     for (const model of this.pilots.values()) this.scene.remove(model.root);
@@ -718,6 +725,7 @@ export class Arena {
   }
 
   snapshot(state, own, mode) {
+    const gap = this.snapshotClock.receive(state.at, performance.now());
     if (this.weapon.pilot !== own.character) {
       this.weapon.pilot = own.character;
       for (const cuff of this.weapon.cuffs) cuff.material = pilotShell(own.character);
@@ -729,10 +737,16 @@ export class Arena {
       const accent = pilotColor(player, mode);
       if (!this.pilots.has(player.id)) {
         const model = buildPilot(uniform(accent), mode !== 'ffa' && player.team === own.team, player.character);
+        model.history = [];
+        model.presentation = {};
         this.pilots.set(player.id, model);
         this.scene.add(model.root);
       }
       const model = this.pilots.get(player.id);
+      if (gap || model.spawn !== player.spawn || model.target?.vehicle !== player.vehicle || !model.target?.hp) {
+        model.history.length = 0;
+      }
+      rememberPose(model.history, state.at, player);
       if (model.spawn !== player.spawn) {
         model.root.position.set(player.x, player.y, player.z);
         model.root.rotation.y = player.yaw;
@@ -946,9 +960,21 @@ export class Arena {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
     }
-    const dt = Math.max(0, Math.min(0.1, (time - this.previous) / 1000));
+    const frameMs = time - this.previous;
+    const dt = Math.max(0, Math.min(0.1, frameMs / 1000));
     const blend = 1 - Math.exp(-dt * 17);
     this.previous = time;
+    if (frameMs > 0 && frameMs < 130) this.frameCost += (frameMs - this.frameCost) * 0.035;
+    if (time >= this.resolutionCheck) {
+      const floor = Math.min(this.maxResolution, 0.78);
+      const step = this.frameCost > 22 ? -0.16 : this.frameCost < 17.2 ? 0.10 : 0;
+      const next = THREE.MathUtils.clamp(this.resolution + step, floor, this.maxResolution);
+      if (next !== this.resolution) {
+        this.resolution = next;
+        this.renderer.setPixelRatio(next);
+      }
+      this.resolutionCheck = time + (step > 0 ? 5900 : 2200);
+    }
     const speed = Math.hypot(motion.vx ?? 0, motion.vz ?? 0);
     const lateral = (motion.vx ?? 0) * Math.cos(view.yaw) - (motion.vz ?? 0) * Math.sin(view.yaw);
     const active = own.hp > 0;
@@ -1015,9 +1041,18 @@ export class Arena {
         mesh.userData.coilSkin.opacity = 0.42 + recoil.flash * 0.46;
       }
     });
+    const remoteTime = this.snapshotClock.time(time);
     for (const model of this.pilots.values()) {
       const { root, target } = model;
       if (!root.visible) continue;
+      if (presentedPose(model.history, remoteTime, model.presentation)) {
+        const pose = model.presentation;
+        root.position.set(pose.x, pose.y, pose.z);
+        root.rotation.y = pose.yaw;
+        if (model.marker) model.marker.rotation.y = view.yaw - root.rotation.y;
+        posePilot(model, pose, dt, time, this.layout.terrain);
+        continue;
+      }
       root.position.x += (target.x - root.position.x) * blend;
       root.position.y += (target.y - root.position.y) * blend;
       root.position.z += (target.z - root.position.z) * blend;

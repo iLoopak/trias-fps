@@ -1,4 +1,5 @@
 import * as THREE from '/three.module.js';
+import { mergeGeometries } from '/geometry-utils.js';
 
 const clamp = THREE.MathUtils.clamp;
 const mix = THREE.MathUtils.lerp;
@@ -55,6 +56,36 @@ function group(parent, x = 0, y = 0, z = 0) {
   result.position.set(x, y, z);
   parent.add(result);
   return result;
+}
+
+const bakedParts = new Map();
+function batchArmor(group) {
+  const byMaterial = new Map();
+  for (const mesh of group.children) {
+    if (!mesh.isMesh || !mesh.geometry || mesh.children.length) continue;
+    const bucket = byMaterial.get(mesh.material) ?? [];
+    bucket.push(mesh);
+    byMaterial.set(mesh.material, bucket);
+  }
+  for (const [material, parts] of byMaterial) {
+    if (parts.length < 2) continue;
+    for (const mesh of parts) mesh.updateMatrix();
+    const key = parts.map(mesh => mesh.geometry.id + '/' + mesh.matrix.elements.join(',')).join(';');
+    let geometry = bakedParts.get(key);
+    if (!geometry) {
+      const copies = parts.map(mesh => {
+        const shape = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+        return shape.applyMatrix4(mesh.matrix);
+      });
+      geometry = mergeGeometries(copies);
+      copies.forEach(shape => shape.dispose());
+      bakedParts.set(key, geometry);
+    }
+    const combined = new THREE.Mesh(geometry, material);
+    combined.castShadow = parts.some(mesh => mesh.castShadow);
+    group.remove(...parts);
+    group.add(combined);
+  }
 }
 
 function headDetails(head, id, kit, { armor, detail }) {
@@ -200,6 +231,9 @@ export function buildPilot(paint, ally, id) {
     chevron.closePath();
     marker = new THREE.Mesh(new THREE.ShapeGeometry(chevron), detail);
     root.add(marker);
+  }
+  for (const segment of [torso, head, ...limbs.flatMap(leg => [leg.upper, leg.lower, leg.foot]), ...arms.flatMap(arm => [arm.upper, arm.lower])]) {
+    batchArmor(segment);
   }
   return { root, body, torso, head, weapon, limbs, arms, kit, marker, phase: 0, gait: 0, crouch: 0, pace: 0, shotAt: -1000, actionAt: -1000 };
 }
