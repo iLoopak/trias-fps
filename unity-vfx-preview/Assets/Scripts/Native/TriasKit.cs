@@ -125,6 +125,44 @@ namespace Trias.Native
             return true;
         }
 
+        internal bool Spacecraft(Transform parent, string file, float length, Material hull,
+            Material armor, Material glass, Material markings)
+        {
+            var item = Place(parent, "Space/" + file, Quaternion.identity, out var bounds);
+            if (item == null) return false;
+            float scale = length / Mathf.Max(.001f, bounds.size.z);
+            item.localScale = Vector3.one * scale;
+            item.localPosition = -bounds.center * scale;
+            PaintSpaceModel(item, (hull, armor, glass, markings));
+            return true;
+        }
+
+        internal bool SpaceFixture(Transform parent, string file, Vector3 size, Vector3 at, float yaw,
+            (Material Hull, Material Frame, Material Glass, Material Trim) paint)
+        {
+            var item = Sized(parent, "Space/" + file, size, at, yaw);
+            if (item == null) return false;
+            PaintSpaceModel(item, paint);
+            return true;
+        }
+
+        static void PaintSpaceModel(Transform item, (Material Hull, Material Frame, Material Glass, Material Trim) paint)
+        {
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>())
+            {
+                var surfaces = renderer.sharedMaterials;
+                for (int i = 0; i < surfaces.Length; i++)
+                    surfaces[i] = surfaces[i]?.name switch
+                    {
+                        "metalDark" => paint.Frame,
+                        "dark" => paint.Glass,
+                        "metalRed" => paint.Trim,
+                        _ => paint.Hull
+                    };
+                renderer.sharedMaterials = surfaces;
+            }
+        }
+
         Transform Sized(Transform parent, string resource, Vector3 size, Vector3 at, float yaw)
         {
             var item = Place(parent, resource, Quaternion.Euler(0, yaw, 0), out var bounds);

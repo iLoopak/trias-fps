@@ -19,18 +19,22 @@ namespace Trias.Native
             if (shader == null || !shader.isSupported) return;
             orbitalSky = new Material(shader);
             Paint.Add(orbitalSky);
-            string horizon = Spec.id switch
+            var sky = Spec.id switch
             {
-                "foundry" => "#4c2b32",
-                "basin" => "#594441",
-                "island" => "#b0d6cf",
-                _ => "#30455c"
+                "foundry" => (1f, "#190f1c", "#4c2b32", "#ff9966", "#9a513e", new Vector4(-.42f, .36f, 1, .235f)),
+                "basin" => (2f, "#14212a", "#4f493e", "#d7c99d", "#7a927e", new Vector4(.39f, .50f, 1, .33f)),
+                "island" => (0f, "#517eab", "#b0d6cf", "#fff2cb", "#385064", Vector4.zero),
+                _ => (0f, "#0b1027", "#293456", "#b6bcff", "#385064", Vector4.zero)
             };
-            orbitalSky.SetColor("_Zenith", Catalog.Tint(island ? "#517eab" : "#0c1428"));
+            var (scene, zenith, horizon, light, body, planet) = sky;
+            orbitalSky.SetFloat("_SkyScene", scene);
+            orbitalSky.SetColor("_Zenith", Catalog.Tint(zenith));
             orbitalSky.SetColor("_Horizon", Catalog.Tint(horizon));
-            orbitalSky.SetColor("_LightColor", Catalog.Tint(island ? "#fff2cb" : "#f6b57b"));
-            orbitalSky.SetColor("_Body", Catalog.Tint(Spec.id == "basin" ? "#594543" : "#385064"));
-            orbitalSky.SetVector("_Planet", new Vector4(-.78f, .31f, .53f, .32f));
+            orbitalSky.SetColor("_LightColor", Catalog.Tint(light));
+            orbitalSky.SetColor("_Body", Catalog.Tint(body));
+            orbitalSky.SetVector("_Planet", planet);
+            if (Spec.id == "relay")
+                orbitalSky.SetTexture("_GalaxyTex", Resources.Load<Texture2D>("TRIAS/relay-galaxy"));
             if (island) orbitalSky.SetVector("_SunDirection", IslandSun);
             orbitalSky.SetFloat("_Daylight", island ? 1 : 0);
             RenderSettings.skybox = orbitalSky;
@@ -46,7 +50,7 @@ namespace Trias.Native
             {
                 var bank = Group(Root, "Exterior radiator bank");
                 bank.rotation = Quaternion.Euler(0, side * 90, 0);
-                for (int i = -2; i <= 2; i++)
+                for (int i = -2; side != 0 && i <= 2; i++)
                 {
                     if (i == 0) continue;
                     float x = i * edge * .38f;

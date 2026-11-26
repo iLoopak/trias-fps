@@ -18,6 +18,8 @@ V nabídce **Esc** můžeš upravit zorné pole, citlivost myši, pohyb kamery, 
 
 Světelné efekty ovládají přízemní mlhu, bloom a paprsky rozptýleného světla. Využívají hloubku obrazu a mají vlastní barvy a intenzitu pro každou arénu. Vantu rámují tavicí komora a vysoké výduchy, Meridian Basin pohyblivé těžební stroje a Mechový ostrov má chladný opar v nížinách.
 
+Relay Station má pás galaxie, Vanta Foundry zatmění s oranžovou korónou a Meridian Basin planetu s prstenci. Textura `Assets/Resources/TRIAS/relay-galaxy.jpg` vznikla v ImageGen podle obrazové reference a zadání vytvořit široký pás hvězd s kobaltovým a fialovým prachem, jemným teplým jádrem a tmavými okraji pro přechod do oblohy.
+
 Za **3, 5, 7 a 9 osobních vyřazení v jednom životě** se postupně odemykají odměny. **6** zobrazí na 8 sekund soupeře na radaru. **7** spustí polní modul pro okolní spoluhráče. Vektor léčí, Bašta přidává štít, Přízrak doplňuje munici a Poštolka přidává granát a menší štít. **8** označí zem pro orbitální úder s dvousekundovým varováním. **9** přidá štít a na 12 sekund zvýší poškození. Vyřazení ruší nevyužité odměny.
 
 Rozhraní používá [Chakra Petch](https://github.com/google/fonts/tree/main/ofl/chakrapetch) a [Barlow Semi Condensed](https://github.com/google/fonts/tree/main/ofl/barlowsemicondensed) pod licencí SIL Open Font License. Licenční soubory jsou v `Assets/Resources/TRIAS/Fonts`.
@@ -33,8 +35,9 @@ Pro společný vývoj verzuj `Assets` včetně `.meta`, `Packages` a `ProjectSet
 - Pět modelů zbraní včetně Riftu pochází z [Kenney Blaster Kit](https://kenney.nl/assets/blaster-kit). Sdílejí atlas s doplněnými svítícími prvky pro výbavu TRIAS.
 - Čtyři třídy pilotů vycházejí z rigovaného kyborga a animačních klipů [Kenney Animated Characters Protagonists](https://kenney.nl/assets/animated-characters-protagonists). Třídy rozlišují siluety, výzbroj a úpravy obleku. Tým určují barevné prvky brnění.
 - Mechový ostrov používá stromy, skály, keře a květiny z [Kenney Nature Kit](https://kenney.nl/assets/nature-kit). Terén a poloha překážek vycházejí z herní mapy.
+- Mateřská loď, doprovodné stíhačky a těžební čluny používají modely z [Kenney Space Kit](https://kenney.nl/assets/space-kit) s materiály a doplňky pro TRIAS. Ze stejné sady jsou servisní hangáry a sledovací anténa na Relay Station, chladicí moduly ve Vanta Foundry a nákladní monorail v Meridian Basin. Stavby stojí za hranou arén.
 
-Všechny tři balíčky mají licenci CC0. Původní licenční soubory jsou u vybraných modelů v `Assets/Resources/TRIAS/Kit`.
+Všechny čtyři balíčky mají licenci CC0. Původní licenční soubory jsou u vybraných modelů v `Assets/Resources/TRIAS/Kit`.
 
 ## Obrana jádra
 

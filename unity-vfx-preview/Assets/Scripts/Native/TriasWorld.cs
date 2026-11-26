@@ -54,7 +54,7 @@ namespace Trias.Native
             lamp.color = sunColor;
             lamp.shadows = LightShadows.Soft;
             lamp.shadowStrength = 0.69f;
-            lamp.transform.rotation = Quaternion.Euler(47, -31, 0);
+            lamp.transform.rotation = island ? Quaternion.LookRotation(-IslandSun) : Quaternion.Euler(47, -31, 0);
 
             Dark = MaterialAt("#182332");
             Steel = MaterialAt("#8091a9", false, "armor");
@@ -74,7 +74,11 @@ namespace Trias.Native
                 TeamLight[i] = MaterialAt(catalog.teams[i].color, true);
             }
             if (island) Meadow();
-            else Station();
+            else
+            {
+                Station();
+                BuildOrbitalTraffic();
+            }
 
             foreach (var box in Spec.cover)
             {
@@ -204,6 +208,7 @@ namespace Trias.Native
                 }
             }
             BuildInfrastructure();
+            BuildStationDistrict();
             if (basin)
             {
                 BuildMiningRigs();
@@ -415,6 +420,8 @@ namespace Trias.Native
         internal void Animate(float time)
         {
             AnimateLandmark(time);
+            AnimateOrbitalTraffic(time);
+            AnimateStationDistrict(time);
             for (int i = 0; i < spinning.Count; i++)
             {
                 var item = spinning[i];
