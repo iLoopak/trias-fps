@@ -18,3 +18,6 @@ This is not a hosted multiplayer server. The existing Node.js WebSocket server n
 
 ## Artwork
 The hero and Relay card reuse existing repository artwork from public/orbit.jpg and unity-vfx-preview/Assets/Resources/TRIAS/relay-eclipse.jpg respectively. Copies are stored under website/public/assets for a self-contained Vercel root. Other arena backgrounds are abstract CSS motifs, not gameplay screenshots. Replace these with verified actual gameplay captures as the art direction evolves. The website uses no external fonts or stock images. Verify redistribution rights for game assets before a public release.
+
+## Design polish
+See DESIGN.md for visual direction, asset provenance and remaining visual QA. The site now uses the actual Unity pilot portrait atlas and a supplied early gameplay capture on Moss Island. Parallax runs only when enabled by the viewport and user motion preferences. No build dependencies were added.
