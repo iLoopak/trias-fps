@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
-import { CAPACITY, DEFAULT_MODE, MODES, TICK, roomCode } from './public/rules.js';
+import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, TICK, roomCode } from './public/rules.js';
 import { Match } from './match.js';
 
 const files = new Map([
@@ -12,9 +12,24 @@ const files = new Map([
   ]),
   ['/', ['public/index.html', 'text/html']], ['/style.css', ['public/style.css', 'text/css']],
   ['/client.js', ['public/client.js', 'text/javascript']], ['/arena.js', ['public/arena.js', 'text/javascript']],
+  ['/pilot.js', ['public/pilot.js', 'text/javascript']],
+  ['/pilot-portraits.png', ['public/pilot-portraits.png', 'image/png']],
+  ['/weapon-motion.js', ['public/weapon-motion.js', 'text/javascript']],
   ['/game-audio.js', ['public/game-audio.js', 'text/javascript']],
+  ['/island.js', ['public/island.js', 'text/javascript']],
+  ['/island-terrain.js', ['public/island-terrain.js', 'text/javascript']],
+  ['/meadow.jpg', ['public/meadow.jpg', 'image/jpeg']],
+  ['/siege-view.js', ['public/siege-view.js', 'text/javascript']],
+  ['/tactical-map.js', ['public/tactical-map.js', 'text/javascript']],
+  ['/vehicle-view.js', ['public/vehicle-view.js', 'text/javascript']],
+  ['/vehicles.js', ['public/vehicles.js', 'text/javascript']],
+  ['/basin.jpg', ['public/basin.jpg', 'image/jpeg']],
+  ['/station.js', ['public/station.js', 'text/javascript']],
   ['/effects.js', ['public/effects.js', 'text/javascript']],
   ['/rules.js', ['public/rules.js', 'text/javascript']], ['/orbit.jpg', ['public/orbit.jpg', 'image/jpeg']],
+  ['/armor.jpg', ['public/armor.jpg', 'image/jpeg']],
+  ['/foundry-deck.jpg', ['public/foundry-deck.jpg', 'image/jpeg']],
+  ['/deck.jpg', ['public/deck.jpg', 'image/jpeg']],
   ['/bulkhead.jpg', ['public/bulkhead.jpg', 'image/jpeg']],
   ['/three.module.js', ['node_modules/three/build/three.module.min.js', 'text/javascript']],
   ['/three.core.min.js', ['node_modules/three/build/three.core.min.js', 'text/javascript']],
@@ -23,6 +38,7 @@ const assets = new Map(await Promise.all([...files].map(async ([route, [file, ty
   [route, { type, data: await readFile(new URL(file, import.meta.url)) }],
 )));
 const rooms = new Map();
+const pick = (options, value, fallback) => typeof value === 'string' && Object.hasOwn(options, value) ? value : fallback;
 const now = () => performance.now() / 1000;
 const server = createServer((request, response) => {
   const route = (request.url ?? '').split('?')[0];
@@ -93,13 +109,15 @@ wss.on('connection', socket => {
     let room = rooms.get(code);
     if (!room) {
       if (rooms.size >= 16) return reject(socket, 'Server má plno. Zkus existující místnost.');
-      room = new Match(code, typeof message.mode === 'string' && Object.hasOwn(MODES, message.mode) ? message.mode : DEFAULT_MODE, message.bots !== false);
+      const mode = pick(MODES, message.mode, DEFAULT_MODE);
+      const arena = MODES[mode].arena ?? pick(ARENAS, message.arena, DEFAULT_ARENA);
+      room = new Match(code, mode, message.bots !== false, ARENAS[arena]);
       room.reset(time);
       rooms.set(code, room);
     }
-    if (!room.join(socket, name || 'Pilot', time)) return reject(socket, 'Místnost už má 12 hráčů.');
+    if (!room.join(socket, name || 'Pilot', time, pick(CHARACTERS, message.character, DEFAULT_CHARACTER))) return reject(socket, 'Místnost už má 12 hráčů.');
     socket.room = room;
-    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, bots: room.bots, capacity: CAPACITY }));
+    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: CAPACITY }));
   });
   socket.on('close', () => {
     const room = socket.room;

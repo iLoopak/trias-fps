@@ -1,22 +1,30 @@
 import {
-  aimVector, ARMORY, BASES, CAPACITY, DEFAULT_WEAPON, distanceSquared, EYE, MODES, movePlayer,
-  PICKUPS, POINTS, POWERUPS, rayBox, RESPAWN, SPAWNS, TEAM_SIZE, TEAMS, TICK, wallDistance, WEAPONS,
+  aimVector, ARENAS, ARMORY, CAPACITY, CHARACTERS, DEFAULT_CHARACTER, DEFAULT_WEAPON, distanceSquared, eyeHeight, floorBelow,
+  GRENADE, hitHeight, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, turretYaw, wallDistance, WEAPONS,
 } from './public/rules.js';
 import { botInput } from './bots.js';
+import { Fleet } from './fleet.js';
+import { Siege } from './siege.js';
+import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
 
-const EMPTY = { x: 0, z: 0, sprint: false, fire: false, reload: false, jump: false };
+const EMPTY = { x: 0, z: 0, sprint: false, fire: false, reload: false, jump: false, dodge: false, crouch: false };
+const BOT_CHARACTERS = Object.keys(CHARACTERS);
 const BOT_NAMES = ['Apex', 'Flux', 'Helix', 'Ghost', 'Nova', 'Pulse', 'Drift', 'Forge', 'Rift', 'Echo', 'Shade', 'Volt'];
 const ROUND_PAUSE = 9;
 
 export class Match {
-  constructor(code, mode, bots) {
+  constructor(code, mode, bots, layout = ARENAS.relay) {
     this.code = code;
     this.mode = mode;
+    this.layout = mode === 'siege' ? ARENAS.basin : layout;
     this.bots = bots;
     this.players = new Map();
     this.humans = new Set();
     this.events = [];
+    this.nextProjectile = 0;
     this.tickNumber = 0;
+    this.fleet = new Fleet(this);
+    this.siege = mode === 'siege' ? new Siege(this, this.layout.siege) : null;
     this.reset(0);
   }
 
@@ -25,9 +33,14 @@ export class Match {
     this.restartAt = 0;
     this.winner = null;
     this.scores = TEAMS.map(() => 0);
-    this.points = POINTS.map(() => ({ owner: -1, capture: -1, progress: 0, contested: false }));
-    this.flags = BASES.map(base => ({ ...base, y: 0, status: 'home', carrier: null, returnAt: 0 }));
-    this.pickups = PICKUPS.map(() => 0);
+    this.points = this.layout.points.map(() => ({ owner: -1, capture: -1, progress: 0, contested: false }));
+    this.flags = this.layout.bases.map(base => ({ ...base, y: base.y ?? 0, status: 'home', carrier: null, returnAt: 0 }));
+    this.pickups = this.layout.pickups.map(() => 0);
+    this.projectiles = [];
+    this.siege?.reset();
+    this.fleet.reset(now);
+    this.turrets = this.layout.turrets.map(item => ({ ...item, user: null, heat: 0, hot: false, firedAt: -100 }));
+
     this.nextPointTick = now + 1;
     for (const player of this.players.values()) {
       player.kills = player.deaths = 0;
@@ -39,31 +52,40 @@ export class Match {
     const ffa = this.mode === 'ffa';
     const team = ffa ? (player.team + player.deaths) % TEAMS.length : player.team;
     const slot = ffa ? (player.slot + player.deaths) % TEAM_SIZE : player.slot;
-    const start = SPAWNS[team][slot];
-    const toward = POINTS[team];
+    const start = this.layout.spawns[team][slot];
+    const toward = this.layout.points[team];
+    const kit = CHARACTERS[player.character] ?? CHARACTERS[DEFAULT_CHARACTER];
+    const loadout = { [DEFAULT_WEAPON]: { ammo: WEAPONS[DEFAULT_WEAPON].magazine, reserve: Infinity } };
+    if (kit.weapon !== DEFAULT_WEAPON) loadout[kit.weapon] = { ammo: kit.rounds, reserve: 0 };
     Object.assign(player, start, {
-      hp: 100, armor: 0, surgeUntil: 0, y: 0, vy: 0, grounded: true, airJump: true,
-      weapon: DEFAULT_WEAPON, loadout: { [DEFAULT_WEAPON]: { ammo: WEAPONS[DEFAULT_WEAPON].magazine, reserve: Infinity } },
+      hp: this.siege && !this.siege.alive(player.team) ? 0 : PILOT_HP, armor: 0, surgeUntil: 0, y: start.y ?? 0, vx: 0, vy: 0, vz: 0, grounded: true, airJump: true,
+      dodgeCooldown: 0, dodgeTime: 0, airDodge: true, padCooldown: 0, crouch: false, grenades: 1, turret: -1, vehicle: -1, vehiclePlanAt: -100, impactAt: 0,
+      weapon: kit.weapon, loadout,
       yaw: Math.atan2(start.x - toward.x, start.z - toward.z), pitch: 0, fireAt: now + 0.2,
-      safeUntil: now + 1.25, reloadAt: 0, respawnAt: 0, input: EMPTY, inputAt: now, fireRequest: false, reloadRequest: false, jumpRequest: false, weaponRequest: null,
-      spawn: player.spawn + 1, target: null, routeAt: 0, path: [],
+      safeUntil: now + 1.4, reloadAt: 0, respawnAt: 0, input: EMPTY, inputAt: now, fireRequest: false, reloadRequest: false, jumpRequest: false, dodgeRequest: false, altRequest: false, grenadeRequest: false, useRequest: false, weaponRequest: null,
+      spawn: player.spawn + 1, target: null, routeAt: 0, path: [], usedLaunch: false, launchAt: -100, dodgeDecisionAt: 0, stride: 0, sprint: false,
     });
   }
 
-  addPlayer(id, name, team, slot, now, bot = false) {
-    const player = { id, name, team, slot, bot, kills: 0, deaths: 0, spawn: 0, ack: 0 };
+  addPlayer(id, name, team, slot, now, bot = false, character = DEFAULT_CHARACTER) {
+    const player = { id, name, team, slot, bot, character, kills: 0, deaths: 0, spawn: 0, ack: 0 };
     this.spawn(player, now);
     this.players.set(id, player);
     return player;
   }
 
-  join(socket, name, now) {
+  join(socket, name, now, character = DEFAULT_CHARACTER) {
     if (this.humans.size >= CAPACITY) return false;
     const counts = TEAMS.map((_, team) => [...this.players.values()].filter(p => !p.bot && p.team === team).length);
-    const team = counts.indexOf(Math.min(...counts));
-    const slot = SPAWNS[team].findIndex((_, i) => ![...this.players.values()].some(p => p.team === team && p.slot === i && !p.bot));
+    const open = counts.map((count, team) => ({ count, team })).filter(item => item.count < TEAM_SIZE);
+    open.sort((a, b) => {
+      const alive = this.siege ? Number(this.siege.alive(b.team)) - Number(this.siege.alive(a.team)) : 0;
+      return alive || a.count - b.count || a.team - b.team;
+    });
+    const team = open[0].team;
+    const slot = this.layout.spawns[team].findIndex((_, i) => ![...this.players.values()].some(p => p.team === team && p.slot === i && !p.bot));
     this.removePlayer('bot-' + team + '-' + slot, now);
-    socket.player = this.addPlayer(socket.id, name, team, slot, now);
+    socket.player = this.addPlayer(socket.id, name, team, slot, now, false, character);
     this.humans.add(socket);
     this.fillBots(now);
     return true;
@@ -71,10 +93,10 @@ export class Match {
 
   fillBots(now) {
     if (!this.bots) return;
-    for (const [team, spawns] of SPAWNS.entries()) {
+    for (const [team, spawns] of this.layout.spawns.entries()) {
       for (const slot of spawns.keys()) {
         if ([...this.players.values()].some(player => player.team === team && player.slot === slot)) continue;
-        this.addPlayer('bot-' + team + '-' + slot, BOT_NAMES[team * TEAM_SIZE + slot], team, slot, now, true);
+        this.addPlayer('bot-' + team + '-' + slot, BOT_NAMES[team * TEAM_SIZE + slot], team, slot, now, true, BOT_CHARACTERS[(team + slot) % BOT_CHARACTERS.length]);
       }
     }
   }
@@ -82,17 +104,22 @@ export class Match {
   removePlayer(id, now) {
     const player = this.players.get(id);
     if (!player) return;
+    this.unmount(player);
+    this.fleet.release(player, now);
     this.dropFlag(player, now);
     this.players.delete(id);
   }
 
   dropFlag(player, now) {
     const flag = this.flags.find(item => item.carrier === player.id);
-    if (flag) Object.assign(flag, { status: 'dropped', carrier: null, x: player.x, z: player.z, y: 0, returnAt: now + 15 });
+    if (flag) Object.assign(flag, {
+      status: 'dropped', carrier: null, x: player.x, z: player.z, y: floorBelow(player.x, player.z, player.y, 0, this.layout), returnAt: now + 15,
+    });
   }
 
   returnFlag(team) {
-    Object.assign(this.flags[team], BASES[team], { y: 0, status: 'home', carrier: null, returnAt: 0 });
+    const base = this.layout.bases[team];
+    Object.assign(this.flags[team], base, { y: base.y ?? 0, status: 'home', carrier: null, returnAt: 0 });
   }
 
   input(player, message, now) {
@@ -103,61 +130,262 @@ export class Match {
     player.input = {
       x: Math.max(-1, Math.min(1, message.x)), z: Math.max(-1, Math.min(1, message.z)),
       yaw: message.yaw % (Math.PI * 2), pitch: Math.max(-1.48, Math.min(1.48, message.pitch)),
-      sprint: message.sprint === true, fire: message.fire === true, reload: message.reload === true,
+      crouch: message.crouch === true, brake: message.brake === true, sprint: message.sprint === true, fire: message.fire === true, reload: message.reload === true,
     };
     player.fireRequest ||= player.input.fire;
     player.reloadRequest ||= player.input.reload;
     player.jumpRequest ||= message.jump === true;
+    player.dodgeRequest ||= message.dodge === true;
+    player.altRequest ||= message.alt === true;
+    player.grenadeRequest ||= message.grenade === true;
+    player.useRequest ||= message.use === true;
     if (typeof message.weapon === 'string' && Object.hasOwn(WEAPONS, message.weapon)) player.weaponRequest = message.weapon;
   }
 
-  shoot(player, now) {
-    const weapon = WEAPONS[player.weapon];
-    player.loadout[player.weapon].ammo--;
-    player.fireAt = now + weapon.interval;
-    player.safeUntil = now;
-    const origin = { x: player.x, y: player.y + EYE, z: player.z };
-    const damage = new Map();
-    const ends = weapon.pattern.map((offset, index) => {
-      const direction = aimVector(player.yaw + offset, player.pitch + (index % 2 ? offset * 0.7 : -offset * 0.7));
-      let distance = wallDistance(origin, direction, weapon.range);
-      let hitPlayer;
-      for (const other of this.players.values()) {
-        if (player === other || other.hp <= 0 || (this.mode !== 'ffa' && player.team === other.team)) continue;
-        const hit = rayBox(origin, direction,
-          { x: other.x - 0.44, y: other.y + 0.08, z: other.z - 0.44 },
-          { x: other.x + 0.44, y: other.y + 1.78, z: other.z + 0.44 });
-        if (hit >= distance) continue;
-        distance = hit;
-        hitPlayer = other;
-      }
-      if (hitPlayer && hitPlayer.safeUntil <= now) {
-        damage.set(hitPlayer, (damage.get(hitPlayer) ?? 0) + weapon.damage * (player.surgeUntil > now ? 1.6 : 1));
-      }
-      const impact = hitPlayer
-        ? (hitPlayer.armor || hitPlayer.safeUntil > now ? 'shield' : 'pilot')
-        : distance < weapon.range ? 'wall' : null;
-      return [origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance, impact];
-    });
-    const hits = [];
-    this.events.push({ type: 'shot', id: player.id, weapon: player.weapon,
-      from: [origin.x, origin.y - 0.12, origin.z], ends, hits });
-    for (const [target, value] of damage) {
-      const amount = Math.round(value);
-      const absorbed = Math.min(target.armor, Math.ceil(amount * 0.7));
-      target.armor -= absorbed;
-      const health = Math.min(target.hp, amount - absorbed);
-      target.hp -= health;
-      hits.push({ id: target.id, health, absorbed, eliminated: target.hp === 0 });
-      if (target.hp) continue;
-      player.kills++;
+  hostile(attacker, target) {
+    return target !== attacker && target.hp > 0 && target.vehicle < 0 && (this.mode === 'ffa' || target.team !== attacker.team);
+  }
+
+  trace(player, origin, direction, range, width = 0) {
+    let distance = wallDistance(origin, direction, range, this.layout);
+    let target;
+    for (const other of this.players.values()) {
+      if (!this.hostile(player, other)) continue;
+      const hit = rayBox(origin, direction,
+        { x: other.x - 0.44 - width, y: other.y + 0.08 - width, z: other.z - 0.44 - width },
+        { x: other.x + 0.44 + width, y: other.y + hitHeight(other) + width, z: other.z + 0.44 + width });
+      if (hit >= distance) continue;
+      distance = hit;
+      target = other;
+    }
+    for (const hull of this.fleet.hulls) {
+      if (!this.fleet.hostile(player, hull)) continue;
+      const hit = hullDistance(hull, origin, direction, width);
+      if (hit >= distance) continue;
+      distance = hit;
+      target = hull;
+    }
+    for (const core of this.siege?.cores ?? []) {
+      if (core.team === player.team || !core.hp) continue;
+      const hit = this.siege.distance(core, origin, direction);
+      if (hit >= distance) continue;
+      distance = hit;
+      target = core;
+    }
+    return { target, distance };
+  }
+
+  damage(attacker, target, value, now, origin) {
+    if (target.opened !== undefined) return this.siege.damage(attacker, target, value, now);
+    if (target.kind) return this.fleet.damage(attacker, target, value, now, origin);
+    const amount = Math.round(value);
+    const absorbed = Math.min(target.armor, Math.ceil(amount * 0.7));
+    target.armor -= absorbed;
+    const health = Math.min(target.hp, amount - absorbed);
+    target.hp -= health;
+    if (!target.hp) {
+      attacker.kills++;
       target.deaths++;
       target.respawnAt = now + RESPAWN;
+      this.unmount(target);
+      this.fleet.release(target, now);
       this.dropFlag(target, now);
-      if (this.mode === 'tdm') this.scores[player.team]++;
-      this.events.push({ type: 'kill', attacker: player.name, victim: target.name, team: player.team,
-        attackerId: player.id, victimId: target.id });
+      if (this.mode === 'tdm') this.scores[attacker.team]++;
+      this.events.push({ type: 'kill', attacker: attacker.name, victim: target.name, team: attacker.team,
+        attackerId: attacker.id, victimId: target.id,
+        body: { x: target.x, y: target.y, z: target.z, vx: target.vx, vy: target.vy, vz: target.vz,
+          yaw: target.yaw, crouch: target.crouch, team: target.team, slot: target.slot, character: target.character,
+          weapon: target.weapon, from: [origin.x, origin.y, origin.z] },
+      });
     }
+    return { id: target.id, health, absorbed, eliminated: target.hp === 0 };
+  }
+
+  vehicleAim(player, vehicle, range) {
+    const frame = vehicleAimFrame(vehicle, player.yaw, player.pitch, this.layout);
+    const { camera, gun, sight, aim, stop } = frame;
+    const visible = this.trace(player, camera, sight, range + stop);
+    const dx = camera.x + visible.distance * sight.x - gun.x;
+    const dy = camera.y + visible.distance * sight.y - gun.y;
+    const dz = camera.z + visible.distance * sight.z - gun.z;
+    const distance = Math.hypot(dx, dy, dz);
+    const forward = dx * aim.x + dy * aim.y + dz * aim.z;
+    const direction = forward > 0.22 ? { x: dx / distance, y: dy / distance, z: dz / distance } : aim;
+    return { origin: gun, direction };
+  }
+
+  shoot(player, now, alt = false, mounted = false, vehicle = null) {
+    const vehicleGun = vehicle ? VEHICLES[vehicle.kind].gun : null;
+    const key = vehicleGun?.key ?? (mounted ? 'arc' : player.weapon);
+    const base = WEAPONS[key];
+    const weapon = vehicleGun ?? (mounted ? TURRET : alt ? base.alt : base);
+    if (!mounted && !vehicle) player.loadout[key].ammo -= weapon.cost ?? 1;
+    if (!vehicle) player.fireAt = now + weapon.interval;
+    player.safeUntil = now;
+    const mountedAim = vehicle && this.vehicleAim(player, vehicle, weapon.range);
+    const origin = mountedAim?.origin ?? { x: player.x, y: player.y + eyeHeight(player), z: player.z };
+    const from = [origin.x, origin.y - 0.12, origin.z];
+    const hits = [];
+    const ends = [];
+    this.events.push({ type: 'shot', id: player.id, weapon: key, from, ends, hits, alt, mounted, vehicle: vehicle?.id });
+    const power = player.surgeUntil > now ? 1.6 : 1;
+    if (weapon.projectile) {
+      this.projectiles.push({
+        id: ++this.nextProjectile, owner: player, weapon: key, position: origin,
+        direction: mountedAim?.direction ?? aimVector(player.yaw, player.pitch), range: weapon.range, power, spec: weapon,
+      });
+      return;
+    }
+    const damage = new Map();
+    for (const [index, offset] of weapon.pattern.entries()) {
+      const direction = mountedAim?.direction ?? aimVector(player.yaw + offset, player.pitch + (index % 2 ? offset * 0.7 : -offset * 0.7));
+      const { target, distance } = this.trace(player, origin, direction, weapon.range);
+      if (target && (target.opened !== undefined || target.kind || target.safeUntil <= now)) damage.set(target, (damage.get(target) ?? 0) + weapon.damage * power);
+      const impact = target?.opened !== undefined
+        ? (target.opened & (1 << player.team) ? 'core' : 'shield')
+        : target ? (target.kind || target.armor || target.safeUntil > now ? 'shield' : 'pilot')
+          : distance < weapon.range ? 'wall' : null;
+      ends.push([origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance, impact]);
+    }
+    for (const [target, value] of damage) {
+      const hit = this.damage(player, target, value, now, origin);
+      if (hit) hits.push(hit);
+    }
+  }
+
+  throwGrenade(player, now) {
+    player.grenades--;
+    player.safeUntil = now;
+    const aim = aimVector(player.yaw, Math.max(-0.67, Math.min(0.78, player.pitch)));
+    const position = { x: player.x, y: player.y + eyeHeight(player) - 0.13, z: player.z };
+    this.projectiles.push({
+      id: ++this.nextProjectile, owner: player, weapon: 'grenade', position, power: 1, fuseAt: now + GRENADE.fuse,
+      velocity: { x: aim.x * 13.3, y: aim.y * 12.0 + 4.0, z: aim.z * 13.3 },
+    });
+    this.events.push({ type: 'grenade', id: player.id, from: [position.x, position.y, position.z] });
+  }
+
+  rollGrenade(projectile) {
+    const { position, velocity } = projectile;
+    velocity.y -= 14.7 * TICK;
+    for (const axis of ['x', 'y', 'z']) {
+      const step = Math.abs(velocity[axis]) * TICK;
+      if (!step) continue;
+      const sign = Math.sign(velocity[axis]);
+      const direction = { x: 0, y: 0, z: 0 };
+      direction[axis] = sign;
+      const travel = wallDistance(position, direction, step, this.layout);
+      if (travel < step - 0.00001) {
+        position[axis] += sign * Math.max(0, travel - 0.026);
+        velocity[axis] *= axis === 'y' ? -0.53 : -0.58;
+        if (axis === 'y') {
+          velocity.x *= 0.73;
+          velocity.z *= 0.73;
+        }
+      } else position[axis] += sign * step;
+    }
+  }
+
+  explode(projectile, target, now) {
+    const { owner, direction, position, weapon, power } = projectile;
+    const spec = weapon === 'grenade' ? GRENADE : projectile.spec.projectile;
+    const from = [position.x, position.y, position.z];
+    const hits = [];
+    this.events.push({ type: 'burst', id: owner.id, weapon, from, hits });
+    const origin = direction ? {
+      x: position.x - direction.x * 0.041,
+      y: position.y - direction.y * 0.041,
+      z: position.z - direction.z * 0.041,
+    } : position;
+    for (const other of [...this.players.values(), ...this.fleet.hulls, ...(this.siege?.cores ?? [])]) {
+      const vehicle = Boolean(other.kind);
+      const core = other.opened !== undefined;
+      if (core ? !(other.opened & (1 << owner.team)) : vehicle ? !this.fleet.hostile(owner, other) : !this.hostile(owner, other) || other.safeUntil > now) continue;
+      const x = other.x - origin.x;
+      const y = core ? other.y - origin.y : vehicle ? VEHICLES[other.kind].height * 0.55 - origin.y : other.y + hitHeight(other) * 0.52 - origin.y;
+      const z = other.z - origin.z;
+      const gap = Math.hypot(x, y, z);
+      let strength = 1;
+      if (other !== target) {
+        if (gap >= spec.radius + (core ? other.radius : 0)) continue;
+        const norm = gap || 1;
+        if (wallDistance(origin, { x: x / norm, y: y / norm, z: z / norm }, gap, this.layout) < gap - 0.04) continue;
+        strength = 1 - Math.max(0, gap - (core ? other.radius : 0)) / spec.radius;
+      }
+      const amount = other === target ? projectile.spec.damage : Math.max(8, spec.splash * strength);
+      const hit = this.damage(owner, other, amount * power * (vehicle ? 1.32 : 1), now, origin);
+      if (!hit) continue;
+      hits.push(hit);
+      if (!hit.eliminated && !vehicle && !core) {
+        const horizontal = Math.hypot(x, z) || 1;
+        const impulse = (direction ? 4.8 : 7.3) * strength;
+        other.vx += x / horizontal * impulse;
+        other.vz += z / horizontal * impulse;
+        other.vy = Math.max(other.vy, 2.8 * strength);
+        other.grounded = false;
+      }
+    }
+  }
+
+  updateProjectiles(now) {
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const projectile = this.projectiles[i];
+      const { owner, direction, position, weapon } = projectile;
+      if (this.players.get(owner.id) !== owner) {
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+      let target;
+      if (weapon === 'grenade') {
+        this.rollGrenade(projectile);
+        if (now < projectile.fuseAt) continue;
+      } else {
+        const travel = Math.min(projectile.range, projectile.spec.projectile.speed * TICK);
+        const hit = this.trace(owner, position, direction, travel, 0.16);
+        target = hit.target;
+        position.x += direction.x * hit.distance;
+        position.y += direction.y * hit.distance;
+        position.z += direction.z * hit.distance;
+        projectile.range -= travel;
+        if (!target && hit.distance >= travel - 0.00001 && projectile.range > 0) continue;
+      }
+      this.projectiles.splice(i, 1);
+      this.explode(projectile, target, now);
+    }
+  }
+
+  unmount(player) {
+    if (player.turret < 0) return;
+    this.turrets[player.turret].user = null;
+    player.turret = -1;
+  }
+
+  useTurret(player, now) {
+    if (player.turret >= 0) {
+      this.unmount(player);
+      return;
+    }
+    if (!player.grounded || player.y >= 0.6 || player.crouch) return;
+    const index = this.turrets.findIndex(turret =>
+      !turret.user && distanceSquared(turret, player) < TURRET.dismountRadius ** 2);
+    if (index < 0) return;
+    const turret = this.turrets[index];
+    turret.user = player.id;
+    Object.assign(player, {
+      turret: index, x: turret.x, y: 0, z: turret.z, vx: 0, vy: 0, vz: 0,
+      yaw: turretYaw(player.yaw, turret.yaw), pitch: 0, fireAt: Math.max(player.fireAt, now + 0.14),
+    });
+  }
+
+  operateTurret(player, input, now) {
+    const turret = this.turrets[player.turret];
+    player.yaw = turretYaw(input.yaw ?? player.yaw, turret.yaw);
+    player.pitch = Math.max(-0.47, Math.min(0.56, input.pitch ?? player.pitch));
+    if (!(input.fire || player.fireRequest) || turret.hot || now < player.fireAt) return;
+    this.shoot(player, now, false, true);
+    turret.firedAt = now;
+    turret.heat = Math.min(1, turret.heat + 0.081);
+    if (turret.heat === 1) turret.hot = true;
   }
 
   selectWeapon(player, weapon, now) {
@@ -168,12 +396,12 @@ export class Match {
   }
 
   updatePickups(now) {
-    for (const [i, pickup] of PICKUPS.entries()) {
+    for (const [i, pickup] of this.layout.pickups.entries()) {
       if (this.pickups[i] > now) continue;
-      const player = [...this.players.values()].find(candidate => candidate.hp > 0
+      const player = [...this.players.values()].find(candidate => candidate.hp > 0 && candidate.vehicle < 0
         && Math.abs(candidate.y - pickup.y) < 0.78 && distanceSquared(candidate, pickup) < 1.14 ** 2
-        && (pickup.type !== 'med' || candidate.hp < 100)
-        && (pickup.type !== 'shield' || candidate.armor < 50));
+        && (pickup.type !== 'med' || candidate.hp < PILOT_HP)
+        && (pickup.type !== 'shield' || candidate.armor < SHIELD_ARMOR));
       if (!player) continue;
       const { type } = pickup;
       const weapon = WEAPONS[type];
@@ -181,8 +409,8 @@ export class Match {
         const hasWeapon = Object.hasOwn(player.loadout, type);
         player.loadout[type] = { ammo: weapon.magazine, reserve: weapon.reserve };
         if (!hasWeapon) this.selectWeapon(player, type, now);
-      } else if (type === 'med') player.hp = Math.min(100, player.hp + 55);
-      else if (type === 'shield') player.armor = 50;
+      } else if (type === 'med') player.hp = Math.min(PILOT_HP, player.hp + MED_HEAL);
+      else if (type === 'shield') player.armor = SHIELD_ARMOR;
       else if (type === 'surge') player.surgeUntil = now + 18;
       this.pickups[i] = now + (POWERUPS[type]?.respawn ?? 22);
       this.events.push({ type: 'pickup', id: player.id, item: type, position: [pickup.x, pickup.y, pickup.z] });
@@ -190,9 +418,10 @@ export class Match {
   }
 
   updateDominance(now) {
-    for (const [i, location] of POINTS.entries()) {
+    for (const [i, location] of this.layout.points.entries()) {
       const point = this.points[i];
-      const present = new Set([...this.players.values()].filter(p => p.hp > 0 && p.y < 1.6 && distanceSquared(p, location) <= 3.05 ** 2).map(p => p.team));
+      const present = new Set([...this.players.values()].filter(p => p.hp > 0 && p.vehicle < 0
+        && distanceSquared(p, location) <= 3.05 ** 2 && p.y - (this.layout.terrain?.(p.x, p.z) ?? 0) < 1.6).map(p => p.team));
       point.contested = present.size > 1;
       if (point.contested) continue;
       const [team] = present;
@@ -229,7 +458,7 @@ export class Match {
         flag.y = carrier.y;
         continue;
       }
-      const near = [...this.players.values()].filter(p => p.hp > 0 && p.y < 1.25 && distanceSquared(p, flag) < 1.7 ** 2);
+      const near = [...this.players.values()].filter(p => p.hp > 0 && p.vehicle < 0 && Math.abs(p.y - flag.y) < 1.25 && distanceSquared(p, flag) < 1.7 ** 2);
       if (flag.status === 'dropped' && near.some(p => p.team === team)) {
         this.returnFlag(team);
         continue;
@@ -242,7 +471,9 @@ export class Match {
     }
     for (const [team, flag] of this.flags.entries()) {
       const carrier = this.players.get(flag.carrier);
-      if (!carrier || this.flags[carrier.team].status !== 'home' || carrier.y >= 1.25 || distanceSquared(carrier, BASES[carrier.team]) >= 2 ** 2) continue;
+      if (!carrier || this.flags[carrier.team].status !== 'home') continue;
+      const base = this.layout.bases[carrier.team];
+      if (carrier.y - (this.layout.terrain?.(carrier.x, carrier.z) ?? 0) >= 1.25 || distanceSquared(carrier, base) >= 2 ** 2) continue;
       this.scores[carrier.team]++;
       this.returnFlag(team);
       this.events.push({ type: 'notice', text: carrier.name + ' doručil vlajku pro ' + TEAMS[carrier.team].name });
@@ -250,6 +481,14 @@ export class Match {
   }
 
   checkEnd(now) {
+    if (this.siege) {
+      const winner = this.siege.winner(now >= this.endsAt);
+      if (winner) {
+        this.winner = winner;
+        this.restartAt = now + ROUND_PAUSE;
+      }
+      return;
+    }
     const ranked = this.mode === 'ffa'
       ? [...this.players.values()].map(player => ({ label: player.name, score: player.kills, id: player.id }))
       : this.scores.map((score, i) => ({ label: TEAMS[i].name, score, team: i }));
@@ -263,15 +502,49 @@ export class Match {
     this.tickNumber++;
     if (this.restartAt && now >= this.restartAt) this.reset(now);
     if (!this.restartAt) {
+      for (const turret of this.turrets) {
+        if (now - turret.firedAt > 0.23) turret.heat = Math.max(0, turret.heat - TICK * (turret.hot ? 0.43 : 0.62));
+        if (turret.hot && turret.heat < 0.29) turret.hot = false;
+      }
       for (const player of this.players.values()) {
         if (player.hp <= 0) {
-          if (now >= player.respawnAt) this.spawn(player, now);
+          if (now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
           continue;
         }
         const input = player.bot ? botInput(this, player, now) : now - player.inputAt < 0.24 ? player.input : EMPTY;
+        if ((player.useRequest || input.use) && !this.fleet.use(player, now)) this.useTurret(player, now);
+        if (player.vehicle >= 0) {
+          this.fleet.drive(player, input, now);
+          this.clearRequests(player);
+          continue;
+        }
+        if (player.turret >= 0) {
+          this.operateTurret(player, input, now);
+          this.clearRequests(player);
+          continue;
+        }
         player.yaw = input.yaw ?? player.yaw;
         player.pitch = input.pitch ?? player.pitch;
-        movePlayer(player, { ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest });
+        player.sprint = Boolean(input.sprint);
+        const startX = player.x;
+        const startZ = player.z;
+        let signal = movePlayer(player, {
+          ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest, dodge: input.dodge || player.dodgeRequest,
+        }, TICK, this.layout);
+        if (signal === 'launch') {
+          player.usedLaunch = true;
+          player.launchAt = now;
+        }
+        if (player.grounded && !signal) {
+          player.stride += Math.hypot(player.x - startX, player.z - startZ);
+          if (player.stride >= 2.4) {
+            player.stride -= 2.4;
+            signal = 'step';
+          }
+        } else player.stride = 0;
+        if (signal) this.events.push({
+          type: 'movement', id: player.id, action: signal, position: [player.x, player.y, player.z], team: player.team,
+        });
         const switchTo = input.weapon ?? player.weaponRequest;
         if (switchTo) this.selectWeapon(player, switchTo, now);
         const spec = WEAPONS[player.weapon];
@@ -285,30 +558,49 @@ export class Match {
         if (!player.reloadAt && active.reserve > 0 && active.ammo < spec.magazine
           && (input.reload || player.reloadRequest || active.ammo === 0)) player.reloadAt = now + spec.reload;
         if (player.bot && !active.ammo && !active.reserve) this.selectWeapon(player, DEFAULT_WEAPON, now);
-        if ((input.fire || player.fireRequest) && active.ammo > 0 && !player.reloadAt && now >= player.fireAt) this.shoot(player, now);
-        player.fireRequest = player.reloadRequest = player.jumpRequest = false;
-        player.weaponRequest = null;
+        if (player.grenadeRequest && player.grenades > 0) this.throwGrenade(player, now);
+        if (!player.reloadAt && now >= player.fireAt) {
+          const alt = player.altRequest && spec.alt && active.ammo >= spec.alt.cost;
+          if (alt || ((input.fire || player.fireRequest) && active.ammo > 0)) this.shoot(player, now, Boolean(alt));
+        }
+        this.clearRequests(player);
       }
+      this.updateProjectiles(now);
+      this.fleet.tick(now);
       this.updatePickups(now);
       if (this.mode === 'dom') this.updateDominance(now);
       if (this.mode === 'ctf') this.updateFlags(now);
+      this.siege?.step();
       this.checkEnd(now);
     }
     if (this.tickNumber % 2 === 0) this.broadcast(now);
   }
 
+  clearRequests(player) {
+    player.fireRequest = player.reloadRequest = player.jumpRequest = player.dodgeRequest = false;
+    player.altRequest = player.grenadeRequest = player.useRequest = false;
+    player.weaponRequest = null;
+  }
+
   broadcast(now) {
     const players = [...this.players.values()].map(p => ({
-      id: p.id, name: p.name, team: p.team, slot: p.slot, bot: p.bot, x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100,
-      y: Math.round(p.y * 1000) / 1000, vy: p.vy, grounded: p.grounded, airJump: p.airJump,
+      id: p.id, name: p.name, team: p.team, slot: p.slot, character: p.character, bot: p.bot, x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100,
+      y: Math.round(p.y * 1000) / 1000, vx: p.vx, vy: p.vy, vz: p.vz, grounded: p.grounded, airJump: p.airJump,
+      airDodge: p.airDodge, dodgeCooldown: p.dodgeCooldown, dodgeTime: p.dodgeTime, padCooldown: p.padCooldown, crouch: p.crouch, sprint: p.sprint, grenades: p.grenades, turret: p.turret, vehicle: p.vehicle,
       yaw: p.yaw, pitch: p.pitch, hp: p.hp, armor: p.armor, surge: Math.max(0, Math.ceil(p.surgeUntil - now)), weapon: p.weapon,
       loadout: ARMORY.map(key => p.loadout[key] ? [p.loadout[key].ammo, Number.isFinite(p.loadout[key].reserve) ? p.loadout[key].reserve : -1] : null), kills: p.kills, deaths: p.deaths, spawn: p.spawn, ack: p.ack,
-      respawn: Math.max(0, p.respawnAt - now), reload: p.reloadAt > now, shield: p.safeUntil > now,
+      respawn: Math.max(0, p.respawnAt - now), reload: p.reloadAt > now, reloadRemaining: Math.max(0, p.reloadAt - now), shield: p.safeUntil > now,
     }));
     const message = JSON.stringify({
-      type: 'state', players, scores: this.scores, time: Math.max(0, Math.ceil(this.endsAt - now)),
+      type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), time: Math.max(0, Math.ceil(this.endsAt - now)),
       points: this.mode === 'dom' ? this.points : undefined, flags: this.mode === 'ctf' ? this.flags : undefined,
-      pickups: this.pickups.map(time => time <= now), winner: this.restartAt ? this.winner : null, restart: Math.max(0, Math.ceil(this.restartAt - now)), events: this.events,
+      pickups: this.pickups.map(time => Math.max(0, Math.ceil(time - now))),
+      vehicles: this.fleet.snapshot(now),
+      turrets: this.turrets.map(item => ({ user: item.user, heat: item.heat, hot: item.hot })),
+      projectiles: this.projectiles.map(shot => ({
+        id: shot.id, weapon: shot.weapon, x: shot.position.x, y: shot.position.y, z: shot.position.z,
+        fuse: shot.fuseAt === undefined ? undefined : Math.max(0, shot.fuseAt - now),
+      })), winner: this.restartAt ? this.winner : null, restart: Math.max(0, Math.ceil(this.restartAt - now)), events: this.events,
     });
     for (const socket of this.humans) {
       if (socket.readyState === 1 && socket.bufferedAmount < 160_000) socket.send(message);

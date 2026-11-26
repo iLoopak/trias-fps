@@ -3,6 +3,14 @@ const SHOTS = {
   scatter: { fallback: [100, 21, 0.21, 'triangle'], gain: 0.64 },
   lance: { fallback: [252, 47, 0.28, 'sawtooth'], gain: 0.73 },
   arc: { fallback: [285, 68, 0.07, 'square'], gain: 0.53 },
+  rift: { fallback: [448, 95, 0.24, 'triangle'], gain: 0.72, synthesized: true },
+};
+const LOCAL_TAILS = {
+  pulse: [380, 152, 0.046, 'triangle', 0.077],
+  scatter: [122, 38, 0.15, 'sine', 0.16],
+  lance: [970, 262, 0.17, 'triangle', 0.074],
+  arc: [1040, 491, 0.038, 'triangle', 0.052],
+  rift: [596, 116, 0.255, 'triangle', 0.084],
 };
 
 export class GameAudio {
@@ -11,7 +19,7 @@ export class GameAudio {
   }
 
   preload() {
-    this.files ??= Promise.all([...Object.keys(SHOTS), 'pickup'].map(async key => {
+    this.files ??= Promise.all([...Object.keys(SHOTS).filter(key => !SHOTS[key].synthesized), 'pickup'].map(async key => {
       try {
         const response = await fetch('/sfx/' + key + '.mp3');
         if (response.ok) return [key, await response.arrayBuffer()];
@@ -79,12 +87,83 @@ export class GameAudio {
     oscillator.stop(start + duration);
   }
 
-  shot(key, local, distance, pan) {
+  shot(key, local, distance, pan, alt = false) {
     const shot = SHOTS[key];
     const level = local ? 1 : 0.68 * (1 - distance / 29) ** 2;
-    if (!this.sample(key, shot.gain * level, pan, 0.97 + Math.random() * 0.06)) {
-      this.tone(...shot.fallback, 0.075 * level, pan);
+    if (!this.sample(key, shot.gain * level, pan, (alt ? 0.81 : 0.97) + Math.random() * 0.06)) {
+      this.tone(...shot.fallback, 0.086 * level, pan);
+      if (key === 'rift') this.tone(93, 46, 0.21, 'sine', 0.16 * level, pan, 0.025);
     }
+    if (local) {
+      this.tone(...LOCAL_TAILS[key]);
+      if (key === 'scatter') this.tone(390, 206, 0.055, 'square', 0.034, 0, 0.16);
+    }
+  }
+
+  gunAction(key, action) {
+    if (action === 'empty') {
+      this.tone(570, 198, 0.045, 'square', 0.037);
+    } else if (action === 'open') {
+      this.tone(key === 'rift' ? 378 : 263, 97, 0.11, 'triangle', 0.064, -0.12);
+      this.tone(680, 315, 0.048, 'square', 0.017, -0.12, 0.13);
+    } else {
+      this.tone(210, 83, 0.065, 'triangle', 0.070, 0.11);
+      this.tone(key === 'arc' ? 1280 : 880, 495, 0.071, 'triangle', 0.045, 0.1, 0.037);
+    }
+  }
+
+  engine(vehicle) {
+    if (this.context?.state !== 'running') return;
+    if (vehicle && !this.motor) {
+      const oscillator = this.context.createOscillator();
+      const filter = this.context.createBiquadFilter();
+      const volume = this.context.createGain();
+      oscillator.type = 'sawtooth';
+      filter.type = 'lowpass';
+      filter.frequency.value = 145;
+      volume.gain.value = 0;
+      oscillator.connect(filter).connect(volume).connect(this.mix);
+      oscillator.start();
+      this.motor = { oscillator, filter, volume };
+    }
+    if (!this.motor) return;
+    const { oscillator, filter, volume } = this.motor;
+    const time = this.context.currentTime;
+    if (!vehicle) {
+      volume.gain.setTargetAtTime(0, time, 0.08);
+      return;
+    }
+    const heavy = vehicle.kind === 'bastion';
+    oscillator.frequency.setTargetAtTime((heavy ? 29 : 48) + Math.abs(vehicle.speed) * (heavy ? 2 : 3.1), time, 0.09);
+    filter.frequency.setTargetAtTime(vehicle.boosting ? 255 : heavy ? 115 : 176, time, 0.09);
+    volume.gain.setTargetAtTime(vehicle.boosting ? 0.095 : 0.036 + Math.abs(vehicle.speed) * 0.0015, time, 0.08);
+  }
+
+  grenadeThrow(distance, pan) {
+    const level = Math.max(0, 1 - distance / 12);
+    if (level) this.tone(449, 133, 0.12, 'triangle', 0.073 * level, pan);
+  }
+
+  explosion(distance, pan, grenade) {
+    const level = Math.max(0, 1 - distance / 30);
+    if (!level) return;
+    this.tone(grenade ? 110 : 169, 39, 0.25, 'sawtooth', 0.18 * level, pan);
+    this.tone(98, 31, 0.34, 'sine', 0.20 * level, pan);
+  }
+
+  movement(action, level = 1, pan = 0) {
+    if (action === 'land') this.tone(112, 51, 0.08, 'triangle', 0.06);
+    if (action === 'jump') this.tone(109, 196, 0.09, 'triangle', 0.048);
+    if (action === 'double') this.tone(224, 390, 0.12, 'triangle', 0.078);
+    if (action === 'dodge') this.tone(262, 99, 0.16, 'triangle', 0.078);
+    if (action === 'launch') {
+      this.tone(111, 344, 0.22, 'triangle', 0.13 * level, pan);
+      this.tone(320, 713, 0.21, 'sine', 0.064 * level, pan, 0.044);
+    }
+  }
+
+  footstep(level = 1, pan = 0) {
+    this.tone(95 + Math.random() * 28, 48, 0.062, 'triangle', 0.044 * level, pan);
   }
 
   confirm(type) {

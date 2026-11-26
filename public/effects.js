@@ -1,14 +1,17 @@
 import * as THREE from '/three.module.js';
-import { WEAPONS } from './rules.js';
+import { GRENADE, WEAPONS } from './rules.js';
 
-export const SHOT_STYLE = {
-  pulse: { life: 112, width: 0.14, flash: 0.27, recoil: 0.072, recover: 100 },
-  scatter: { life: 66, width: 0.10, flash: 0.46, recoil: 0.124, recover: 205 },
-  lance: { life: 230, width: 0.28, flash: 0.43, recoil: 0.103, recover: 175 },
-  arc: { life: 72, width: 0.09, flash: 0.21, recoil: 0.036, recover: 69 },
+const SHOT_STYLE = {
+  pulse: { life: 105, width: 0.14, flash: 0.30, duration: 52, shape: 1.15 },
+  scatter: { life: 72, width: 0.098, flash: 0.52, duration: 83, shape: 1.65 },
+  lance: { life: 238, width: 0.28, flash: 0.47, duration: 106, shape: 0.62 },
+  arc: { life: 63, width: 0.091, flash: 0.22, duration: 43, shape: 1.32 },
+  rift: { life: 135, width: 0.24, flash: 0.48, duration: 127, shape: 1.0 },
 };
 const worldUp = new THREE.Vector3(0, 1, 0);
 const colors = Object.fromEntries(Object.entries(WEAPONS).map(([key, spec]) => [key, new THREE.Color(spec.color)]));
+colors.grenade = new THREE.Color(GRENADE.color);
+const coreSpark = new THREE.Color('#f6d092');
 const metalSpark = new THREE.Color('#ffc07d');
 const shieldSpark = new THREE.Color('#6fbaff');
 const pilotSpark = new THREE.Color('#ff8c71');
@@ -59,6 +62,16 @@ function commit(mesh, count) {
 export class ArenaEffects {
   constructor(scene, camera, muzzle) {
     this.camera = camera;
+    this.projectileLayer = new THREE.Group();
+    scene.add(this.projectileLayer);
+    this.projectiles = new Map();
+    this.orbGeometry = new THREE.IcosahedronGeometry(0.20, 1);
+    this.orbitGeometry = new THREE.TorusGeometry(0.29, 0.022, 4, 15);
+    this.orbMaterial = new THREE.MeshBasicMaterial({ color: '#fff1fb', toneMapped: false });
+    this.orbitMaterial = new THREE.MeshBasicMaterial({ color: colors.rift, toneMapped: false });
+    this.grenadeGeometry = new THREE.IcosahedronGeometry(0.145, 0);
+    this.grenadeShell = new THREE.MeshStandardMaterial({ color: '#555b60', roughness: 0.52, metalness: 0.44 });
+    this.grenadeRing = new THREE.MeshBasicMaterial({ color: colors.grenade, toneMapped: false });
     this.beamMesh = batch(scene, new THREE.PlaneGeometry(), 80, lightMap(true));
     this.sparkMesh = batch(scene, new THREE.PlaneGeometry(), 240, lightMap());
     this.ringMesh = batch(scene, new THREE.RingGeometry(0.91, 1, 40).rotateX(-Math.PI / 2), 24);
@@ -75,12 +88,22 @@ export class ArenaEffects {
     }));
     this.flash.visible = false;
     muzzle.add(this.flash);
+    this.flashCore = new THREE.Sprite(this.flash.material.clone());
+    this.flashCore.material.color.set('#fff2cd');
+    this.flashCore.visible = false;
+    muzzle.add(this.flashCore);
     this.flashLight = new THREE.PointLight('#fff', 0, 4, 2);
     muzzle.add(this.flashLight);
   }
 
+  reset() {
+    this.beams.length = this.sparks.length = this.rings.length = 0;
+    this.lastFlash = undefined;
+    this.setProjectiles([]);
+  }
+
   shot(event, muzzle, local, time) {
-    const style = SHOT_STYLE[event.weapon];
+    const style = event.alt ? { ...SHOT_STYLE[event.weapon], life: 144, width: 0.19, shape: 0.98 } : SHOT_STYLE[event.weapon];
     const shade = colors[event.weapon];
     if (local) {
       this.lastFlash = { time, style };
@@ -98,10 +121,10 @@ export class ArenaEffects {
         if (this.beams.length >= 80) this.beams.shift();
         this.beams.push({ from: origin, end, direction: direction.normalize(), length, shade, time, ...style });
       }
-      if (!impact || (impact === 'wall' && Math.abs(y) > 5 && Math.max(Math.abs(x), Math.abs(z)) >= 29.9)) continue;
+      if (!impact) continue;
       const ray = serverOrigin.clone().sub(end).normalize();
       const start = end.clone().addScaledVector(ray, 0.045);
-      const hitColor = impact === 'shield' ? shieldSpark : impact === 'pilot' ? pilotSpark : metalSpark;
+      const hitColor = impact === 'shield' ? shieldSpark : impact === 'pilot' ? pilotSpark : impact === 'core' ? coreSpark : metalSpark;
       this.burst(start, ray, hitColor, time, event.weapon === 'scatter' ? 3 : 8);
     }
   }
@@ -124,7 +147,72 @@ export class ArenaEffects {
     if (pickup) this.burst(origin.clone().addScaledVector(worldUp, 0.36), worldUp, shade, time, 12);
   }
 
-  render(time) {
+  setProjectiles(items) {
+    const seen = new Set();
+    for (const shot of items) {
+      seen.add(shot.id);
+      let orb = this.projectiles.get(shot.id);
+      if (!orb) {
+        const root = new THREE.Group();
+        root.position.set(shot.x, shot.y, shot.z);
+        const grenade = shot.weapon === 'grenade';
+        const core = new THREE.Mesh(grenade ? this.grenadeGeometry : this.orbGeometry, grenade ? this.grenadeShell : this.orbMaterial);
+        const orbit = new THREE.Mesh(this.orbitGeometry, grenade ? this.grenadeRing : this.orbitMaterial);
+        if (grenade) orbit.scale.setScalar(0.59);
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: this.sparkMesh.material.map, color: colors[shot.weapon],
+          transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+        }));
+        halo.scale.setScalar(1.78);
+        root.add(core, orbit, halo);
+        this.projectileLayer.add(root);
+        orb = { root, core, orbit, halo, target: new THREE.Vector3(), lastTrail: 0, shade: colors[shot.weapon], grenade };
+        this.projectiles.set(shot.id, orb);
+      }
+      orb.target.set(shot.x, shot.y, shot.z);
+      orb.fuse = shot.fuse;
+    }
+    for (const [id, orb] of this.projectiles) {
+      if (seen.has(id)) continue;
+      orb.root.removeFromParent();
+      orb.halo.material.dispose();
+      this.projectiles.delete(id);
+    }
+  }
+
+  projectileBurst(position, time, weapon) {
+    const tint = colors[weapon];
+    const origin = new THREE.Vector3(...position);
+    if (this.rings.length >= 24) this.rings.shift();
+    this.rings.push({ origin, shade: tint, time, life: 580, radius: weapon === 'grenade' ? 4 : 3.28 });
+    this.burst(origin, worldUp, tint, time, 36);
+    this.burst(origin, worldUp, this.orbMaterial.color, time, 10);
+  }
+
+  movement(position, action, accent, time) {
+    if (action === 'jump') return;
+    if (action === 'land') {
+      this.burst(new THREE.Vector3(...position), worldUp, metalSpark, time, 4);
+      return;
+    }
+    this.pulse(position, accent, time, action === 'launch' || action === 'double');
+  }
+
+  render(time, dt) {
+    for (const orb of this.projectiles.values()) {
+      orb.root.position.lerp(orb.target, 1 - Math.exp(-dt * 37));
+      orb.core.rotation.set(time * 0.006, time * 0.01, 0);
+      orb.orbit.rotation.set(time * 0.007, 0.89, time * 0.012);
+      if (orb.grenade) {
+        orb.halo.scale.setScalar(0.34 + Math.max(0, Math.sin(time * (orb.fuse < 0.5 ? 0.062 : 0.024))) * 0.36);
+      } else {
+        orb.halo.scale.setScalar(1.57 + Math.sin(time * 0.023) * 0.19);
+      }
+      if (!orb.grenade && time - orb.lastTrail >= 37) {
+        orb.lastTrail = time;
+        this.burst(orb.root.position.clone(), worldUp, orb.shade, time, 2);
+      }
+    }
     this.beams = this.beams.filter(beam => time - beam.time < beam.life);
     this.sparks = this.sparks.filter(spark => time - spark.time < spark.life);
     this.rings = this.rings.filter(ring => time - ring.time < ring.life);
@@ -171,11 +259,15 @@ export class ArenaEffects {
     commit(this.ringMesh, this.rings.length);
 
     const flashAge = Math.max(0, time - (this.lastFlash?.time ?? -1000));
-    const strength = Math.max(0, 1 - flashAge / 58);
-    this.flash.visible = strength > 0;
+    const style = this.lastFlash?.style;
+    const strength = style ? Math.max(0, 1 - flashAge / style.duration) : 0;
+    this.flashCore.visible = this.flash.visible = strength > 0;
     if (strength) {
-      this.flash.scale.setScalar(this.lastFlash.style.flash * (1 - strength * 0.35));
+      const spread = style.flash * (1 - strength * 0.25);
+      this.flash.scale.set(spread * style.shape, spread / Math.sqrt(style.shape), spread);
       this.flash.material.opacity = strength;
+      this.flashCore.scale.set(spread * 0.58, spread * 0.30 / style.shape, spread);
+      this.flashCore.material.opacity = strength ** 2.5;
     }
     this.flashLight.intensity = strength * 3.5;
   }

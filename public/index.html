@@ -25,7 +25,7 @@
         <p class="hero-caption">Multiplayerová FPS. Tři týmy po čtyřech.</p>
         <div class="team-legend" aria-label="Týmy" id="teams"></div>
       </div>
-      <div class="hero-coordinate" aria-hidden="true"><span></span> MAPA <b>RELAY STATION</b></div>
+      <div class="hero-coordinate" aria-hidden="true"><span></span> MAPA <b id="hero-map">RELAY STATION</b></div>
     </section>
 
     <div class="setup">
@@ -33,6 +33,10 @@
         <div class="section-head"><h2 id="mode-title">Herní režim</h2><span id="selected-format">4 VS 4 VS 4</span></div>
         <div id="mode-list" class="mode-list" role="group" aria-label="Výběr herního režimu"></div>
         <p id="mode-description" class="mode-description"></p>
+        <div class="lobby-options">
+          <div><h3>Mapa</h3><div id="map-options" class="map-options" role="group" aria-label="Výběr mapy"></div></div>
+          <div><h3>Pilot</h3><div id="pilot-options" class="pilot-options" role="group" aria-label="Výběr pilota"></div></div>
+        </div>
       </section>
       <form id="join-form" class="join">
         <div class="section-head"><h2>Místnost</h2><button type="button" id="new-code" class="link-button">Nový kód</button></div>
@@ -55,6 +59,9 @@
         <div class="top-center"><strong id="clock">00:00</strong><div id="scores" class="scores"></div><div id="objectives" class="objectives"></div></div>
         <div class="game-actions"><button type="button" id="invite">Pozvat <span aria-hidden="true">↗</span></button><button type="button" id="score-button" aria-expanded="false" aria-controls="scoreboard">Skóre</button></div>
       </div>
+      <div class="tactical-map" id="tactical-map" hidden>
+        <canvas id="minimap" width="228" height="228" aria-label="Minimapa, spojenci a cíle"></canvas>
+      </div>
       <div id="feed" class="feed" aria-live="off"></div>
       <div id="crosshair" class="crosshair" aria-hidden="true"></div>
       <div id="hit-marker" class="hit-marker" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -62,13 +69,17 @@
       <div id="damage" class="damage" aria-hidden="true"></div>
       <div id="damage-directions" class="damage-directions" aria-hidden="true"></div>
       <div class="game-bottom">
-        <div id="health-card" class="readout health"><span id="team-label"></span><strong id="health">100</strong><small id="armor"></small><div class="health-track"><i id="health-bar"></i></div></div>
+        <div id="health-card" class="readout health"><span id="team-label"></span><strong id="health">150</strong><small id="armor"></small><div class="health-track"><i id="health-bar"></i></div></div>
         <div class="game-center-bottom">
           <span id="combat-status" class="combat-status"></span>
           <span id="pickup-feedback" class="pickup-feedback" hidden></span>
           <div id="weapons" class="weapons" aria-label="Zbraně"></div>
+          <div id="drive-readout" class="drive-readout" hidden aria-label="Stav vozidla">
+            <b id="drive-speed"></b><span id="drive-ability"></span>
+          </div>
+          <div class="dodge-readout" id="dodge-readout" aria-hidden="true"><kbd>Q</kbd><span>ÚHYB</span><div><i id="dodge-ready"></i></div></div>
         </div>
-        <div class="readout ammo"><span id="weapon-name">PULSE</span><strong><b id="ammo">24</b><small id="reserve"></small></strong></div>
+        <div class="readout ammo"><span id="weapon-name">PULSE</span><strong><b id="ammo">24</b><small id="reserve"></small></strong><span id="weapon-action"></span></div>
       </div>
     </div>
 
@@ -99,12 +110,20 @@
       <div><dt>Pohyb</dt><dd><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dd></div>
       <div><dt>Míření / střelba</dt><dd>Myš / levé tlačítko</dd></div>
       <div><dt>Skok / dvojskok</dt><dd><kbd>Mezerník</kbd> / znovu ve vzduchu</dd></div>
-      <div><dt>Změnit zbraň</dt><dd><kbd>1</kbd>–<kbd>4</kbd></dd></div>
-      <div><dt>Sprint</dt><dd><kbd>Shift</kbd></dd></div>
+      <div><dt>Úhyb</dt><dd><kbd>Q</kbd> nebo dvojstisk směru</dd></div>
+      <div><dt>Změnit zbraň</dt><dd><kbd>1</kbd>–<kbd>5</kbd> nebo kolečko</dd></div>
+      <div><dt>Sprint / přikrčit</dt><dd><kbd>Shift</kbd> / <kbd>C</kbd></dd></div>
+      <div><dt>Granát / obsloužit hnízdo</dt><dd><kbd>G</kbd> / <kbd>E</kbd></dd></div>
+      <div><dt>Scatter, soustředěná rána</dt><dd><kbd>F</kbd></dd></div>
       <div><dt>Přebít</dt><dd><kbd>R</kbd></dd></div>
       <div><dt>Tabulka skóre</dt><dd><kbd>Tab</kbd></dd></div>
       <div><dt>Uvolnit myš</dt><dd><kbd>Esc</kbd></dd></div>
+      <div><dt>Vozidla · nastoupit / brzdit</dt><dd><kbd>E</kbd> / <kbd>Mezerník</kbd></dd></div>
+      <div><dt>Skimmer · turbo</dt><dd><kbd>Shift</kbd></dd></div>
     </dl>
+    <label class="sensitivity">Citlivost myši <output id="sensitivity-value" for="sensitivity"></output>
+      <input id="sensitivity" type="range" min="30" max="220" value="100" step="5">
+    </label>
   </dialog>
   <script type="module" src="/client.js"></script>
 </body>

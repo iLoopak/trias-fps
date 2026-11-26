@@ -49,7 +49,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .section-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .section-head h2 { margin: 0; font-size: 18px; letter-spacing: -.028em; }
 .section-head > span { font: 700 10px var(--mono); letter-spacing: .10em; color: var(--muted); }
-.mode-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 16px 0 0; }
+.mode-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 16px 0 0; }
 .mode { display: flex; flex-direction: column; justify-content: space-between; text-align: left; min-height: 88px; padding: 12px; color: var(--paper); border: 1px solid var(--line); background: #0c1317; gap: 9px; }
 .mode:hover { border-color: #87964d; }
 .mode[aria-pressed="true"] { border-color: var(--accent); background: #1e281b; }
@@ -96,6 +96,10 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   translate: -50% -50%; opacity: 0; color: #f2fff4;
   filter: drop-shadow(0 1px 2px #000) drop-shadow(0 0 4px currentColor);
 }
+.hit-marker::after {
+  content: ""; position: absolute; inset: -13px; border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 37%, color-mix(in srgb, currentColor 18%, transparent) 70%, transparent);
+}
 .hit-marker i { position: absolute; width: 13px; height: 3px; border-radius: 1px; background: currentColor; }
 .hit-marker i:nth-child(1) { top: 8px; left: 4px; rotate: 45deg; }
 .hit-marker i:nth-child(2) { top: 8px; right: 4px; rotate: -45deg; }
@@ -118,7 +122,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .damage-directions { position: absolute; inset: 0; }
 .damage-direction {
   position: absolute; inset: 50% auto auto 50%; width: 44px; height: 11px; translate: -50% -50%;
-  transform: rotate(var(--angle)) translateY(calc(-1 * clamp(42px, 10vmin, 92px)));
+  transform: rotate(calc(var(--angle) + var(--look-yaw, 0rad))) translateY(calc(-1 * clamp(42px, 10vmin, 92px)));
   color: var(--damage-color); background: currentColor;
   clip-path: polygon(0 100%, 12% 37%, 50% 0, 88% 37%, 100% 100%, 50% 40%);
 }
@@ -206,3 +210,50 @@ kbd { background: #070e11; border: 1px solid var(--line); color: var(--paper); p
   color: var(--item-color); border-left: 2px solid currentColor;
   font: 700 12px var(--mono); letter-spacing: .04em;
 }
+.dodge-readout { display: flex; align-items: center; gap: 6px; color: #c0cdd0; font: 700 9px var(--mono); letter-spacing: .08em; }
+.dodge-readout > div { width: 54px; height: 3px; background: #273640; }
+.dodge-readout i { display: block; width: 100%; height: 100%; background: #91aab3; transform-origin: left; }
+.dodge-readout i.ready { background: #c9ff64; box-shadow: 0 0 9px #c9ff6470; }
+.crosshair[data-weapon="scatter"] { width: 34px; height: 34px; }
+.crosshair[data-weapon="lance"] { width: 15px; height: 15px; }
+.crosshair[data-weapon="rift"] { width: 26px; height: 26px; }
+.crosshair[data-weapon="rift"]::before { clip-path: none; background: none; border: 1px solid currentColor; border-radius: 50%; opacity: .68; }
+.crosshair[data-weapon="rift"]::after { inset: 46%; clip-path: none; border-radius: 50%; }
+.sensitivity { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; font-size: 13px; }
+.sensitivity output { color: var(--accent); font: 700 12px var(--mono); }
+.sensitivity input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.lobby-options { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; margin-top: 19px; }
+.lobby-options h3 { margin: 0 0 7px; color: #c9d4d3; font-size: 12px; }
+.map-options, .pilot-options { display: grid; gap: 6px; }
+.map-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pilot-options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.preset { background: #0c1317; color: var(--paper); border: 1px solid var(--line); min-height: 58px; text-align: left; padding: 7px; }
+.preset[aria-pressed="true"] { border-color: var(--accent); background: #20291e; }
+.preset b, .preset small { display: block; }
+.preset b { font-size: 11px; }
+.preset small { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.22; }
+.map-preset[data-theme="foundry"] b { color: #ffc097; }
+.pilot-preset { display: grid; justify-items: center; align-content: center; gap: 2px; text-align: center; padding-inline: 3px; }
+.pilot-preset i { display: block; width: min(100%, 48px); aspect-ratio: 1; background: url('/pilot-portraits.png') 0 50% / 400% 100% no-repeat; border-bottom: 1px solid #576971; }
+.pilot-preset[data-pilot="bulwark"] i { background-position-x: 33.333%; }
+.pilot-preset[data-pilot="wraith"] i { background-position-x: 66.667%; }
+.pilot-preset[data-pilot="kestrel"] i { background-position-x: 100%; }
+.pilot-preset small { margin-top: 0; font-size: 10px; color: #aebbc8; }
+.pilot-preset[aria-pressed="true"] i { border-color: var(--accent); }
+#weapon-action { color: #bfcbcd; font-size: 9px; letter-spacing: .055em; }
+#ammo.dry { color: #ff8b6c; }
+@media (max-width: 560px) { .lobby-options { grid-template-columns: 1fr; gap: 9px; } }
+
+.map-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.map-preset[data-theme="basin"] b { color: #d4b9ff; }
+.tactical-map { position: absolute; left: 20px; top: 86px; width: min(154px, 19vw); padding: 3px; border: 1px solid #586779; background: #101922dc; }
+.tactical-map canvas { display: block; width: 100%; }
+.drive-readout { display: flex; align-items: center; gap: 9px; background: #101922dc; padding: 4px 9px; border: 1px solid #586779; font: 700 9px var(--mono); color: #d8ebec; white-space: nowrap; }
+.drive-readout b { color: #c9ff64; font-size: 11px; }
+.drive-readout span { color: #a9b7bd; }
+@media (max-width: 540px) { .tactical-map { left: 10px; top: 96px; } }
+
+.hit-marker[data-kind="core"], .hit-caption[data-kind="core"] { color: #ffd58a; }
+@media (max-width: 600px) { .objectives > span { padding: 3px 4px; } }
+
+.map-preset[data-theme="island"] b { color: #badf85; }

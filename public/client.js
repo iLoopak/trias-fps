@@ -1,5 +1,10 @@
+import { drawTacticalMap } from './tactical-map.js';
+import { boardingVehicle, moveVehicle, VEHICLES } from './vehicles.js';
 import { GameAudio } from './game-audio.js';
-import { ARMORY, DEFAULT_MODE, MODES, POWERUPS, TEAMS, TICK, WEAPONS, movePlayer, pilotColor, roomCode } from './rules.js';
+import {
+  ARENAS, ARMORY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, DODGE_COOLDOWN, MODES,
+  PILOT_HP, POWERUPS, TEAMS, TICK, TURRET, WEAPONS, canDodge, distanceSquared, eyeHeight, movePlayer, pilotColor, roomCode, turretYaw,
+} from './rules.js';
 
 const $ = id => document.getElementById(id);
 const lobby = $('lobby');
@@ -9,7 +14,14 @@ const pause = $('pause');
 const scoreboard = $('scoreboard');
 const params = new URLSearchParams(location.search);
 const modeButtons = new Map();
+const mapButtons = new Map();
+const pilotButtons = new Map();
 const keys = new Set();
+const recentTap = new Map();
+const tapDirection = {
+  KeyW: 'forward', ArrowUp: 'forward', KeyS: 'back', ArrowDown: 'back',
+  KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
+};
 const gearWidgets = ARMORY.map((weapon, i) => {
   const slot = node('span');
   slot.style.setProperty('--item-color', WEAPONS[weapon].color);
@@ -18,6 +30,10 @@ const gearWidgets = ARMORY.map((weapon, i) => {
   return slot;
 });
 let selectedMode = Object.hasOwn(MODES, params.get('mode')) ? params.get('mode') : DEFAULT_MODE;
+let selectedMap = Object.hasOwn(ARENAS, params.get('arena')) ? params.get('arena') : DEFAULT_ARENA;
+let selectedPilot = DEFAULT_CHARACTER;
+let layout = ARENAS[selectedMap];
+let ArenaView;
 let arena;
 let socket;
 let joined;
@@ -27,7 +43,13 @@ let seq = 0;
 let queue = [];
 let view;
 let predicted;
+let predictedVehicle;
 let jumpClick = false;
+let dodgeClick = false;
+let altClick = false;
+let grenadeClick = false;
+let useClick = false;
+let lastMovement;
 let weaponClick = null;
 let manualAim = false;
 let dragAim = false;
@@ -45,6 +67,17 @@ let hitPriority = 0;
 let lastDamageAudio = -1000;
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let pickupTimer;
+let sensitivity = 1;
+try { $('sensitivity').value = localStorage.getItem('trias.sensitivity') ?? '100'; } catch { /* Storage can be unavailable. */ }
+function updateSensitivity() {
+  sensitivity = $('sensitivity').valueAsNumber / 100;
+  $('sensitivity-value').value = $('sensitivity').value + ' %';
+}
+$('sensitivity').addEventListener('input', updateSensitivity);
+$('sensitivity').addEventListener('change', () => {
+  try { localStorage.setItem('trias.sensitivity', $('sensitivity').value); } catch { /* Storage can be unavailable. */ }
+});
+updateSensitivity();
 
 function node(tag, text, css) {
   const item = document.createElement(tag);
@@ -70,6 +103,7 @@ function chooseMode(mode) {
   for (const [id, button] of modeButtons) button.setAttribute('aria-pressed', id === mode);
   $('mode-description').textContent = MODES[mode].description;
   $('selected-format').textContent = mode === 'ffa' ? 'AŽ 12 HRÁČŮ' : '4 VS 4 VS 4';
+  if (MODES[mode].arena && selectedMap !== MODES[mode].arena) chooseMap(MODES[mode].arena);
 }
 
 for (const [id, mode] of Object.entries(MODES)) {
@@ -81,6 +115,43 @@ for (const [id, mode] of Object.entries(MODES)) {
   $('mode-list').append(button);
 }
 chooseMode(selectedMode);
+function chooseMap(id) {
+  selectedMap = id;
+  for (const [key, button] of mapButtons) button.setAttribute('aria-pressed', key === id);
+  $('hero-map').textContent = ARENAS[id].label.toUpperCase();
+  if (MODES[selectedMode].arena && MODES[selectedMode].arena !== id) chooseMode(DEFAULT_MODE);
+}
+for (const [id, item] of Object.entries(ARENAS)) {
+  const button = node('button', undefined, 'preset map-preset');
+  button.type = 'button';
+  button.dataset.theme = id;
+  button.append(node('b', item.label), node('small', item.description));
+  button.addEventListener('click', () => chooseMap(id));
+  mapButtons.set(id, button);
+  $('map-options').append(button);
+}
+chooseMap(selectedMap);
+
+try {
+  const stored = localStorage.getItem('trias.pilot');
+  if (Object.hasOwn(CHARACTERS, stored)) selectedPilot = stored;
+} catch { /* Storage can be unavailable. */ }
+for (const [id, item] of Object.entries(CHARACTERS)) {
+  const button = node('button', undefined, 'preset pilot-preset');
+  button.type = 'button';
+  button.dataset.pilot = id;
+  const weapon = WEAPONS[item.weapon];
+  button.title = item.description + (item.rounds ? ' Startovní munice: ' + item.rounds + '. Pulse v záloze.' : '');
+  button.append(node('i'), node('b', item.label), node('small', weapon.label));
+  button.setAttribute('aria-pressed', id === selectedPilot);
+  button.addEventListener('click', () => {
+    selectedPilot = id;
+    for (const [key, other] of pilotButtons) other.setAttribute('aria-pressed', key === id);
+    try { localStorage.setItem('trias.pilot', id); } catch { /* Storage can be unavailable. */ }
+  });
+  pilotButtons.set(id, button);
+  $('pilot-options').append(button);
+}
 $('room').value = roomCode(params.get('room')) ?? newRoomCode();
 $('bots').checked = params.get('bots') !== '0';
 try { $('nickname').value = localStorage.getItem('trias.name') ?? ''; } catch { /* Storage can be unavailable. */ }
@@ -105,7 +176,8 @@ function endMatch(message = '') {
   socket = undefined;
   if (connection && connection.readyState < WebSocket.CLOSING) connection.close();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
-  joined = own = state = undefined;
+  joined = own = state = predictedVehicle = undefined;
+  audio.engine(null);
   manualAim = false;
   queue = [];
   seq = 0;
@@ -127,8 +199,7 @@ $('join-form').addEventListener('submit', async event => {
   $('join-button').disabled = true;
   showError('');
   try {
-    const { Arena } = await import('./arena.js');
-    arena ??= new Arena(canvas);
+    ArenaView ??= (await import('./arena.js')).Arena;
   } catch (error) {
     console.error(error);
     $('join-button').disabled = false;
@@ -143,7 +214,7 @@ $('join-form').addEventListener('submit', async event => {
     if (socket === connection && !joined) endMatch('Server neodpověděl včas.');
   }, 5000);
   connection.addEventListener('open', () => connection.send(JSON.stringify({
-    type: 'join', room, name, mode: selectedMode, bots: $('bots').checked,
+    type: 'join', room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
   })));
   connection.addEventListener('message', event => {
     if (socket !== connection) return;
@@ -165,22 +236,39 @@ function inviteURL() {
   const url = new URL('/', location.href);
   url.searchParams.set('room', joined.room);
   url.searchParams.set('mode', joined.mode);
+  url.searchParams.set('arena', layout.id);
   if (!joined.bots) url.searchParams.set('bots', '0');
   return url;
 }
 
 function onJoin(message) {
+  layout = ARENAS[message.arena] ?? ARENAS[DEFAULT_ARENA];
+  try {
+    if (arena?.layout !== layout) {
+      arena?.dispose();
+      arena = undefined;
+      arena = new ArenaView(canvas, layout);
+    } else arena.reset();
+  } catch (error) {
+    console.error(error);
+    endMatch('3D arénu se nepodařilo spustit. Zkontroluj, že má prohlížeč povolený WebGL 2.');
+    return;
+  }
   joined = message;
   void audio.preload();
   chooseMode(message.mode);
+  chooseMap(layout.id);
+  $('pause-tag').textContent = layout.label.toUpperCase();
+  $('tactical-map').hidden = layout.id !== 'basin' && layout.id !== 'island';
   $('match-mode').textContent = MODES[message.mode].label;
-  $('match-room').textContent = message.room;
+  $('match-room').textContent = layout.label + ' · ' + message.room;
   $('room').value = message.room;
   $('bots').checked = message.bots;
   $('feed').replaceChildren();
   $('toast').hidden = true;
   $('pickup-feedback').hidden = true;
   resetCombatFeedback();
+  lastMovement = undefined;
   history.replaceState(null, '', inviteURL());
   game.hidden = false;
   lobby.hidden = true;
@@ -192,8 +280,10 @@ function onJoin(message) {
 
 function clearControls() {
   keys.clear();
-  isFiring = fireClick = reloadClick = jumpClick = dragAim = false;
+  recentTap.clear();
+  isFiring = fireClick = reloadClick = jumpClick = dodgeClick = dragAim = false;
   weaponClick = null;
+  altClick = grenadeClick = useClick = false;
 }
 
 function canControl() {
@@ -282,12 +372,29 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (!canControl() || !scoreboard.hidden) return;
+  const direction = tapDirection[event.code];
+  if (direction) {
+    event.preventDefault();
+    if (!event.repeat) {
+      const time = performance.now();
+      if (time - (recentTap.get(direction) ?? -1000) <= 224) {
+        dodgeClick = true;
+        recentTap.delete(direction);
+      } else recentTap.set(direction, time);
+    }
+  }
+  if (event.code === 'KeyQ' && !event.repeat) dodgeClick = true;
   keys.add(event.code);
   if (event.code === 'Space') {
     event.preventDefault();
     if (!event.repeat) jumpClick = true;
   }
-  if (event.code === 'KeyR' && !event.repeat) reloadClick = true;
+  if (!event.repeat) {
+    if (event.code === 'KeyR') reloadClick = true;
+    if (event.code === 'KeyF' && own?.weapon === 'scatter' && own.turret < 0) altClick = true;
+    if (event.code === 'KeyG') grenadeClick = true;
+    if (event.code === 'KeyE') useClick = true;
+  }
   if (event.code.startsWith('Digit') && !event.repeat) weaponClick = ARMORY[Number(event.code.slice(5)) - 1] ?? null;
 });
 document.addEventListener('keyup', event => keys.delete(event.code));
@@ -300,9 +407,19 @@ document.addEventListener('mousemove', event => {
   const dx = manualAim ? event.clientX - previousAim.x : event.movementX;
   const dy = manualAim ? event.clientY - previousAim.y : event.movementY;
   if (manualAim) previousAim = { x: event.clientX, y: event.clientY };
-  view.yaw = (view.yaw - dx * 0.00215) % (Math.PI * 2);
-  view.pitch = Math.max(-1.48, Math.min(1.48, view.pitch - dy * 0.00215));
+  view.yaw = (view.yaw - dx * 0.00215 * sensitivity) % (Math.PI * 2);
+  view.pitch = Math.max(-1.48, Math.min(1.48, view.pitch - dy * 0.00215 * sensitivity));
+  clampMountedAim();
 });
+function clampMountedAim() {
+  if (predictedVehicle) {
+    view.pitch = Math.max(-0.66, Math.min(0.67, view.pitch));
+    return;
+  }
+  if (own.turret < 0) return;
+  view.yaw = turretYaw(view.yaw, layout.turrets[own.turret].yaw);
+  view.pitch = Math.max(-0.47, Math.min(0.56, view.pitch));
+}
 document.addEventListener('mousedown', event => {
   if (!canControl() || !scoreboard.hidden || !own?.hp || state?.winner) return;
   if (manualAim && event.target !== canvas) return;
@@ -310,13 +427,28 @@ document.addEventListener('mousedown', event => {
     dragAim = true;
     previousAim = { x: event.clientX, y: event.clientY };
   }
-  if (event.button === 0) isFiring = fireClick = true;
+  if (event.button === 0) {
+    isFiring = fireClick = true;
+    const [rounds, reserve] = own.loadout[ARMORY.indexOf(own.weapon)];
+    if (own.turret < 0 && own.vehicle < 0 && !own.reload) {
+      if (rounds) arena.anticipate();
+      else if (!reserve) audio.gunAction(own.weapon, 'empty');
+    }
+  }
 });
 document.addEventListener('mouseup', event => {
   if (event.button === 0) isFiring = false;
   if (event.button === 2) dragAim = false;
 });
 canvas.addEventListener('contextmenu', event => event.preventDefault());
+document.addEventListener('wheel', event => {
+  if (!canControl() || !scoreboard.hidden || !own?.hp || state?.winner || !event.deltaY) return;
+  event.preventDefault();
+  const owned = ARMORY.filter((_, index) => own.loadout[index]);
+  if (owned.length < 2) return;
+  const index = owned.indexOf(weaponClick ?? own.weapon);
+  weaponClick = owned[(index + Math.sign(event.deltaY) + owned.length) % owned.length];
+}, { passive: false });
 
 const down = (a, b) => Number(keys.has(a) || keys.has(b));
 setInterval(() => {
@@ -326,19 +458,27 @@ setInterval(() => {
     type: 'input', seq: ++seq,
     x: control ? down('KeyD', 'ArrowRight') - down('KeyA', 'ArrowLeft') : 0,
     z: control ? down('KeyW', 'ArrowUp') - down('KeyS', 'ArrowDown') : 0,
-    yaw: view.yaw, pitch: view.pitch, sprint: Boolean(control && down('ShiftLeft', 'ShiftRight')),
+    yaw: view.yaw, pitch: view.pitch, sprint: Boolean(control && down('ShiftLeft', 'ShiftRight')), brake: Boolean(control && keys.has('Space')),
     fire: Boolean(control && (isFiring || fireClick)), reload: Boolean(control && reloadClick),
-    jump: Boolean(control && jumpClick), weapon: control ? weaponClick : null,
+    jump: Boolean(control && jumpClick), dodge: Boolean(control && dodgeClick), crouch: Boolean(control && keys.has('KeyC')),
+    alt: Boolean(control && altClick), grenade: Boolean(control && grenadeClick), use: Boolean(control && useClick),
+    weapon: control ? weaponClick : null,
   };
-  fireClick = reloadClick = jumpClick = false;
+  fireClick = reloadClick = jumpClick = dodgeClick = altClick = grenadeClick = useClick = false;
   weaponClick = null;
   socket.send(JSON.stringify(input));
   queue.push(input);
   if (queue.length > 24) queue.shift();
-  if (own.hp && !state.winner) {
-    const launched = input.jump && (predicted.grounded || predicted.airJump);
-    movePlayer(predicted, input);
-    if (launched) audio.tone(116, 235, 0.12, 'triangle', 0.075);
+  if (own.hp && !state.winner && own.turret < 0) {
+    if (predictedVehicle) {
+      moveVehicle(predictedVehicle, input, layout, state.vehicles);
+      return;
+    }
+    const signal = movePlayer(predicted, input, TICK, layout);
+    if (signal) {
+      lastMovement = { action: signal, time: performance.now() };
+      showMotion({ action: signal, position: [predicted.x, predicted.y, predicted.z], id: own.id, team: own.team }, true);
+    }
   }
 }, TICK * 1000);
 
@@ -346,43 +486,110 @@ function onState(message) {
   const player = message.players.find(p => p.id === joined.id);
   if (!player) return;
   const spawn = own?.spawn !== player.spawn;
-  if (spawn) {
+  const mounted = own?.turret !== player.turret || own?.vehicle !== player.vehicle;
+  if (spawn || mounted) {
     view = { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch };
     queue = [];
   }
-  if (spawn && own) resetCombatFeedback();
-  predicted = { x: player.x, y: player.y, z: player.z, vy: player.vy, grounded: player.grounded, airJump: player.airJump };
+  if (spawn && own) {
+    resetCombatFeedback();
+    lastMovement = undefined;
+  }
+  if (!spawn && own?.weapon === player.weapon && own.reload !== player.reload && player.hp > 0) {
+    const index = ARMORY.indexOf(player.weapon);
+    if (player.reload) audio.gunAction(player.weapon, 'open');
+    else if (player.loadout[index]?.[0] > own.loadout[index]?.[0]) audio.gunAction(player.weapon, 'close');
+  }
+  predicted = {
+    x: player.x, y: player.y, z: player.z, vx: player.vx, vy: player.vy, vz: player.vz, grounded: player.grounded,
+    airJump: player.airJump, airDodge: player.airDodge, dodgeCooldown: player.dodgeCooldown, dodgeTime: player.dodgeTime,
+    padCooldown: player.padCooldown, crouch: player.crouch,
+  };
+  const vehicle = message.vehicles?.[player.vehicle];
+  predictedVehicle = vehicle ? { ...vehicle } : null;
   queue = queue.filter(input => input.seq > player.ack);
-  if (player.hp && !message.winner) for (const input of queue) movePlayer(predicted, input);
+  if (player.hp && player.turret < 0 && !message.winner) {
+    for (const input of queue) {
+      if (predictedVehicle) moveVehicle(predictedVehicle, input, layout, message.vehicles);
+      else movePlayer(predicted, input, TICK, layout);
+    }
+  }
   own = player;
   state = message;
   arena.snapshot(message, player, joined.mode);
   for (const event of message.events) {
-    if (event.type === 'shot') playShot(event);
+    if (event.type === 'shot' || event.type === 'burst' || event.type === 'collision') playShot(event);
+    else if ((event.type === 'wreck' || event.type === 'core-wreck')) {
+      arena.wreck(event);
+      const { distance, pan } = spatial(event.position);
+      audio.explosion(distance, pan, true);
+    }
+    else if (event.type === 'grenade') {
+      const { distance, pan } = spatial(event.from);
+      audio.grenadeThrow(distance, pan);
+    } else if (event.type === 'movement') {
+      const local = event.id === own.id;
+      const predictedCue = local && lastMovement?.action === event.action && performance.now() - lastMovement.time < 330;
+      if (!predictedCue) showMotion(event, local);
+    }
     else if (event.type === 'pickup') {
       arena.collect(event);
       if (event.id === own.id) playPickup(event.item);
-    } else addFeed(event);
+    } else {
+      if (event.type === 'kill') arena.eliminate(event, event.victimId === own.id, joined.mode);
+      addFeed(event);
+    }
   }
   updateHUD();
+  if (!$('tactical-map').hidden) drawTacticalMap($('minimap'), layout, state, own, joined.mode, view.yaw);
   if (!scoreboard.hidden) renderScoreboard();
+}
+
+function spatial(position) {
+  const dx = position[0] - own.x;
+  const dz = position[2] - own.z;
+  const distance = Math.hypot(dx, dz, position[1] - own.y - eyeHeight(own));
+  const pan = Math.max(-0.85, Math.min(0.85, (dx * Math.cos(view.yaw) - dz * Math.sin(view.yaw)) / Math.max(2, distance)));
+  return { dx, dz, distance, pan };
 }
 
 function playShot(event) {
   const local = event.id === own.id;
-  arena.shot(event, local);
-  const dx = event.from[0] - own.x;
-  const dz = event.from[2] - own.z;
-  const distance = Math.hypot(dx, dz, event.from[1] - own.y - 1.46);
-  if (distance < 28) {
-    const pan = local ? 0 : Math.max(-0.85, Math.min(0.85, (dx * Math.cos(view.yaw) - dz * Math.sin(view.yaw)) / Math.max(2, distance)));
-    audio.shot(event.weapon, local, distance, pan);
+  const { dx, dz, distance, pan } = spatial(event.from);
+  if (event.type === 'burst') {
+    arena.burst(event);
+    audio.explosion(distance, pan, event.weapon === 'grenade');
+  } else if (event.type === 'shot') {
+    arena.shot(event, local);
+    if (distance < 28) audio.shot(event.weapon, local, distance, local ? 0 : pan, event.alt);
+    if (local && own.hp) {
+      const rise = { pulse: 0.013, scatter: 0.050, lance: 0.030, arc: 0.009, rift: 0.048 }[event.weapon];
+      const kick = event.alt ? rise * 1.38 : (event.mounted || event.vehicle) ? rise * 0.45 : rise;
+      view.pitch = Math.min(1.48, view.pitch + kick);
+      view.yaw += (Math.random() - 0.5) * kick * 0.38;
+      clampMountedAim();
+    }
   }
   if (local && event.hits.length) confirmHit(event.hits);
   if (!local) {
     const hit = event.hits.find(item => item.id === own.id);
     if (hit) receiveHit(dx, dz, hit);
   }
+}
+
+function showMotion(event, local) {
+  if (event.action !== 'step') {
+    const player = local ? own : state.players.find(item => item.id === event.id);
+    arena.move(event, local, player ? pilotColor(player, joined.mode) : TEAMS[event.team].color);
+  }
+  if (local) {
+    if (event.action === 'step') audio.footstep();
+    else audio.movement(event.action);
+    return;
+  }
+  const { distance, pan } = spatial(event.position);
+  if (event.action === 'step' && distance < 10) audio.footstep((1 - distance / 10) * 0.82, pan);
+  if (event.action === 'launch' && distance < 18) audio.movement('launch', (1 - distance / 18) * 0.55, pan);
 }
 
 function resetCombatFeedback() {
@@ -396,14 +603,15 @@ function resetCombatFeedback() {
 }
 
 function confirmHit(hits) {
-  const type = hits.some(hit => hit.eliminated) ? 'eliminated' : hits.some(hit => hit.absorbed > 0) ? 'shield' : 'body';
-  const priority = { body: 1, shield: 2, eliminated: 3 }[type];
+  const type = hits.some(hit => hit.kind !== 'core' && hit.eliminated) ? 'eliminated'
+    : hits.some(hit => hit.kind === 'core') ? 'core' : hits.some(hit => hit.absorbed > 0) ? 'shield' : 'body';
+  const priority = { body: 1, shield: 2, core: 2, eliminated: 3 }[type];
   if (hitAnimation?.playState === 'running' && hitPriority > priority) return;
   hitPriority = priority;
   const marker = $('hit-marker');
   const caption = $('hit-caption');
-  const label = { body: '', shield: 'ŠTÍT', eliminated: 'VYŘAZENÍ' }[type];
-  const duration = { body: 155, shield: 235, eliminated: 455 }[type];
+  const label = { body: '', shield: 'ŠTÍT', core: 'JÁDRO', eliminated: 'VYŘAZENÍ' }[type];
+  const duration = { body: 155, shield: 235, core: 270, eliminated: 455 }[type];
   marker.dataset.kind = caption.dataset.kind = type;
   caption.textContent = label;
   hitAnimation?.cancel();
@@ -413,13 +621,11 @@ function confirmHit(hits) {
     { opacity: 1, scale: motion }, { opacity: 1, scale: 1, offset: 0.31 }, { opacity: 0, scale: 1 },
   ], { duration, easing: 'ease-out' });
   if (label) hitCaptionAnimation = caption.animate([{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], duration + 100);
-  audio.confirm(type);
+  audio.confirm(type === 'core' ? 'shield' : type);
 }
 
 function receiveHit(dx, dz, hit) {
-  const lateral = dx * Math.cos(view.yaw) - dz * Math.sin(view.yaw);
-  const forward = -dx * Math.sin(view.yaw) - dz * Math.cos(view.yaw);
-  const angle = Math.atan2(lateral, forward);
+  const angle = Math.atan2(dx, -dz);
   const shield = hit.absorbed > 0 && !hit.eliminated;
   const shade = shield ? '#66c8ff' : '#ff594c';
   const strength = Math.min(0.87, 0.29 + (hit.health + hit.absorbed) / 112);
@@ -441,7 +647,7 @@ function receiveHit(dx, dz, hit) {
   animation.onfinish = () => indicator.remove();
   if (performance.now() - lastDamageAudio > 58 || hit.eliminated) {
     lastDamageAudio = performance.now();
-    audio.damage(shield, hit.eliminated, Math.sin(angle) * 0.44);
+    audio.damage(shield, hit.eliminated, Math.sin(angle + view.yaw) * 0.44);
   }
 }
 
@@ -493,25 +699,52 @@ function updateHUD() {
   $('team-label').textContent = ffa ? 'PILOT' : team.name;
   const accent = pilotColor(own, joined.mode);
   $('health-card').style.setProperty('--team', accent);
-  $('health-card').classList.toggle('critical', own.hp > 0 && own.hp <= 25);
+  $('health-card').classList.toggle('critical', own.hp > 0 && own.hp <= 35);
   $('health').textContent = own.hp;
-  $('health-bar').style.width = own.hp + '%';
+  $('health-bar').style.width = (own.hp / PILOT_HP * 100) + '%';
   $('armor').textContent = own.armor ? 'ŠTÍT ' + own.armor : '';
   const activeIndex = ARMORY.indexOf(own.weapon);
   const [rounds, reserve] = own.loadout[activeIndex];
-  $('weapon-name').textContent = WEAPONS[own.weapon].label.toUpperCase();
-  $('weapon-name').style.color = WEAPONS[own.weapon].color;
-  $('ammo').textContent = rounds;
-  $('reserve').textContent = ' / ' + (reserve < 0 ? '∞' : reserve);
+  const turret = own.turret >= 0 ? state.turrets[own.turret] : null;
+  const vehicle = state.vehicles?.[own.vehicle];
+  const vehicleSpec = vehicle && VEHICLES[vehicle.kind];
+  const weapon = vehicleSpec ? vehicleSpec.gun.key : turret ? 'arc' : own.weapon;
+  $('crosshair').dataset.weapon = weapon;
+  $('weapon-name').textContent = vehicleSpec ? vehicleSpec.label.toUpperCase()
+    : turret ? 'ENERGETICKÉ HNÍZDO' : WEAPONS[own.weapon].label.toUpperCase();
+  $('weapon-name').style.color = vehicleSpec?.color ?? WEAPONS[weapon].color;
+  $('ammo').textContent = vehicle ? vehicle.hp : turret ? Math.round(turret.heat * 100) : rounds;
+  $('ammo').classList.toggle('dry', !vehicle && !turret && rounds === 0);
+  $('reserve').textContent = vehicle ? ' / ' + vehicleSpec.hp : turret ? ' %' : ' / ' + (reserve < 0 ? '∞' : reserve);
+  $('weapon-action').textContent = vehicle ? 'TRUP · E VYSTOUPIT' : turret ? 'E · SESTOUPIT'
+    : rounds === 0 && reserve === 0 && own.weapon !== 'pulse' ? '1 · ZÁLOŽNÍ PULSE'
+      : 'G · GRANÁT ' + own.grenades + (own.weapon === 'scatter' ? '  /  F · SOUSTŘEDIT (2)' : '');
+  $('weapons').hidden = $('dodge-readout').hidden = Boolean(vehicle);
+  $('drive-readout').hidden = !vehicle;
+  if (vehicle) $('drive-ability').textContent = vehicle.kind === 'skimmer' ? 'SHIFT · TURBO' : 'MEZERNÍK · BRZDA';
   gearWidgets.forEach((item, i) => {
     item.classList.toggle('active', i === activeIndex);
     item.classList.toggle('owned', Boolean(own.loadout[i]));
   });
   const leader = Math.max(...state.players.map(player => player.kills));
-  updateLabels($('scores'), ffa ? [
+  const siege = state.siege;
+  const defeated = siege && siege.cores[own.team].hp === 0;
+  updateLabels($('scores'), siege ? siege.cores.map((core, i) => ({
+    label: TEAMS[i].name + (core.hp ? core.opened ? ' · ODKRYTÉ' : ' · ŠTÍT' : ' · MIMO HRU'),
+    score: core.hp, color: TEAMS[i].color,
+  })) : ffa ? [
     { label: 'TY', score: own.kills, color: accent }, { label: 'VEDENÍ', score: leader },
   ] : TEAMS.map((item, i) => ({ label: item.name, score: state.scores[i], color: item.color })));
   const objectives = [];
+  if (siege) siege.nodes.forEach((point, i) => {
+    const tag = layout.siege.nodes[i].label;
+    objectives.push({
+      label: tag + (point.contested ? ' ×' : point.progress > 0 ? ' ' + Math.floor(point.progress * 100) + '%'
+        : point.linked ? ' ↔' : ''),
+      color: TEAMS[point.capture >= 0 ? point.capture : point.owner]?.color,
+      progress: point.progress,
+    });
+  });
   if (state.points) {
     state.points.forEach((point, i) => objectives.push({
       label: 'ABC'[i] + (point.contested ? ' · SPORNÝ' : ''),
@@ -527,9 +760,25 @@ function updateHUD() {
   }
   updateLabels($('objectives'), objectives);
   const result = state.winner?.label === 'Remíza' ? 'Remíza' : 'Vítězí ' + state.winner?.label;
+  const nearbyTurret = own.turret < 0 && own.hp && own.grounded && !own.crouch
+    && layout.turrets.some((item, i) => !state.turrets[i].user && distanceSquared(own, item) < TURRET.dismountRadius ** 2);
+  const canBoard = !vehicle && own.turret < 0 && own.hp && !state.flags?.some(flag => flag.carrier === own.id);
+  const nearbyVehicle = canBoard && boardingVehicle(own, state.vehicles ?? []);
+  const repairing = vehicle && vehicle.hp < vehicleSpec.hp && Math.abs(vehicle.speed) < 2
+    && layout.repairs.some(pad => distanceSquared(pad, vehicle) < pad.radius ** 2);
+  const ownCore = siege?.cores[own.team];
+  const exposedEnemy = siege?.cores.findIndex(core => core.opened & (1 << own.team));
   $('combat-status').textContent = state.winner ? result + ' · další kolo za ' + state.restart + ' s'
-    : own.respawn ? 'Návrat za ' + own.respawn.toFixed(1) + ' s'
-      : own.reload ? 'Přebíjíš…'
+    : defeated ? 'ZÁKLADNA PADLA · DALŠÍ KOLO PO ZÁPASE'
+      : own.respawn ? 'Návrat za ' + own.respawn.toFixed(1) + ' s'
+      : repairing ? 'OPRAVUJEŠ TRUP'
+        : vehicle && Math.abs(vehicle.speed) > 5.5 ? 'ZPOMAL PRO VÝSTUP'
+          : nearbyVehicle ? 'E · NASTOUPIT · ' + VEHICLES[nearbyVehicle.kind].label.toUpperCase()
+            : turret?.hot ? 'HNÍZDO SE CHLADÍ'
+        : nearbyTurret ? 'E · OBSLOUŽIT HNÍZDO'
+          : ownCore?.opened ? 'BRAŇ VLASTNÍ JÁDRO'
+            : exposedEnemy >= 0 ? 'ÚTOČ NA JÁDRO ' + TEAMS[exposedEnemy].name
+          : own.reload ? 'Přebíjíš…'
         : state.flags?.some(flag => flag.carrier === own.id) ? 'Neseš vlajku · vrať se na základnu'
           : own.surge ? 'OVERCHARGE · ' + own.surge + ' s'
             : rounds === 0 && reserve === 0 ? 'Bez munice · klávesa 1 pro Pulse' : '';
@@ -538,13 +787,14 @@ function updateHUD() {
 
 function renderScoreboard() {
   const humans = state.players.filter(player => !player.bot).length;
-  const signature = JSON.stringify([state.scores, state.players.map(p => [p.id, p.kills, p.deaths])]);
+  const metrics = state.siege?.cores.map(core => core.hp) ?? state.scores;
+  const signature = JSON.stringify([metrics, state.players.map(p => [p.id, p.kills, p.deaths])]);
   if (signature === lastScoreSignature) return;
   lastScoreSignature = signature;
   $('occupancy').textContent = 'Hráči ' + humans + ' / ' + joined.capacity + ' · Boti ' + (state.players.length - humans);
   const groups = joined.mode === 'ffa'
     ? [{ name: 'Všichni hráči', players: state.players }]
-    : TEAMS.map((team, i) => ({ ...team, name: team.name + ' · ' + state.scores[i], players: state.players.filter(p => p.team === i) }));
+    : TEAMS.map((team, i) => ({ ...team, name: team.name + ' · ' + metrics[i], players: state.players.filter(p => p.team === i) }));
   $('score-tables').replaceChildren(...groups.map(group => {
     const holder = node('div', undefined, 'score-group');
     if (group.color) holder.style.setProperty('--team', group.color);
@@ -585,11 +835,22 @@ function frame(time) {
   lastFrame = time;
   if (own && !game.hidden) {
     const blend = 1 - Math.exp(-dt * 29);
-    view.x += (predicted.x - view.x) * blend;
+    const motion = predictedVehicle ?? predicted;
+    view.x += (motion.x - view.x) * blend;
     view.y += (predicted.y - view.y) * blend;
-    view.z += (predicted.z - view.z) * blend;
-    const moving = canControl() && own.hp && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].some(key => keys.has(key));
-    arena.render(time, view, own, moving);
+    view.z += (motion.z - view.z) * blend;
+    if (predictedVehicle) {
+      $('drive-speed').textContent = Math.round(Math.abs(predictedVehicle.speed) * 3.6) + ' km/h';
+      if (predictedVehicle.kind === 'skimmer') $('drive-ability').textContent = 'SHIFT · TURBO ' + Math.round(predictedVehicle.boost * 100) + ' %';
+    }
+    audio.engine(predictedVehicle);
+    const readiness = Math.max(0, 1 - predicted.dodgeCooldown / DODGE_COOLDOWN);
+    const dodge = $('dodge-ready');
+    dodge.style.transform = 'scaleX(' + (own.hp ? readiness : 0) + ')';
+    dodge.classList.toggle('ready', Boolean(own.hp && own.turret < 0 && canDodge(predicted)));
+    const directions = $('damage-directions');
+    if (directions.childElementCount) directions.style.setProperty('--look-yaw', view.yaw + 'rad');
+    arena.render(time, view, own, predicted, reducedMotion.matches, predictedVehicle);
   }
   requestAnimationFrame(frame);
 }
