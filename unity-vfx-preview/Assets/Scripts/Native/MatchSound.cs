@@ -23,6 +23,26 @@ namespace Trias.Preview
             return Clip(name, samples, 1);
         }
 
+        internal static AudioClip Discharge(string name, float duration, float body, float edge, float modulation)
+        {
+            var data = new float[Mathf.CeilToInt(Rate * duration)];
+            var random = new System.Random(361);
+            float pressure = 0;
+            for (int i = 0; i < data.Length; i++)
+            {
+                float t = (float)i / Rate;
+                float noise = (float)random.NextDouble() * 2 - 1;
+                pressure = Mathf.Lerp(pressure, noise, .12f);
+                float hit = (noise - pressure) * .41f * Mathf.Exp(-t * 105);
+                float low = Mathf.Sin(Cycle * body * (t - 1.25f * t * t)) * .45f * Mathf.Exp(-t * 22);
+                float tone = Mathf.Sin(Cycle * edge * (t - t * t) + modulation * Mathf.Sin(Cycle * t * 83))
+                    * .25f * Mathf.Exp(-t * 26);
+                float tail = (pressure * .3f + Mathf.Sin(Cycle * t * body * .51f) * .12f) * Mathf.Exp(-t * 13);
+                data[i] = Mathf.Clamp((hit + low + tone + tail) * Mathf.Clamp01(t * 1400), -.89f, .89f);
+            }
+            return Clip(name, data, 1);
+        }
+
         internal static AudioClip Wave(string name, bool incoming)
         {
             float[] notes = incoming ? new[] { 123.5f, 123.5f, 82.4f } : new[] { 330f, 494f, 660f };

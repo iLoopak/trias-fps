@@ -23,6 +23,9 @@ namespace Trias.Native
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
             if (world == null || own == null) Lobby(w, h);
             else MatchHUD(w, h, scale);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (labMode && own != null && captured) PaintLab(w);
+#endif
             if (sceneFade > 0) Fill(new Rect(0, 0, w, h), new Color(.025f, .043f, .07f, sceneFade));
             GUI.matrix = saved;
         }
@@ -185,11 +188,13 @@ namespace Trias.Native
             PaintObjectiveHints(h, scale);
             PaintConstruction(w, h, scale);
             PaintPerks(w);
+            if (captured && !scoreboard) PaintKillFeed(w);
             if (alive && captured && !scoreboard) PaintRadar();
             PaintWaveBanner(cx, h);
             if (alive && state["winner"]["label"].Text == null)
             {
                 PaintReticle(w, h);
+                PaintSignature(w, h);
                 PaintVitals(w, h);
                 string stateLabel = Prompt();
                 if (stateLabel != null) GUI.Label(new Rect(cx - 240, h - 88, 480, 27), stateLabel, center);

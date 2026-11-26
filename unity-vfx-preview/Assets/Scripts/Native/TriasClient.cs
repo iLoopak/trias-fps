@@ -11,7 +11,17 @@ namespace Trias.Native
 
         static readonly string[] Arsenal = { "pulse", "scatter", "lance", "arc", "rift" };
         readonly Dictionary<string, Avatar> pilots = new Dictionary<string, Avatar>();
-        readonly Dictionary<int, Transform> projectiles = new Dictionary<int, Transform>();
+        sealed class ProjectileArt
+        {
+            internal Transform Mesh;
+            internal TrailRenderer Trail;
+            internal Vector3 Goal;
+            internal bool Rift;
+        }
+
+        readonly Dictionary<int, ProjectileArt> projectiles = new Dictionary<int, ProjectileArt>();
+        readonly Stack<ProjectileArt> riftReserve = new Stack<ProjectileArt>(8);
+        readonly Stack<ProjectileArt> grenadeReserve = new Stack<ProjectileArt>(8);
         readonly Dictionary<int, (Transform body, Transform gun)> vehicles = new Dictionary<int, (Transform, Transform)>();
         readonly HashSet<string> present = new HashSet<string>();
         readonly HashSet<int> visibleOrbs = new HashSet<int>();
@@ -20,6 +30,7 @@ namespace Trias.Native
         readonly List<Command> commands = new List<Command>(30);
         readonly List<FallenPilot> fallen = new List<FallenPilot>();
         readonly Dictionary<string, Transform> weapons = new Dictionary<string, Transform>();
+        readonly Dictionary<string, Transform> weaponActions = new Dictionary<string, Transform>();
         Catalog catalog;
         TriasWorld world;
         TriasSocket socket;
@@ -79,7 +90,7 @@ namespace Trias.Native
             if (!focus) Capture(false);
         }
 
-        public void Join(string address, string code, string player, string map, string game, string kit, bool bots)
+        public void Join(string address, string code, string player, string map, string game, string kit, bool bots, bool remember = true)
         {
             Disconnect(null);
             if (address.IndexOf("://", StringComparison.Ordinal) < 0) address = "ws://" + address;
@@ -99,10 +110,13 @@ namespace Trias.Native
                 status = "Kód místnosti má nejméně tři znaky.";
                 return;
             }
-            PlayerPrefs.SetString("trias.server", address);
-            PlayerPrefs.SetString("trias.nick", player);
+            if (remember)
+            {
+                PlayerPrefs.SetString("trias.server", address);
+                PlayerPrefs.SetString("trias.nick", player);
+            }
             socket = new TriasSocket();
-            var request = new JoinCommand { type = "join", v = 2, room = code.Trim(), name = player.Trim(), mode = game, arena = map, character = kit, bots = bots };
+            var request = new JoinCommand { type = "join", v = 2, room = code.Trim(), name = player.Trim(), mode = game, arena = map, character = kit, bots = bots, predictFire = true, signature = true };
             socket.Start(endpoint, JsonUtility.ToJson(request));
             joinedAt = Time.unscaledTime;
             status = "Připojuji se k serveru…";
@@ -112,26 +126,35 @@ namespace Trias.Native
         {
             public string type, room, name, mode, arena, character;
             public int v;
-            public bool bots;
+            public bool bots, predictFire, signature;
         }
 
         internal void Disconnect(string reason)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            ResetLab();
+#endif
             socket?.Dispose(); socket = null;
             world?.Dispose(); world = null;
             ResetConstruction();
             ResetPerks();
+            ResetSignature();
             ResetFeel();
             roundResult = null;
             sceneFade = 0;
             visor.InMatch = false;
             impactTime = -10;
+            killFeedCount = 0;
             waveFlash = coreFlash = hit = hurt = 0;
             toast = null; toastUntil = 0;
             if (grip != null) Destroy(grip.gameObject);
             grip = null;
             effects.ClearTransient();
             weapons.Clear(); pilots.Clear(); vehicles.Clear(); projectiles.Clear(); commands.Clear();
+            riftReserve.Clear(); grenadeReserve.Clear(); weaponActions.Clear();
+            fireProfiles.Clear(); pendingShots.Clear();
+            fireId = localFeedbackFrame = 0;
+            confirmationMs = predictedCorrection = nextLocalShot = reloadPreviewUntil = lastDryClick = switchPreviewUntil = 0;
             fallen.Clear();
             own = state = null; identity = weaponName = null;
             sequence = lastTick = queuedButtons = latency = 0;
@@ -166,6 +189,10 @@ namespace Trias.Native
                     Disconnect("Server neodpověděl včas.");
             }
             if (world == null || own == null) return;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            UpdateLabControls();
+#endif
+            while (pendingShots.Count > 0 && now - pendingShots[0].Sent > 1.5f) pendingShots.RemoveAt(0);
             if (!CanBuild) building = false;
             if (Input.GetKeyDown(KeyCode.Escape)) Capture(!captured);
             if (captured && Cursor.lockState != CursorLockMode.Locked && Application.isFocused) Capture(false);
@@ -174,7 +201,7 @@ namespace Trias.Native
             {
                 scoreboard = Input.GetKey(KeyCode.Tab);
                 if (!scoreboard && own[6].Int > 0 && state["winner"]["label"].Text == null)
-                    ReadKeys();
+                    ReadKeys(now);
                 else if (!scoreboard && own[6].Int <= 0)
                 {
                     if (Input.GetKeyDown(KeyCode.Space)) replayUntil = 0;
@@ -195,7 +222,7 @@ namespace Trias.Native
             RenderConstruction();
         }
 
-        void ReadKeys()
+        void ReadKeys(float now)
         {
             yaw = Mathf.Repeat(yaw + Input.GetAxisRaw("Mouse X") * sensitivity, 360);
             pitch = Mathf.Clamp(pitch - Input.GetAxisRaw("Mouse Y") * sensitivity, -84.8f, 84.8f);
@@ -203,15 +230,10 @@ namespace Trias.Native
             if (Input.GetKeyDown(KeyCode.Q)) queuedButtons |= 1 << 6;
             if (ReadConstruction()) return;
             ReadPerks();
+            ReadEcho(now);
             if (Input.GetKeyDown(KeyCode.R)) queuedButtons |= 1 << 4;
             if (Input.GetKeyDown(KeyCode.G)) queuedButtons |= 1 << 8;
             if (Input.GetKeyDown(KeyCode.E)) queuedButtons |= 1 << 9;
-            if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.F) && own[9].Text == "scatter")
-            {
-                bool alt = Input.GetKeyDown(KeyCode.F);
-                string trigger = FormattableString.Invariant($"{{\"type\":\"trigger\",\"yaw\":{WebYaw:F5},\"pitch\":{WebPitch:F5},\"alt\":{(alt ? "true" : "false")}}}");
-                if (!socket.Send(trigger)) queuedButtons |= 1 << (alt ? 7 : 3);
-            }
             if (Input.GetKeyDown(KeyCode.Alpha1)) requestedWeapon = "pulse";
             if (Input.GetKeyDown(KeyCode.Alpha2)) requestedWeapon = "scatter";
             if (Input.GetKeyDown(KeyCode.Alpha3)) requestedWeapon = "lance";
@@ -229,6 +251,9 @@ namespace Trias.Native
                     break;
                 }
             }
+            if (requestedWeapon != null) PreviewSwitch(now);
+            if ((queuedButtons & (1 << 4)) != 0) PreviewReload(now);
+            ReadFire(now);
         }
 
         float WebYaw => (yaw - 180) * Mathf.Deg2Rad;
@@ -244,7 +269,7 @@ namespace Trias.Native
                 if (Input.GetKey(KeyCode.C)) bits |= 1;
                 if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) bits |= 1 << 1;
                 if (Input.GetKey(KeyCode.Space)) bits |= 1 << 2;
-                if (!building && Input.GetMouseButton(0)) bits |= 1 << 3;
+                if (!predictedFire && !building && Input.GetMouseButton(0)) bits |= 1 << 3;
             }
             var command = new Command {
                 Seq = sequence + 1, Bits = bits, Horizontal = Playing ? -Input.GetAxisRaw("Horizontal") : 0,
@@ -260,7 +285,8 @@ namespace Trias.Native
             if (own[6].Int <= 0 || own[15].Int >= 0 || own[16].Int >= 0 || state["winner"]["label"].Text != null) return;
             commands.Add(command);
             if (commands.Count > 24) commands.RemoveAt(0);
-            predicted.Step(command, movement ?? world.Spec);
+            var cue = predicted.Step(command, movement ?? world.Spec);
+            if (cue != MotionCue.None) PlayLocalMotion(cue, predicted.Position);
         }
 
         void Accept(WireValue message, float now)
@@ -285,6 +311,10 @@ namespace Trias.Native
                         return;
                     }
                     identity = message["id"].Text;
+                    LoadFireProfiles(message["fireProfiles"]);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    labMode = labJoining && message["lab"].Bool;
+#endif
                     room = message["room"].Text;
                     mode = message["mode"].Text;
                     world = new TriasWorld(arena, catalog, mode, view);
@@ -358,11 +388,19 @@ namespace Trias.Native
 
             if (own == null) return;
             bool spawn = previous == null || own[13].Int != previous[13].Int;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (previous == null && labMode) Capture(true);
+#endif
             bool mountChange = previous != null && (own[16].Int != previous[16].Int || own[15].Int != previous[15].Int);
+            Vector3 beforeCorrection = predicted.Position;
             predicted.Read(own);
             if (spawn || mountChange)
             {
                 commands.Clear();
+                pendingShots.Clear();
+                reloadPreviewUntil = 0;
+                switchPreviewUntil = 0;
+                nextLocalShot = now + (spawn ? .20f : .16f);
                 display = predicted.Position;
                 yaw = (own[24].Float + Mathf.PI) * Mathf.Rad2Deg;
                 pitch = -own[25].Float * Mathf.Rad2Deg;
@@ -381,6 +419,7 @@ namespace Trias.Native
             if (count > 0) commands.RemoveRange(0, count);
             if (own[6].Int > 0 && own[15].Int < 0 && own[16].Int < 0 && snapshot["winner"]["label"].Text == null)
                 foreach (var input in commands) predicted.Step(input, movement ?? world.Spec);
+            if (!spawn && !mountChange) predictedCorrection = Vector3.Distance(beforeCorrection, predicted.Position);
             if (previous != null)
             {
                 bool healthLost = own[6].Int < previous[6].Int;
@@ -389,26 +428,41 @@ namespace Trias.Native
                 {
                     effects.Hurt(armorLost && !healthLost);
                     hurt = 1;
+                    damageTint = armorLost && !healthLost ? Shield : Fault;
                 }
                 if ((own[2].Int & 64) != (previous[2].Int & 64) && !spawn && own[6].Int > 0)
                 {
-                    effects.Reload(display, (own[2].Int & 64) == 0);
+                    bool completed = (own[2].Int & 64) == 0;
+                    if (completed || now >= reloadPreviewUntil) effects.Reload(display, completed, own[9].Text);
+                    reloadPreviewUntil = 0;
                     if ((own[2].Int & 64) != 0) reloadPeriod = Mathf.Max(.10f, own[30].Float);
                 }
             }
             SwitchWeapon(own[9].Text ?? "pulse");
             SyncWorld(snapshot);
+            SyncSignature(snapshot["signature"], now);
             foreach (var evt in snapshot["events"].Items) GameEvent(evt, now);
+            RemoveVanishedEchoes();
         }
 
         void SwitchWeapon(string key)
         {
             if (key == weaponName) return;
-            if (weaponName != null) weapons[weaponName].gameObject.SetActive(false);
+            if (weaponName != null)
+            {
+                weapons[weaponName].gameObject.SetActive(false);
+                nextLocalShot = Mathf.Max(nextLocalShot, Time.unscaledTime + .18f);
+                reloadPreviewUntil = 0;
+                effects.Equip(key);
+            }
+            equipMotion = 1;
+            switchPreviewUntil = 0;
             if (!weapons.TryGetValue(key, out var art))
             {
                 art = TriasWorld.Group(grip, key);
-                TriasModels.Gun(world, art, key, world.MaterialAt(Catalog.Find(catalog.weapons, key)?.color ?? "#b9fff1", true));
+                var accent = world.MaterialAt(Catalog.Find(catalog.weapons, key)?.color ?? "#b9fff1", true);
+                TriasModels.Gun(world, art, key, accent);
+                weaponActions[key] = TriasModels.ViewMechanism(world, art, key, accent);
                 weapons[key] = art;
             }
             art.gameObject.SetActive(true);
@@ -428,7 +482,9 @@ namespace Trias.Native
             {
                 var point = nodes[i];
                 int owner = point["capture"].Int >= 0 ? point["capture"].Int : point["owner"].Int;
-                world.Zones[i].GetComponent<LineRenderer>().sharedMaterial = owner >= 0 && owner < 3 ? world.TeamLight[owner] : world.TeamNeutral;
+                var ring = world.Zones[i].GetComponent<LineRenderer>();
+                ring.sharedMaterial = owner >= 0 && owner < 3 ? world.TeamLight[owner] : world.TeamNeutral;
+                ring.widthMultiplier = .075f + Mathf.Clamp01(point["progress"].Float) * .075f;
             }
             for (int i = 0; i < world.CoreShield.Length; i++)
             {
@@ -478,17 +534,53 @@ namespace Trias.Native
             {
                 int id = item[0].Int;
                 bool pulse = item[1].Text == "rift";
-                if (!projectiles.TryGetValue(id, out var mesh))
+                Vector3 target = new Vector3(item[2].Float, item[3].Float, item[4].Float);
+                if (!projectiles.TryGetValue(id, out var art))
                 {
-                    mesh = TriasWorld.Part(world.Actors, pulse ? orb : grenade, Vector3.zero, Vector3.one * (pulse ? .43f : .24f), PrimitiveType.Sphere);
-                    projectiles.Add(id, mesh);
+                    art = AcquireProjectile(pulse, target);
+                    projectiles.Add(id, art);
                 }
-                mesh.position = new Vector3(item[2].Float, item[3].Float, item[4].Float);
+                art.Goal = target;
                 visibleOrbs.Add(id);
             }
             goneOrbs.Clear();
             foreach (var pair in projectiles) if (!visibleOrbs.Contains(pair.Key)) goneOrbs.Add(pair.Key);
-            foreach (int id in goneOrbs) { Destroy(projectiles[id].gameObject); projectiles.Remove(id); }
+            foreach (int id in goneOrbs)
+            {
+                var art = projectiles[id];
+                projectiles.Remove(id);
+                art.Mesh.gameObject.SetActive(false);
+                art.Trail.Clear();
+                var pool = art.Rift ? riftReserve : grenadeReserve;
+                if (pool.Count < 8) pool.Push(art);
+                else Destroy(art.Mesh.gameObject);
+            }
+        }
+
+        ProjectileArt AcquireProjectile(bool rift, Vector3 at)
+        {
+            var pool = rift ? riftReserve : grenadeReserve;
+            if (pool.TryPop(out var cached))
+            {
+                cached.Mesh.position = at;
+                cached.Goal = at;
+                cached.Mesh.gameObject.SetActive(true);
+                cached.Trail.Clear();
+                return cached;
+            }
+            var mesh = TriasWorld.Part(world.Actors, rift ? orb : grenade, at, Vector3.one * (rift ? .43f : .24f), PrimitiveType.Sphere);
+            var trail = mesh.gameObject.AddComponent<TrailRenderer>();
+            trail.sharedMaterial = effects.tracerMaterial;
+            trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            trail.time = rift ? .19f : .095f;
+            trail.minVertexDistance = .18f;
+            Color tint = rift ? Catalog.Tint("#fe85d0") : Catalog.Tint("#ffb863");
+            trail.startColor = tint;
+            tint.a = 0;
+            trail.endColor = tint;
+            trail.startWidth = rift ? .27f : .06f;
+            trail.endWidth = 0;
+            return new ProjectileArt { Mesh = mesh, Trail = trail, Goal = at, Rift = rift };
         }
 
         void GameEvent(WireValue evt, float now)
@@ -498,6 +590,19 @@ namespace Trias.Native
             bool local = evt["id"].Text == identity;
             switch (type)
             {
+                case "echo-end":
+                    OnEchoEnd(evt, local);
+                    break;
+                case "echo-reject":
+                    if (local)
+                    {
+                        echoAwaitUntil = 0;
+                        EchoRejected(evt["reason"].Text == "blocked" ? "OZVĚNA JE BLOKOVANÁ" : "OZVĚNA NENÍ PŘIPRAVENÁ", now);
+                    }
+                    break;
+                case "trigger-rejected":
+                    if (local) ResolveFire(evt["fireId"].Int, now, false);
+                    break;
                 case "perk-ready":
                     if (local)
                     {
@@ -520,23 +625,32 @@ namespace Trias.Native
                     break;
                 case "shot":
                     Vector3 source = At(evt["from"]);
-                    if (local && own[15].Int < 0 && own[16].Int < 0) source = grip.TransformPoint(new Vector3(0, .04f, .32f));
-                    Color tint = Catalog.Tint(Catalog.Find(catalog.weapons, key)?.color ?? "#ffe49e");
-                    if (evt["ends"].Count == 0)
-                        effects.Shot(source, source + (local ? view.transform.forward : Vector3.up) * .22f, false, local, tint, key);
+                    bool echoShot = evt["echo"].Int > 0;
+                    if (local && echoShot) ConfirmEchoShot(key, evt["alt"].Bool, now);
+                    bool ownGun = local && !echoShot && !evt["mounted"].Bool && own[15].Int < 0 && own[16].Int < 0 && own[6].Int > 0;
+                    bool tagged = local && evt["fireId"].Int > 0;
+                    if (tagged) ResolveFire(evt["fireId"].Int, now, true);
+                    if (ownGun)
+                    {
+                        source = MuzzlePoint();
+                        if (!tagged) PlayLocalShot(key, evt["alt"].Bool);
+                    }
+                    else if (!tagged) effects.FireWorld(source, key, evt["alt"].Bool, local && !echoShot);
+                    Color tint = ShotTint(key);
+                    if (!local && !echoShot && pilots.TryGetValue(evt["id"].Text, out var firingPilot))
+                    {
+                        firingPilot.Fire(key);
+                        effects.DistantMuzzle(source + firingPilot.Root.forward * .53f, tint, visualEffects);
+                    }
+                    if (echoShot) effects.DistantMuzzle(source, tint, visualEffects);
                     for (int i = 0; i < evt["ends"].Count; i++)
                     {
                         var end = evt["ends"][i];
-                        effects.Shot(source, At(end), end[3].Text != null, local, tint, key, i == 0);
-                    }
-                    if (local && own[6].Int > 0)
-                    {
-                        tension = key == "scatter" || key == "rift" ? 1.5f : key == "lance" ? 1.2f : .82f;
-                        KickWeapon(key);
+                        effects.Shot(source, At(end), end[3].Text != null, local, tint, key, false, end[3].Text, visualEffects);
                     }
                     break;
                 case "burst":
-                    effects.Detonation(At(evt["from"]));
+                    effects.Blast(At(evt["from"]), key == "grenade", visualEffects);
                     break;
                 case "core-hit":
                     effects.Shot(At(evt["from"]), At(evt["position"]), false, false, Catalog.Tint("#ff7a5e"), key);
@@ -552,9 +666,17 @@ namespace Trias.Native
                     if (local) AddNotice("Sebráno · " + (Catalog.Find(catalog.powerups, evt["item"].Text) ?? Catalog.Find(catalog.weapons, evt["item"].Text))?.label);
                     break;
                 case "movement":
-                    if (evt["action"].Text == "step") effects.Footstep(At(evt["position"]) + Vector3.up * .08f, local, world.Spec.id == "island");
-                    else if (evt["action"].Text == "launch" || evt["action"].Text == "double")
-                        effects.Launch(At(evt["position"]), Catalog.Tint(catalog.teams[evt["team"].Int].color), local);
+                    string action = evt["action"].Text;
+                    Vector3 motionAt = At(evt["position"]);
+                    if (action == "step" && !local)
+                        effects.Footstep(motionAt + Vector3.up * .08f, false, FootSurface(motionAt));
+                    else if (action != "step" && action != "land")
+                    {
+                        var cue = action == "launch" ? MotionCue.Launch : action == "double" ? MotionCue.Double
+                            : action == "dodge" ? MotionCue.Dodge : MotionCue.Jump;
+                        if (!local || now - localMotionAt[(int)cue] > Mathf.Max(.24f, latency * .0013f))
+                            effects.Motion(motionAt, local ? teamTint : Catalog.Tint(catalog.teams[evt["team"].Int].color), cue, local, visualEffects);
+                    }
                     break;
                 case "notice":
                     string notice = evt["text"].Text;
@@ -574,7 +696,7 @@ namespace Trias.Native
                     var corpse = new FallenPilot(world, body, casualtyPaint, casualtyTint);
                     if (corpse.Visible) fallen.Add(corpse);
                     else effects.Elimination(spot, casualtyTint);
-                    AddNotice(evt["attacker"].Text + "  ›  " + evt["victim"].Text);
+                    AddKill(evt["attacker"].Text, evt["victim"].Text, key, evt["team"].Int, now);
                     if (evt["victimId"].Text == identity && own[6].Int <= 0)
                     {
                         killer = evt["attacker"].Text;
@@ -589,16 +711,19 @@ namespace Trias.Native
             if (evt["hits"].Items != null) foreach (var strike in evt["hits"].Items)
             {
                 if (local)
-                    feedback = Mathf.Max(feedback, strike["eliminated"].Bool ? 2 : strike["absorbed"].Int > 0 ? 1 : 0);
+                    feedback = Mathf.Max(feedback, strike["eliminated"].Bool ? 3 : strike["shieldBreak"].Bool ? 2 : strike["absorbed"].Int > 0 ? 1 : 0);
                 if (strike["id"].Text == identity && evt["from"].Count == 3)
                 {
                     impactSource = At(evt["from"]);
                     impactTime = now;
+                    damageTint = type == "burst" || type == "orbital-impact" ? Amber : strike["health"].Int == 0 ? Shield : Fault;
                 }
+                if (strike["id"].Text != null && pilots.TryGetValue(strike["id"].Text, out var struck))
+                    struck.React(strike["shieldBreak"].Bool);
             }
             if (feedback >= 0)
             {
-                if (hit < .62f || feedback > confirmStyle || feedback == 2) effects.Confirm(feedback == 1, feedback == 2);
+                if (hit < .62f || feedback > confirmStyle || feedback >= 2) effects.Confirm(feedback == 1, feedback == 3, feedback == 2);
                 confirmStyle = Mathf.Max(hit > .65f ? confirmStyle : 0, feedback);
                 hit = 1;
             }
@@ -620,6 +745,12 @@ namespace Trias.Native
         {
             UpdateResult(dt);
             world.Animate(now);
+            float travel = 1 - Mathf.Exp(-dt * 54);
+            foreach (var art in projectiles.Values)
+            {
+                art.Mesh.position = Vector3.Lerp(art.Mesh.position, art.Goal, travel);
+                art.Trail.emitting = visualEffects > .08f;
+            }
             for (int index = fallen.Count - 1; index >= 0; index--)
             {
                 var body = fallen[index];
@@ -641,6 +772,7 @@ namespace Trias.Native
             hurt = Mathf.MoveTowards(hurt, 0, dt * 3.2f);
             hit = Mathf.MoveTowards(hit, 0, dt * 5.7f);
             visor.DamagePulse = hurt;
+            visor.DamageColor = damageTint;
             coreFlash = Mathf.MoveTowards(coreFlash, 0, dt * 2.85f);
             waveFlash = Mathf.MoveTowards(waveFlash, 0, dt * .53f);
             grip.gameObject.SetActive(alive && !driving && !mounted);
@@ -666,12 +798,15 @@ namespace Trias.Native
             }
         }
 
-        void Chase(Vector3 focus, Vector3 direction, float depth, float rise)
+        void Chase(Vector3 focus, Vector3 direction, float depth, float rise, bool smooth = true)
         {
             Vector3 arm = -direction * depth + Vector3.up * rise;
+            float distance = arm.magnitude;
             if (Physics.Raycast(focus, arm.normalized, out var hit, arm.magnitude, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
-                arm = arm.normalized * Mathf.Max(.16f, hit.distance - .17f);
-            view.transform.position = focus + arm;
+                distance = Mathf.Max(.16f, hit.distance - .17f);
+            if (!smooth || chaseArm <= 0 || distance < chaseArm || cameraMotion < .01f) chaseArm = distance;
+            else chaseArm = Mathf.Lerp(chaseArm, distance, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 14 / cameraMotion));
+            view.transform.position = focus + arm.normalized * chaseArm;
             view.transform.LookAt(focus + direction * 2.4f);
         }
     }

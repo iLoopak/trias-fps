@@ -108,11 +108,13 @@ namespace Trias.Native
             }
 
             Pickups = new Transform[spec.pickups.Length];
+            pickupMotion = new Transform[spec.pickups.Length];
             for (int i = 0; i < Pickups.Length; i++)
             {
                 var item = spec.pickups[i];
                 Part(Root, island ? White : Dark, item.Position + Vector3.up * 0.045f, new Vector3(0.96f, 0.048f, 0.96f), PrimitiveType.Cylinder);
-                var mark = Group(Root, item.type, item.Position + Vector3.up * 0.64f);
+                var availability = Group(Root, item.type, item.Position);
+                var mark = Group(availability, "Pickup marker", Vector3.up * .64f);
                 var choice = Catalog.Find(catalog.weapons, item.type) ?? Catalog.Find(catalog.powerups, item.type);
                 var tint = MaterialAt(choice?.color ?? "#f6faab", true);
                 if (Catalog.Find(catalog.weapons, item.type) != null) TriasModels.Gun(this, mark, item.type, tint);
@@ -121,7 +123,9 @@ namespace Trias.Native
                     Part(mark, tint, Vector3.zero, new Vector3(0.40f, 0.13f, 0.12f));
                     Part(mark, tint, Vector3.zero, new Vector3(0.13f, 0.40f, 0.12f));
                 }
-                Pickups[i] = mark;
+                Ring(availability, Vector3.up * .084f, .46f, tint, .030f, 24);
+                Pickups[i] = availability;
+                pickupMotion[i] = mark;
                 spinning.Add(mark);
             }
 
@@ -187,6 +191,7 @@ namespace Trias.Native
         }
 
         Material walls, earth, bark, grassCrown;
+        readonly Transform[] pickupMotion;
         void Station()
         {
             bool basin = Spec.id == "basin", foundry = Spec.id == "foundry";
@@ -427,8 +432,9 @@ namespace Trias.Native
                 var item = spinning[i];
                 item.rotation = Quaternion.Euler(0, time * 29 + i * 22, item.name == "Ruptured reactor" ? time * 9 : 0);
             }
-            for (int i = 0; i < Pickups.Length; i++)
-                Pickups[i].localPosition = Spec.pickups[i].Position + Vector3.up * (0.61f + Mathf.Sin(time * 2.5f + i) * 0.11f);
+            for (int i = 0; i < pickupMotion.Length; i++)
+                if (Pickups[i].gameObject.activeSelf)
+                    pickupMotion[i].localPosition = Vector3.up * (.61f + Mathf.Sin(time * 2.5f + i) * .11f);
             if (island)
             {
                 water.mainTextureOffset = new Vector2(0, time * 0.067f % 1);

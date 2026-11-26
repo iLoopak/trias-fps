@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
 import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
-import { Match } from './match.js';
+import { fireProfileData, Match } from './match.js';
 import { NETWORK_VERSION, unpackInput } from './public/netcode.js';
 
 const files = new Map([
@@ -38,7 +38,7 @@ const files = new Map([
   ['/three.core.min.js', ['node_modules/three/build/three.core.min.js', 'text/javascript']],
   ['/geometry-utils.js', ['node_modules/three/examples/jsm/utils/BufferGeometryUtils.js', 'text/javascript']],
 ]);
-const assets = new Map(await Promise.all([...files].map(async ([route, [file, type]]) =>
+const assets = new Map(await Promise.all((process.env.TRIAS_NATIVE_ONLY === '1' ? [] : [...files]).map(async ([route, [file, type]]) =>
   [route, { type, data: await readFile(new URL(file, import.meta.url)) }],
 )));
 const rooms = new Map();
@@ -107,6 +107,7 @@ wss.on('connection', (socket, request) => {
         if (input) socket.room.input(socket.player, input, time);
       }
       if (socket.protocolVersion === NETWORK_VERSION && message.type === 'trigger') socket.room.trigger(socket.player, message, time);
+      if (socket.protocolVersion === NETWORK_VERSION && message.type === 'echo-fire') socket.room.signature.request(socket.player, message);
       if (socket.protocolVersion === NETWORK_VERSION && message.type === 'perk' && !request.headers.origin) {
         const error = socket.room.streaks.activate(socket.player, message, time);
         if (error) socket.send(JSON.stringify({ type: 'perk-error', message: error }));
@@ -132,7 +133,9 @@ wss.on('connection', (socket, request) => {
       const mode = message.mode === 'horde' && message.v === NETWORK_VERSION && !request.headers.origin
         ? 'horde' : pick(MODES, message.mode, DEFAULT_MODE);
       const arena = MODES[mode]?.arena ?? pick(ARENAS, message.arena, DEFAULT_ARENA);
-      room = new Match(code, mode, message.bots !== false, ARENAS[arena]);
+      room = new Match(code, mode, message.bots !== false, ARENAS[arena], {
+        echo: process.env.TRIAS_COMBAT_ECHO !== '0', momentum: process.env.TRIAS_MOMENTUM !== '0',
+      });
       room.reset(time);
       rooms.set(code, room);
     }
@@ -142,7 +145,9 @@ wss.on('connection', (socket, request) => {
       return reject(socket, room.horde ? 'Obrana má plný tým čtyř hráčů.' : 'Místnost už má 12 hráčů.');
     socket.room = room;
     socket.protocolVersion = message.v === NETWORK_VERSION ? NETWORK_VERSION : 1;
-    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion }));
+    socket.player.signature = socket.protocolVersion === NETWORK_VERSION && message.signature === true;
+    const fireProfiles = socket.protocolVersion === NETWORK_VERSION && message.predictFire === true ? fireProfileData() : undefined;
+    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion, fireProfiles }));
   });
   socket.on('close', () => {
     const room = socket.room;

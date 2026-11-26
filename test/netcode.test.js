@@ -84,6 +84,54 @@ test('a click can fire on the next server tick without waiting for movement inpu
   assert.equal(unpackSnapshot(JSON.parse(packets[1])).events.filter(event => event.type === 'shot').length, 0);
 });
 
+test('tagged fire confirms exactly one shot and rejects an outdated loadout', () => {
+  const match = new Match('NET', 'tdm', false);
+  const { player, packets } = connect(match, 'pilot', NETWORK_VERSION);
+  const request = { fireId: 1, spawn: player.spawn, weapon: 'pulse', yaw: -1, pitch: .2 };
+  match.trigger(player, request, 1);
+  match.trigger(player, request, 1.001);
+  match.step(1.02);
+  const first = unpackSnapshot(JSON.parse(packets[0]));
+  assert.equal(first.players[0].loadout[0][0], 23);
+  assert.deepEqual(first.events.filter(event => event.type === 'shot').map(event => event.fireId), [1]);
+  match.trigger(player, { ...request, fireId: 2, spawn: player.spawn - 1 }, 1.2);
+  match.step(1.21);
+  const second = unpackSnapshot(JSON.parse(packets[1]));
+  assert.equal(second.players[0].loadout[0][0], 23);
+  assert.deepEqual(second.events.filter(event => event.type === 'trigger-rejected').map(event => event.fireId), [2]);
+});
+
+test('near-cooldown fire waits for authority with the original aim and alt-fire cost', () => {
+  const match = new Match('NET', 'tdm', false);
+  const { player, packets } = connect(match, 'pilot', NETWORK_VERSION);
+  player.weapon = 'scatter';
+  player.loadout.scatter = { ammo: 2, reserve: 0 };
+  player.fireAt = 1.04;
+  const request = { fireId: 1, spawn: player.spawn, weapon: 'scatter', yaw: -1, pitch: .2, alt: true };
+  match.trigger(player, request, 1);
+  match.step(1.01);
+  assert.equal(player.loadout.scatter.ammo, 2);
+  match.step(1.045);
+  const packet = unpackSnapshot(JSON.parse(packets[1]));
+  const shot = packet.events.find(event => event.type === 'shot');
+  assert.equal(shot.fireId, 1);
+  assert.equal(shot.alt, true);
+  assert.equal(shot.ends.length, 1);
+  assert(shot.ends[0][0] > shot.from[0]);
+  assert.equal(player.loadout.scatter.ammo, 0);
+  assert(Math.abs(player.fireAt - 1.955) < 1e-10);
+});
+
+test('only an authoritative depletion of a nonempty shield reports a break', () => {
+  const match = new Match('NET', 'tdm', false);
+  const attacker = match.addPlayer('a', 'A', 0, 0, 0);
+  const victim = match.addPlayer('b', 'B', 1, 0, 0);
+  victim.armor = 17;
+  assert.equal(match.damage(attacker, victim, 20, 2, attacker, 'arc').shieldBreak, undefined);
+  assert.equal(match.damage(attacker, victim, 20, 2.1, attacker, 'arc').shieldBreak, true);
+  assert.equal(match.damage(attacker, victim, 20, 2.2, attacker, 'arc').shieldBreak, undefined);
+});
+
 test('remote playhead is monotonic under jitter and stops advancing in a network gap', () => {
   const clock = new SnapshotClock();
   const received = [[10, 1200], [43, 1235], [76, 1235], [109, 1306], [142, 1306]];

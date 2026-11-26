@@ -9,14 +9,20 @@ import { Horde } from './horde.js';
 import { Streaks } from './streaks.js';
 import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
 import { NETWORK_VERSION, packSnapshot } from './public/netcode.js';
+import { Signature } from './signature.js';
 
 const EMPTY = { x: 0, z: 0, sprint: false, fire: false, reload: false, jump: false, dodge: false, crouch: false };
 const BOT_CHARACTERS = Object.keys(CHARACTERS);
 const BOT_NAMES = ['Apex', 'Flux', 'Helix', 'Ghost', 'Nova', 'Pulse', 'Drift', 'Forge', 'Rift', 'Echo', 'Shade', 'Volt'];
 const ROUND_PAUSE = 9;
 
+export const fireProfileData = () => ARMORY.map(key => {
+  const spec = WEAPONS[key];
+  return [key, spec.interval, spec.magazine, spec.reload, spec.alt?.interval ?? 0, spec.alt?.cost ?? 0];
+});
+
 export class Match {
-  constructor(code, mode, bots, layout = ARENAS.relay) {
+  constructor(code, mode, bots, layout = ARENAS.relay, signature = {}) {
     this.code = code;
     this.mode = mode;
     this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' ? ARENAS.relay : layout;
@@ -31,10 +37,12 @@ export class Match {
     this.siege = mode === 'siege' ? new Siege(this, this.layout.siege) : null;
     this.horde = mode === 'horde' ? new Horde(this) : null;
     this.streaks = new Streaks(this);
+    this.signature = new Signature(this, signature);
     this.reset(0);
   }
 
   reset(now) {
+    this.signature.reset();
     this.endsAt = now + (MODES[this.mode]?.time ?? 0);
     this.restartAt = 0;
     this.winner = null;
@@ -57,6 +65,7 @@ export class Match {
   }
 
   spawn(player, now) {
+    this.signature.respawn(player);
     const ffa = this.mode === 'ffa';
     const team = ffa ? (player.team + player.deaths) % TEAMS.length : player.team;
     const slot = ffa ? (player.slot + player.deaths) % TEAM_SIZE : player.slot;
@@ -71,7 +80,7 @@ export class Match {
       weapon: kit.weapon, loadout,
       yaw: Math.atan2(start.x - toward.x, start.z - toward.z), pitch: 0, fireAt: now + 0.2,
       safeUntil: now + 1.4, reloadAt: 0, respawnAt: 0, input: EMPTY, inputAt: now, fireRequest: false, reloadRequest: false, jumpRequest: false, dodgeRequest: false, altRequest: false, grenadeRequest: false, useRequest: false, weaponRequest: null,
-      spawn: player.spawn + 1, target: null, routeAt: 0, path: [], usedLaunch: false, launchAt: -100, dodgeDecisionAt: 0, stride: 0, sprint: false,
+      spawn: player.spawn + 1, predictedTrigger: null, target: null, routeAt: 0, path: [], usedLaunch: false, launchAt: -100, dodgeDecisionAt: 0, stride: 0, sprint: false,
       chain: 0, perks: 0,
     });
     this.horde?.reward(player, now);
@@ -115,6 +124,7 @@ export class Match {
   removePlayer(id, now) {
     const player = this.players.get(id);
     if (!player) return;
+    this.signature.leave(player);
     this.unmount(player);
     this.fleet.release(player, now);
     this.dropFlag(player, now);
@@ -154,6 +164,20 @@ export class Match {
   }
 
   trigger(player, message, now) {
+    if (message.fireId !== undefined) {
+      const fireId = message.fireId;
+      if (!Number.isSafeInteger(fireId) || fireId <= (player.lastFireId ?? 0)) return;
+      player.lastFireId = fireId;
+      if (player.hp <= 0 || this.restartAt || player.turret >= 0 || player.vehicle >= 0 || player.predictedTrigger
+        || player.spawn !== message.spawn || player.weapon !== message.weapon
+        || !Number.isFinite(message.yaw) || !Number.isFinite(message.pitch)) {
+        this.rejectTrigger(player, fireId);
+        return;
+      }
+      player.predictedTrigger = { fireId, weapon: message.weapon, alt: message.alt === true, time: now,
+        yaw: message.yaw % (Math.PI * 2), pitch: Math.max(-1.48, Math.min(1.48, message.pitch)) };
+      return;
+    }
     if (player.hp <= 0 || this.restartAt || !Number.isFinite(message.yaw) || !Number.isFinite(message.pitch)) return;
     player.triggerAim = {
       yaw: message.yaw % (Math.PI * 2),
@@ -162,6 +186,10 @@ export class Match {
     };
     if (message.alt === true) player.altRequest = true;
     else player.fireRequest = true;
+  }
+
+  rejectTrigger(player, fireId) {
+    this.events.push({ type: 'trigger-rejected', id: player.id, fireId });
   }
 
   hostile(attacker, target) {
@@ -197,7 +225,8 @@ export class Match {
       distance = hit;
       target = core;
     }
-    return { target, distance };
+    const echo = this.signature.trace(player, origin, direction, distance, width);
+    return echo.target ? echo : { target, distance };
   }
 
   damage(attacker, target, value, now, origin, weapon, impact, direct = true) {
@@ -206,9 +235,11 @@ export class Match {
     const amount = Math.round(value);
     const absorbed = Math.min(target.armor, Math.ceil(amount * 0.7));
     target.armor -= absorbed;
+    const shieldBreak = absorbed > 0 && target.armor === 0;
     const health = Math.min(target.hp, amount - absorbed);
     target.hp -= health;
     if (!target.hp) {
+      this.signature.respawn(target);
       this.streaks.kill(attacker, target, direct);
       if (target.hordeType) this.horde.salvage(target);
       attacker.kills++;
@@ -225,7 +256,7 @@ export class Match {
           weapon: target.weapon, hordeType: target.hordeType, from: [origin.x, origin.y, origin.z] },
       });
     }
-    return { id: target.id, health, absorbed, eliminated: target.hp === 0 };
+    return { id: target.id, health, absorbed, eliminated: target.hp === 0, ...(shieldBreak ? { shieldBreak: true } : {}) };
   }
 
   vehicleAim(player, vehicle, range) {
@@ -241,7 +272,7 @@ export class Match {
     return { origin: gun, direction };
   }
 
-  shoot(player, now, alt = false, mounted = false, vehicle = null) {
+  shoot(player, now, alt = false, mounted = false, vehicle = null, trigger = null) {
     const vehicleGun = vehicle ? VEHICLES[vehicle.kind].gun : null;
     const key = vehicleGun?.key ?? (mounted ? 'arc' : player.weapon);
     const base = WEAPONS[key];
@@ -250,39 +281,49 @@ export class Match {
     if (!vehicle) player.fireAt = now + weapon.interval;
     player.safeUntil = now;
     const mountedAim = vehicle && this.vehicleAim(player, vehicle, weapon.range);
-    const origin = mountedAim?.origin ?? { x: player.x, y: player.y + eyeHeight(player), z: player.z };
+    const origin = trigger?.origin ?? mountedAim?.origin ?? { x: player.x, y: player.y + eyeHeight(player), z: player.z };
     const from = [origin.x, origin.y - 0.12, origin.z];
     const hits = [];
     const ends = [];
-    this.events.push({ type: 'shot', id: player.id, weapon: key, from, ends, hits, alt, mounted, vehicle: vehicle?.id });
+    this.events.push({ type: 'shot', id: player.id, weapon: key, from, ends, hits, alt, mounted, vehicle: vehicle?.id, fireId: trigger?.fireId, echo: trigger?.echo });
+    const shotYaw = trigger?.yaw ?? player.yaw;
+    const shotPitch = trigger?.pitch ?? player.pitch;
     const power = player.surgeUntil > now ? 1.6 : 1;
     if (weapon.projectile) {
       this.projectiles.push({
         id: ++this.nextProjectile, owner: player, weapon: key, position: origin,
-        direction: mountedAim?.direction ?? aimVector(player.yaw, player.pitch), range: weapon.range, power, spec: weapon,
+        direction: mountedAim?.direction ?? aimVector(shotYaw, shotPitch), range: weapon.range, power, spec: weapon,
+        echo: trigger?.echo,
       });
       return;
     }
     const damage = new Map();
     for (const [index, offset] of weapon.pattern.entries()) {
-      const direction = mountedAim?.direction ?? aimVector(player.yaw + offset, player.pitch + (index % 2 ? offset * 0.7 : -offset * 0.7));
+      const direction = mountedAim?.direction ?? aimVector(shotYaw + offset, shotPitch + (index % 2 ? offset * 0.7 : -offset * 0.7));
       const { target, distance } = this.trace(player, origin, direction, weapon.range);
-      if (target && (target.opened !== undefined || target.kind || target.safeUntil <= now)) {
+      if (target && (target.isEcho || target.opened !== undefined || target.kind || target.safeUntil <= now)) {
         const hit = damage.get(target);
         if (hit) hit.damage += weapon.damage * power;
         else damage.set(target, { damage: weapon.damage * power, impact: [
           origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance,
         ] });
       }
-      const impact = target?.opened !== undefined
+      const impact = target?.isEcho ? 'echo' : target?.opened !== undefined
         ? (target.opened & (1 << player.team) ? 'core' : 'shield')
         : target ? (target.kind || target.armor || target.safeUntil > now ? 'shield' : 'pilot')
           : distance < weapon.range ? 'wall' : null;
       ends.push([origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance, impact]);
     }
     for (const [target, value] of damage) {
+      if (target.isEcho) {
+        this.signature.damage(target, value.damage);
+        continue;
+      }
       const hit = this.damage(player, target, value.damage, now, origin, key, value.impact);
-      if (hit) hits.push(hit);
+      if (hit) {
+        hits.push(hit);
+        this.signature.combat(player, hit, now, Boolean(trigger?.echo));
+      }
     }
   }
 
@@ -324,16 +365,17 @@ export class Match {
     const spec = weapon === 'grenade' ? GRENADE : projectile.spec.projectile;
     const from = [position.x, position.y, position.z];
     const hits = [];
-    this.events.push({ type: 'burst', id: owner.id, weapon, from, hits });
+    this.events.push({ type: 'burst', id: owner.id, weapon, from, hits, echo: projectile.echo });
     const origin = direction ? {
       x: position.x - direction.x * 0.041,
       y: position.y - direction.y * 0.041,
       z: position.z - direction.z * 0.041,
     } : position;
-    for (const other of [...this.players.values(), ...this.fleet.hulls, ...(this.siege?.cores ?? [])]) {
+    for (const other of [...this.players.values(), ...this.fleet.hulls, ...(this.siege?.cores ?? []), ...this.signature.echoes.values()]) {
       const vehicle = Boolean(other.kind);
       const core = other.opened !== undefined;
-      if (core ? !(other.opened & (1 << owner.team)) : vehicle ? !this.fleet.hostile(owner, other) : !this.hostile(owner, other) || other.safeUntil > now) continue;
+      if (other.isEcho ? !this.signature.hostile(owner, other) : core ? !(other.opened & (1 << owner.team))
+        : vehicle ? !this.fleet.hostile(owner, other) : !this.hostile(owner, other) || other.safeUntil > now) continue;
       const x = other.x - origin.x;
       const y = core ? other.y - origin.y : vehicle ? VEHICLES[other.kind].height * 0.55 - origin.y : other.y + hitHeight(other) * 0.52 - origin.y;
       const z = other.z - origin.z;
@@ -346,9 +388,14 @@ export class Match {
         strength = 1 - Math.max(0, gap - (core ? other.radius : 0)) / spec.radius;
       }
       const amount = other === target ? projectile.spec.damage : Math.max(8, spec.splash * strength);
+      if (other.isEcho) {
+        this.signature.damage(other, amount * power);
+        continue;
+      }
       const hit = this.damage(owner, other, amount * power * (vehicle ? 1.32 : 1), now, origin, weapon);
       if (!hit) continue;
       hits.push(hit);
+      this.signature.combat(owner, hit, now, Boolean(projectile.echo));
       if (!hit.eliminated && !vehicle && !core) {
         const horizontal = Math.hypot(x, z) || 1;
         const impulse = (direction ? 4.8 : 7.3) * strength;
@@ -543,12 +590,17 @@ export class Match {
     for (const socket of this.humans) socket.player.ack = socket.player.receivedSeq ?? socket.player.ack;
     if (this.restartAt && now >= this.restartAt) this.reset(now);
     if (!this.restartAt) {
+      this.signature.step(now);
       for (const turret of this.turrets) {
         if (now - turret.firedAt > 0.23) turret.heat = Math.max(0, turret.heat - TICK * (turret.hot ? 0.43 : 0.62));
         if (turret.hot && turret.heat < 0.29) turret.hot = false;
       }
       for (const player of this.players.values()) {
         if (player.hp <= 0) {
+          if (player.predictedTrigger) {
+            this.rejectTrigger(player, player.predictedTrigger.fireId);
+            player.predictedTrigger = null;
+          }
           if (!player.hordeType && now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
           continue;
         }
@@ -558,6 +610,14 @@ export class Match {
           input = { ...input, yaw: player.triggerAim.yaw, pitch: player.triggerAim.pitch };
         }
         if ((player.useRequest || input.use) && !this.fleet.use(player, now)) this.useTurret(player, now);
+        if (player.vehicle >= 0 || player.turret >= 0) {
+          this.signature.clearEcho(player, 'exit');
+          player.echoRequest = null;
+        }
+        if ((player.vehicle >= 0 || player.turret >= 0) && player.predictedTrigger) {
+          this.rejectTrigger(player, player.predictedTrigger.fireId);
+          player.predictedTrigger = null;
+        }
         if (player.vehicle >= 0) {
           this.fleet.drive(player, input, now);
           this.clearRequests(player);
@@ -573,9 +633,12 @@ export class Match {
         player.sprint = Boolean(input.sprint);
         const startX = player.x;
         const startZ = player.z;
+        const pose = { x: startX, y: player.y, z: startZ, yaw: player.yaw, crouch: player.crouch,
+          vy: player.vy, grounded: player.grounded, character: player.character, weapon: player.weapon, team: player.team, slot: player.slot };
         let signal = movePlayer(player, {
           ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest, dodge: input.dodge || player.dodgeRequest,
         }, TICK, this.combatLayout);
+        this.signature.movement(player, pose, signal, now);
         if (signal === 'launch') {
           player.usedLaunch = true;
           player.launchAt = now;
@@ -604,7 +667,23 @@ export class Match {
           && (input.reload || player.reloadRequest || active.ammo === 0)) player.reloadAt = now + spec.reload;
         if (player.bot && !active.ammo && !active.reserve) this.selectWeapon(player, DEFAULT_WEAPON, now);
         if (player.grenadeRequest && player.grenades > 0) this.throwGrenade(player, now);
-        if (!player.reloadAt && now >= player.fireAt) {
+        const echoRequest = player.echoRequest ?? (input.echo ? {
+          echo: this.signature.echoes.get(player.id)?.serial, yaw: player.yaw, pitch: player.pitch, alt: false,
+        } : null);
+        player.echoRequest = null;
+        const echoFired = this.signature.fire(player, echoRequest, now);
+        const predicted = player.predictedTrigger;
+        if (predicted) {
+          const cost = predicted.alt ? spec.alt?.cost : 1;
+          if (echoFired || predicted.weapon !== player.weapon || !cost || active.ammo < cost || player.reloadAt
+            || now - predicted.time > 0.12 || player.fireAt - now > 1.5 * TICK) {
+            this.rejectTrigger(player, predicted.fireId);
+            player.predictedTrigger = null;
+          } else if (now >= player.fireAt) {
+            this.shoot(player, now, predicted.alt, false, null, predicted);
+            player.predictedTrigger = null;
+          }
+        } else if (!player.reloadAt && now >= player.fireAt) {
           const alt = player.altRequest && spec.alt && active.ammo >= spec.alt.cost;
           if (alt || ((input.fire || player.fireRequest) && active.ammo > 0)) this.shoot(player, now, Boolean(alt));
         }
@@ -658,6 +737,7 @@ export class Match {
     }));
     const state = {
       type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), horde: this.horde?.snapshot(now), time: Math.max(0, Math.ceil(this.endsAt - now)),
+      signature: this.signature.snapshot(now),
       streaks: this.streaks.snapshot(now),
       points: this.mode === 'dom' ? this.points : undefined, flags: this.mode === 'ctf' ? this.flags : undefined,
       pickups: this.pickups.map((time, i) => this.horde && !this.horde.available(this.layout.pickups[i]) ? 1 : Math.max(0, Math.ceil(time - now))),

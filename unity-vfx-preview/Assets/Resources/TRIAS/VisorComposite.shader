@@ -16,6 +16,7 @@ Shader "Hidden/TRIAS/VisorComposite"
         float4 _Tone;
         float2 _Blur;
         float _Damage;
+        float4 _DamageTint;
         float _Bloom;
         float4 _HeightRay, _HeightFog, _FogTint, _ShaftSource, _ShaftTint;
 
@@ -77,7 +78,7 @@ Shader "Hidden/TRIAS/VisorComposite"
             half luma = dot(color, half3(.2126, .7152, .0722));
             color = lerp(luma.xxx, color, _Tone.a) * _Tone.rgb;
             color = (color + glow * _Bloom) * (1 - rim * .23);
-            color = lerp(color, half3(.51, .043, .075), _Damage * rim * .31);
+            color = lerp(color, _DamageTint.rgb * .64, _Damage * rim * .23);
             return half4(color, 1);
         }
 

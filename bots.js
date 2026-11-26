@@ -173,8 +173,12 @@ export function botInput(room, player, now) {
   const lead = flight ? { x: enemy.x + enemy.vx * flight * 0.6, z: enemy.z + enemy.vz * flight * 0.6 } : null;
   const core = siegeGoal?.core;
   const baseInSight = core && distanceSquared(player, core) < spec.range ** 2 && visible(player, { ...core, y: 0 }, room.layout);
-  const aim = lead ?? enemy ?? (baseInSight ? core : destination);
+  const hostileEcho = !enemy && !baseInSight && room.signature.echoEnabled && now >= (player.reactAt ?? 0)
+    ? [...room.signature.echoes.values()].find(echo => room.signature.hostile(player, echo)
+      && distanceSquared(player, echo) < 14 ** 2 && visible(player, echo, room.layout)) : null;
+  const aim = lead ?? enemy ?? hostileEcho ?? (baseInSight ? core : destination);
   const aimDistance = distanceSquared(player, aim);
+  const personAim = enemy ?? hostileEcho;
   const sway = Math.sin(now * 11 + player.slot) * 0.095;
   const yaw = aimDistance > 0.01 ? Math.atan2(player.x - aim.x, player.z - aim.z) + (enemy ? sway : 0) : player.yaw;
   const travelling = destination !== player;
@@ -194,13 +198,16 @@ export function botInput(room, player, now) {
       : steadyingLance ? Math.sin(now * 2.3 + player.slot) * 0.21
         : isStrafing ? Math.sin(now * 3 + player.slot) * 0.76 : -Number(travelling) * Math.sin(relative),
     z: drift ? 0 : closingWithScatter ? 0.94 : steadyingLance ? 0 : isStrafing ? 0.08 : Number(travelling) * Math.cos(relative),
-    yaw, pitch: enemy ? Math.atan2(enemy.y + eyeHeight(enemy) - player.y - eyeHeight(player) - 0.35, Math.sqrt(aimDistance)) + sway * 0.52 : baseInSight ? Math.atan2(core.y - player.y - eyeHeight(player), Math.sqrt(aimDistance)) : 0,
+    yaw, pitch: personAim ? Math.atan2(personAim.y + eyeHeight(personAim) - player.y - eyeHeight(player) - .35,
+      Math.sqrt(aimDistance)) + sway * .52
+      : baseInSight ? Math.atan2(core.y - player.y - eyeHeight(player), Math.sqrt(aimDistance)) : 0,
     sprint: crossing || closingWithScatter || !enemy,
     crouch: Boolean(steadyingLance),
     use: Boolean(chassis && boardingVehicle(player, room.fleet.hulls) === chassis),
     jump: crossing && player.airJump && flightTime > 0.52 && player.vy < 1.5,
     dodge: Boolean(showDodge && Math.random() < 0.55),
-    fire: Boolean(enemy && player.reactAt <= now && aimDistance < (player.weapon === 'scatter' ? 11 : spec.range) ** 2 || !enemy && baseInSight),
+    fire: Boolean(enemy && player.reactAt <= now && aimDistance < (player.weapon === 'scatter' ? 11 : spec.range) ** 2 || !enemy && baseInSight || hostileEcho),
+    echo: Boolean(enemy && player.reactAt <= now && room.signature.echoes.has(player.id) && Math.random() < .045),
     reload: !enemy && player.loadout[player.weapon].ammo < spec.magazine / 3,
   };
 }

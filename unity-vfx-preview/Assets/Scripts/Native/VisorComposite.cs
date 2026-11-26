@@ -9,6 +9,7 @@ namespace Trias.Native
         static readonly int Blur = Shader.PropertyToID("_Blur");
         static readonly int Tone = Shader.PropertyToID("_Tone");
         static readonly int Damage = Shader.PropertyToID("_Damage");
+        static readonly int DamageTint = Shader.PropertyToID("_DamageTint");
         static readonly int Shafts = Shader.PropertyToID("_ShaftTex");
         static readonly int Source = Shader.PropertyToID("_ShaftSource");
         static readonly int HeightRay = Shader.PropertyToID("_HeightRay");
@@ -19,6 +20,7 @@ namespace Trias.Native
         Material material;
         Camera view;
         internal float DamagePulse;
+        internal Color DamageColor = Color.red;
         internal bool InMatch;
         internal float Intensity = 1;
         Vector4 tone = Vector4.one;
@@ -123,6 +125,7 @@ namespace Trias.Native
                 material.SetColor(ShaftTint, light);
                 material.SetFloat(Bloom, bloomIntensity * strength);
                 material.SetFloat(Damage, DamagePulse);
+                material.SetColor(DamageTint, DamageColor);
                 material.SetVector(Tone, tone);
                 Graphics.Blit(source, destination, material, 2);
             }
