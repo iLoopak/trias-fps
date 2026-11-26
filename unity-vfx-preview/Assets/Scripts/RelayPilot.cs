@@ -4,7 +4,7 @@ namespace Trias.Preview
 {
     public sealed class RelayPilot : MonoBehaviour
     {
-        public const int MaxHealth = 150;
+        public const int MaxHealth = 210;
         public const int Magazine = 24;
         public const int TrainingRift = 3;
         const float BodyHeight = 1.78f;
@@ -24,6 +24,10 @@ namespace Trias.Preview
         bool airJump, grounded;
         float padLocked, launchUntil, step, seekAt;
         Vector3 waypoint;
+        internal Vector3 DirectorGoal { get; private set; }
+        internal bool DirectorContact { get; private set; }
+        float memoryUntil, goalUntil;
+        Vector3 lastSeen;
 
         internal Vector3 Eye => transform.position + Vector3.up * 1.56f;
         Vector3 Aim => Quaternion.Euler(Pitch - (Human ? Kick * 0.52f : 0), Yaw, 0) * Vector3.forward;
@@ -60,6 +64,9 @@ namespace Trias.Preview
             Velocity = Vector3.zero;
             grounded = airJump = false;
             seekAt = padLocked = launchUntil = ReloadAt = 0;
+            goalUntil = memoryUntil = -1;
+            DirectorGoal = new Vector3(1024, 0, 1024);
+            DirectorContact = false;
             ProtectedUntil = Time.time + 1.4f;
             NextShot = Time.time + 0.22f;
             if (Human) PositionCamera();
@@ -106,8 +113,28 @@ namespace Trias.Preview
         void BotInput(float dt)
         {
             var enemy = Match.TargetFor(this, out bool visible);
-            if (enemy == null) return;
-            Vector3 target = enemy.transform.position;
+            bool directed = Match.Directed;
+            DirectorContact = visible;
+            if (enemy == null && !directed) return;
+            Vector3 target;
+            if (!directed) target = enemy.transform.position;
+            else if (visible)
+            {
+                target = lastSeen = enemy.transform.position;
+                memoryUntil = Time.time + 2.4f;
+            }
+            else if (Time.time < memoryUntil && (lastSeen - transform.position).sqrMagnitude > 2.4f * 2.4f)
+                target = lastSeen;
+            else
+            {
+                if (Time.time >= goalUntil || (DirectorGoal - transform.position).sqrMagnitude < 8)
+                {
+                    DirectorGoal = Match.PatrolFor(this, DirectorGoal);
+                    goalUntil = Time.time + 5.5f;
+                    seekAt = -1;
+                }
+                target = DirectorGoal;
+            }
             Vector3 toward = target - transform.position;
             Vector3 flat = new Vector3(toward.x, 0, toward.z);
             float distance = flat.magnitude;
@@ -119,6 +146,12 @@ namespace Trias.Preview
                 Pitch = -Mathf.Atan2(look.y, new Vector2(look.x, look.z).magnitude) * Mathf.Rad2Deg;
                 Vector3 side = Vector3.Cross(Vector3.up, direction);
                 var advance = distance > 10 ? direction * 0.82f : distance < 4 ? -direction * 0.42f : Vector3.zero;
+                if (directed)
+                {
+                    float band = Match.PreferredRange(this);
+                    bool withdraw = Match.Regrouping && Health < MaxHealth * .43f && distance < band + 2;
+                    advance = withdraw ? -.67f * direction : direction * Mathf.Clamp((distance - band) * .18f, -.54f, .82f);
+                }
                 advance += side * Mathf.Sin(Time.time * 1.9f + Slot * 2 + Team) * 0.62f;
                 Move(Vector3.ClampMagnitude(advance, 1), 6.1f, false, dt);
                 Fire();
@@ -228,11 +261,12 @@ namespace Trias.Preview
         {
             if (attacker == this || attacker.Team == Team || Health <= 0 || Time.time < ProtectedUntil) return false;
             Health = Mathf.Max(0, Health - damage);
+            Match.DirectorHit(damage, Health == 0);
             HitFlash = 1f;
             if (attacker.Human) attacker.ConfirmFlash = Health == 0 ? 1.6f : 1f;
             if (Health != 0) return true;
             Deaths++;
-            ReturnAt = Time.time + 2.8f;
+            ReturnAt = Time.time + 5f;
             Body.enabled = false;
             if (Art != null) Art.gameObject.SetActive(false);
             Match.Eliminated(attacker, this);

@@ -27,7 +27,7 @@ namespace Trias.Native
         readonly List<Transform> animals = new List<Transform>();
         readonly Material water;
         readonly bool island, ribbonShader;
-        float waterEffects = -1;
+        float waterEffects = -1, waterWind = -1;
         readonly Color sunColor;
         readonly System.Random random = new System.Random(719);
         internal float Height(float x, float z) => Spec.terrain?.At(x, z) ?? 0;
@@ -100,8 +100,10 @@ namespace Trias.Native
             {
                 Team[i] = MaterialAt(catalog.teams[i].color);
                 TeamLight[i] = MaterialAt(catalog.teams[i].color, true);
-                FactionPaint[i] = MaterialAt(i switch { 0 => "#327482", 1 => "#995f3e", _ => "#735c91" }, false, "armor");
-                FactionPaint[i].SetFloat("_Glossiness", .29f);
+                FactionPaint[i] = MaterialAt(i switch { 0 => "#269fbd", 1 => "#de6e29", _ => "#9860e2" }, false, "armor");
+                FactionPaint[i].SetFloat("_Glossiness", .23f);
+                FactionPaint[i].EnableKeyword("_EMISSION");
+                FactionPaint[i].SetColor("_EmissionColor", FactionPaint[i].color * .19f);
             }
             if (hangar)
             {
@@ -486,11 +488,11 @@ namespace Trias.Native
             meshes.Add(mesh);
         }
 
-        internal void Animate(float time, float effects = 1)
+        internal void Animate(float time, float effects = 1, float arenaPulse = 0)
         {
             AnimateBoundaryVapor(effects);
-            AnimateLandmark(time);
-            AnimateOrbitalTraffic(time);
+            AnimateLandmark(time, arenaPulse);
+            AnimateOrbitalTraffic(time, arenaPulse);
             AnimateStationDistrict(time);
             for (int i = 0; i < spinning.Count; i++)
             {
@@ -507,12 +509,20 @@ namespace Trias.Native
                     waterEffects = effects;
                     water.SetFloat("_Effects", effects);
                 }
-                else if (!ribbonShader) water.mainTextureOffset = new Vector2(0, -time * .12f * effects % 1);
+                if (ribbonShader)
+                {
+                    if (!Mathf.Approximately(waterWind, arenaPulse))
+                    {
+                        waterWind = arenaPulse;
+                        water.SetFloat("_WindGust", arenaPulse);
+                    }
+                }
+                else water.mainTextureOffset = new Vector2(0, -time * .12f * effects % 1);
                 for (int i = 0; i < animals.Count; i++)
                 {
                     float x = 3.7f + Mathf.Sin(time * 0.40f + i * 0.23f) * 3f + i * 2f;
                     float z = 1.35f + Mathf.Sin(x * 0.15f) * 4.72f + Mathf.Sin(x * 0.33f) * 0.48f;
-                    animals[i].position = new Vector3(x, Mathf.Sin(time * 3 + i) * 0.04f + 0.017f, z - 0.33f);
+                    animals[i].position = new Vector3(x, Mathf.Sin(time * 3 + i) * (0.04f + .015f * arenaPulse) + 0.017f, z - 0.33f);
                     animals[i].rotation = Quaternion.Euler(0, Mathf.Cos(time * .4f + i * .23f) > 0 ? 66 : -114, 0);
                 }
             }

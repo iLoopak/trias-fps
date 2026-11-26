@@ -187,16 +187,16 @@ namespace Trias.Native
 
         internal void SurgeLandmark() => reactorShock = 1;
 
-        void AnimateLandmark(float time)
+        void AnimateLandmark(float time, float arenaPulse)
         {
             for (int i = 0; i < excavators.Count; i++)
-                excavators[i].localRotation = Quaternion.Euler(0, i * 14, Mathf.Sin(time * .44f + i * 1.7f) * 6.2f);
+                excavators[i].localRotation = Quaternion.Euler(0, i * 14, Mathf.Sin(time * .44f + i * 1.7f) * (6.2f + 3.2f * arenaPulse));
             if (reactorRotor == null) return;
             reactorShock = Mathf.MoveTowards(reactorShock, 0, Time.unscaledDeltaTime * .63f);
             float pulse = .5f + .5f * Mathf.Sin(time * 2.3f);
             reactorRotor.localRotation = Quaternion.Euler(12 + Mathf.Sin(time) * 11, time * 31, -19);
-            reactorEnergy.color = Color.Lerp(reactorTint, new Color(1f,.87f,.59f), pulse * .38f + reactorShock * .44f);
-            reactorLight.intensity = 1.6f + pulse * .85f + reactorShock * 3.25f;
+            reactorEnergy.color = Color.Lerp(reactorTint, new Color(1f,.87f,.59f), pulse * .38f + reactorShock * .44f + arenaPulse * .20f);
+            reactorLight.intensity = 1.6f + pulse * .85f + reactorShock * 3.25f + arenaPulse * .62f;
         }
     }
 }

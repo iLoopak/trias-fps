@@ -5,7 +5,7 @@ import { chooseObjective, chooseWeapon } from '../bot-choices.js';
 import { botSound, senseBots } from '../bot-perception.js';
 import { BOT_DIFFICULTIES, brainFor, normalizeDifficulty } from '../bot-profiles.js';
 import { Match } from '../match.js';
-import { ARENAS, TICK, packCover, aimVector } from '../public/rules.js';
+import { ARENAS, PILOT_HP, TICK, packCover, aimVector } from '../public/rules.js';
 
 function setup(mode = 'tdm', flags = {}) {
   const match = new Match('bot-fixture',mode,true,{ ...ARENAS.relay,cover:[],launchPads:[],turrets:[] },flags);
@@ -65,7 +65,7 @@ test('acquisition respects reaction time, turning rate and a newly inserted obst
   match.layout.cover = packCover([{x:3,z:-6,w:12,d:2,h:5}]);
   brain.senseAt = 10; // Even a still-valid perception cache cannot authorize a covered shot.
   assert.equal(botInput(match,bot,2.4).fire,false);
-  assert.equal(enemy.hp,150);
+  assert.equal(enemy.hp,PILOT_HP);
 });
 
 test('weapons and risk preferences depend on observed range and personality', () => {
@@ -153,7 +153,7 @@ test('a bot Echo consumes real ammunition and requires a recently seen, reachabl
   assert(match.signature.fire(bot,{...action,echo:echo.serial},action.at));
   assert.equal(bot.loadout.pulse.ammo,rounds-1);
   assert.equal(match.signature.echoes.has(bot.id),false);
-  assert(enemy.hp<150);
+  assert(enemy.hp<PILOT_HP);
   const direction = aimVector(bot.yaw,bot.pitch);
   assert(direction.z < -.9);
 });

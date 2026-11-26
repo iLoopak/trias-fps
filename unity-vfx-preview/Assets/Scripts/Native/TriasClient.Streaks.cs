@@ -97,8 +97,8 @@ namespace Trias.Native
             const float tile = 63;
             float x = width - 278;
             CornerPanel(new Rect(x, 80, 252, 73), perkMask > 0 ? Amber : Subtle);
-            GUI.Label(new Rect(x + 8, 83, 152, 22), "SÉRIE  " + streakCount, section);
-            if (scanLeft > 0) GUI.Label(new Rect(x + 138, 84, 109, 20), "PRŮZKUM " + Mathf.CeilToInt(scanLeft) + " s", caption);
+            hudText.Draw(new Rect(x + 8, 83, 152, 22), "SÉRIE  " + streakCount, section);
+            if (scanLeft > 0) hudText.Draw(new Rect(x + 138, 84, 109, 20), "PRŮZKUM " + Mathf.CeilToInt(scanLeft) + " s", caption);
             for (int i = 0; i < Perks.Length; i++)
             {
                 float at = x + i * tile;
@@ -106,8 +106,8 @@ namespace Trias.Native
                 var tint = ready ? Amber : Subtle;
                 Fill(new Rect(at + 7, 108, tile - 12, 2), tint);
                 string name = i == 1 ? ModuleName() : PerkNames[i];
-                GUI.Label(new Rect(at + 6, 110, tile - 9, 22), name, caption);
-                GUI.Label(new Rect(at + 6, 128, tile - 9, 22), ready ? "»  " + (6 + i) : PerkGoals[i] + " výř.", caption);
+                hudText.Draw(new Rect(at + 6, 110, tile - 9, 22), name, caption);
+                hudText.Draw(new Rect(at + 6, 128, tile - 9, 22), ready ? "»  " + (6 + i) : PerkGoals[i] + " výř.", caption);
             }
         }
     }

@@ -135,7 +135,7 @@ namespace Trias.Native
             float x = w*.5f - 591, y = h*.5f - 333;
             Fill(new Rect(0,0,w,h),new Color(.021f,.029f,.050f,.25f));
             DrawInsignia(new Vector2(x+34,y+57),29,Amber);
-            GUI.Label(new Rect(x+76,y+10,475,88),"TRIAS",title);
+            hudText.Draw(new Rect(x+76,y+10,475,88),"TRIAS",title);
             Fill(new Rect(x,y+94,690,1),Subtle);
             Fill(new Rect(x,y+94,136,2),Amber);
 
@@ -172,7 +172,7 @@ namespace Trias.Native
                 }
                 else
                 {
-                    GUI.Label(new Rect(x+17,y+586,444,29),world == null ? "Spojuji se se serverem…" : "Čekám na stav zápasu…",section);
+                    hudText.Draw(new Rect(x+17,y+586,444,29),world == null ? "Spojuji se se serverem…" : "Čekám na stav zápasu…",section);
                     if (LobbyButton("cancel",new Rect(x+510,y+579,164,44),"Zrušit",false))
                     {
                         Disconnect(null);
@@ -180,7 +180,7 @@ namespace Trias.Native
                     }
                 }
                 if (!string.IsNullOrEmpty(status) && free)
-                    GUI.Label(new Rect(x+17,y+540,657,28),status,section);
+                    hudText.Draw(new Rect(x+17,y+534,657,40),status,lobbyWrap);
             }
             DrawLobbyFooter(x,y+647);
             HandleLobbyKeys();
@@ -213,11 +213,11 @@ namespace Trias.Native
                 if (arenaCards.TryGetValue(map.id,out var picture) && picture != null)
                     GUI.DrawTexture(new Rect(card.x+2,card.y+3,card.width-4,85),picture,ScaleMode.ScaleAndCrop);
                 Fill(new Rect(card.x+2,card.y+82,card.width-4,3),active ? Amber : Subtle);
-                GUI.Label(new Rect(card.x+7,card.y+89,143,26),map.label,section);
+                hudText.Draw(new Rect(card.x+7,card.y+89,143,26),map.label,section);
             }
             var arena = Array.Find(catalog.maps,map=>map.id==selectedMap);
-            GUI.Label(new Rect(x+16,y+314,651,25),arena.description,caption);
-            GUI.Label(new Rect(x+16,y+339,651,24),selectedMap switch
+            hudText.Draw(new Rect(x+16,y+314,651,25),arena.description,caption);
+            hudText.Draw(new Rect(x+16,y+339,651,24),selectedMap switch
             {
                 "relay" => "ORBITÁLNÍ STANICE   ·   TDM / FFA / DOM / CTF / HORDA",
                 "foundry" => "TAVICÍ PROVOZ   ·   TDM / FFA / DOM / CTF",
@@ -238,18 +238,18 @@ namespace Trias.Native
                     effects.InterfaceTone("select");
                 }
                 DrawModeMark(new Vector2(box.x+15,box.y+16),i,selected?Amber:Subtle);
-                GUI.Label(new Rect(box.x+27,box.y+4,75,24),game.@short,section);
-                GUI.Label(new Rect(box.x+7,box.y+29,97,23),ModeTitles[i],caption);
+                hudText.Draw(new Rect(box.x+27,box.y+4,75,24),game.@short,section);
+                hudText.Draw(new Rect(box.x+7,box.y+29,97,23),ModeTitles[i],caption);
             }
             var modeChoice = Catalog.Find(catalog.modes,selectedMode);
-            GUI.Label(new Rect(x+16,y+437,658,37),modeChoice.description,lobbyWrap);
+            hudText.Draw(new Rect(x+16,y+437,658,37),modeChoice.description,lobbyWrap);
             bool horde = selectedMode == "horde";
-            GUI.Label(new Rect(x+16,y+475,318,22),horde ? "1–4 obránci · 8 vln" : selectedMode=="ffa" ? "Až 12 hráčů · každý za sebe" : "Až 12 hráčů · tři týmy po čtyřech",caption);
+            hudText.Draw(new Rect(x+16,y+475,318,22),horde ? "1–4 obránci · 8 vln" : selectedMode=="ffa" ? "Až 12 hráčů · každý za sebe" : "Až 12 hráčů · tři týmy po čtyřech",caption);
             if (lobbyPage == LobbyPage.Quick)
-                GUI.Label(new Rect(x+16,y+505,315,23),"Místnost " + QuickRoom(),caption);
+                hudText.Draw(new Rect(x+16,y+505,315,23),"Místnost " + QuickRoom(),caption);
             else
             {
-                GUI.Label(new Rect(x+16,y+506,100,23),"Kód místnosti",caption);
+                hudText.Draw(new Rect(x+16,y+506,100,23),"Kód místnosti",caption);
                 roomCode = LobbyField("field.create",new Rect(x+122,y+498,204,32),roomCode,24);
             }
             if (horde && LobbyButton("horde-bots",new Rect(x+349,y+498,201,32),hordeSupport ? "Boti brání jádro" : "Obrana bez botů",hordeSupport))
@@ -267,11 +267,11 @@ namespace Trias.Native
 
         void DrawJoin(float x,float y)
         {
-            GUI.Label(new Rect(x+17,y+193,650,40),"Připojit se k posádce",heading);
-            GUI.Label(new Rect(x+17,y+246,620,50),"Použij kód od hostitele. Arénu, režim a nastavení místnosti načteš ze serveru.",lobbyWrap);
-            GUI.Label(new Rect(x+17,y+323,148,30),"Kód místnosti",section);
+            hudText.Draw(new Rect(x+17,y+193,650,40),"Připojit se k posádce",heading);
+            hudText.Draw(new Rect(x+17,y+246,620,50),"Použij kód od hostitele. Arénu, režim a nastavení místnosti načteš ze serveru.",lobbyWrap);
+            hudText.Draw(new Rect(x+17,y+323,148,30),"Kód místnosti",section);
             roomCode = LobbyField("field.join",new Rect(x+17,y+357,389,45),roomCode,24);
-            GUI.Label(new Rect(x+18,y+434,637,39),"Pokročilé připojení a přezdívku najdeš v Nastavení.",caption);
+            hudText.Draw(new Rect(x+18,y+434,637,39),"Pokročilé připojení a přezdívku najdeš v Nastavení.",caption);
         }
 
         GUIStyle lobbyWrap;
@@ -299,10 +299,10 @@ namespace Trias.Native
                 hangarYaw = Mathf.Clamp(hangarYaw - evt.delta.x*.51f,-115,115);
                 evt.Use();
             }
-            if (visualEffects > .01f) GUI.Label(new Rect(x+11,y+271,260,23),"Tažením otočíš pilota",caption);
+            if (visualEffects > .01f) hudText.Draw(new Rect(x+11,y+271,260,23),"Tažením otočíš pilota",caption);
             CornerPanel(new Rect(x,y+305,458,223),Amber);
-            GUI.Label(new Rect(x+14,y+312,276,39),pilot.label,heading);
-            GUI.Label(new Rect(x+15,y+352,428,23),Catalog.Find(catalog.weapons,pilot.weapon)?.label + "  ·  " + pilot.description,caption);
+            hudText.Draw(new Rect(x+14,y+312,276,39),pilot.label,heading);
+            hudText.Draw(new Rect(x+15,y+351,428,36),Catalog.Find(catalog.weapons,pilot.weapon)?.label + "  ·  " + pilot.description,lobbyWrap);
             if (LobbyButton("faction",new Rect(x+272,y+311,173,38),"Znak " + catalog.teams[previewFaction].name,false))
             {
                 previewFaction = (previewFaction+1)%catalog.teams.Length;
@@ -353,11 +353,13 @@ namespace Trias.Native
         void DrawLobbySettings(float x,float y)
         {
             CornerPanel(new Rect(x,y+111,690,528),Amber);
-            GUI.Label(new Rect(x+21,y+123,630,37),"Nastavení",heading);
+            hudText.Draw(new Rect(x+21,y+123,630,37),"Nastavení",heading);
             DrawFeelOptions(new Rect(x+22,y+177,440,34));
-            GUI.Label(new Rect(x+21,y+452,630,34),"Pokročilé připojení",heading);
-            GUI.Label(new Rect(x+22,y+482,420,22),"Adresa herního serveru",caption);
-            GUI.Label(new Rect(x+460,y+482,190,22),"Přezdívka",caption);
+            if (LobbyButton("radio.test",new Rect(x+480,y+413,179,30),"Vyzkoušet rádio",false))
+                PreviewBotRadio();
+            hudText.Draw(new Rect(x+21,y+452,630,34),"Pokročilé připojení",heading);
+            hudText.Draw(new Rect(x+22,y+482,420,22),"Adresa herního serveru",caption);
+            hudText.Draw(new Rect(x+460,y+482,190,22),"Přezdívka",caption);
             serverAddress = LobbyField("field.server",new Rect(x+22,y+507,422,34),serverAddress,160);
             nickname = LobbyField("field.player",new Rect(x+460,y+507,207,34),nickname,18);
             if (LobbyButton("back",new Rect(x+22,y+570,206,42),"Hotovo",true)) CloseLobbySettings();

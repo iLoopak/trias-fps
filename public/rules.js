@@ -7,7 +7,7 @@ export const CAPACITY = 12;
 export const MAP_SIZE = 30;
 export const BODY_RADIUS = 0.43;
 export const EYE = 1.58;
-export const PILOT_HP = 150;
+export const PILOT_HP = 210;
 export const MED_HEAL = 65;
 export const SHIELD_ARMOR = 50;
 const BODY_HEIGHT = 1.78;
@@ -34,7 +34,7 @@ const GRAVITY = 19;
 export const DEFAULT_WEAPON = 'pulse';
 export const WEAPONS = {
   pulse: { label: 'Pulse', color: '#89fff0', magazine: 24, reserve: Infinity, interval: 0.145, reload: 1.3, range: 60, damage: 23, pattern: [0] },
-  scatter: { label: 'Scatter', color: '#ffad72', magazine: 6, reserve: 24, interval: 0.66, reload: 1.55, range: 22, damage: 16,
+  scatter: { label: 'Scatter', color: '#ffad72', magazine: 6, reserve: 24, interval: 0.66, reload: 1.55, range: 22, damage: 14,
     pattern: [0, -0.06, 0.06, -0.09, 0.09, -0.025, 0.025],
     alt: { cost: 2, interval: 0.91, range: 47, damage: 56, pattern: [0] } },
   lance: { label: 'Lance', color: '#d8b4ff', magazine: 4, reserve: 12, interval: 0.85, reload: 1.7, range: 85, damage: 68, pattern: [0] },
@@ -48,7 +48,8 @@ export const POWERUPS = {
   surge: { label: 'Overcharge', color: '#ff769b', respawn: 38 },
   med: { label: 'Léčení', color: '#9cff8c', respawn: 18 },
 };
-export const RESPAWN = 2.8;
+export const RESPAWN = 5;
+export const HORDE_RESPAWN = 7;
 export const TEAMS = [
   { name: 'ION', color: '#1be8ed', angle: Math.PI },
   { name: 'EMBER', color: '#ff833b', angle: Math.PI / 3 },

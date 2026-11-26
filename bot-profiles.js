@@ -39,12 +39,15 @@ export function brainFor(room, player) {
   if (player.brain?.spawn === player.spawn) return player.brain;
   const seed = hash(`${room.code}:${player.id}`);
   const slot = player.team * 4 + player.slot;
+  const variation = room.director?.directsBots ? room.director.roundSeed : 0;
+  const rotation = variation ? ((variation >>> (player.team * 5)) % roster.length) : 0;
   const kind = player.hordeType ? ({ runner: 'aggressor', striker: 'hunter', crusher: 'sentinel', sentinel: 'marksman' })[player.hordeType]
-    : roster[slot % roster.length];
+    : roster[(slot + rotation) % roster.length];
   const difficulty = room.botDifficulty === 'mixed' ? difficulties[(seed >>> 6) % difficulties.length] : normalizeDifficulty(room.botDifficulty);
+  const randomState = (seed ^ variation ^ Math.imul(player.spawn, 0x865bacc3)) >>> 0;
   const brain = {
     spawn: player.spawn, kind, difficulty, traits: PERSONALITIES[kind], tuning: BOT_DIFFICULTIES[difficulty],
-    seed: (seed ^ Math.imul(player.spawn, 0x865bacc3)) >>> 0,
+    seed: variation && !randomState ? 1 : randomState,
     variation: .87 + ((seed >>> 10) % 25) * .01, strafe: seed & 1 ? 1 : -1,
     lookYaw: player.yaw, lookPitch: player.pitch, yawRate: 0, pitchRate: 0,
     sensed: [], target: null, memory: null, hearing: null, hostileEcho: null, reactionAt: Infinity,

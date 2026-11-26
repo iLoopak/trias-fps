@@ -8,7 +8,8 @@ namespace Trias.Native
         Texture2D overlay, portraits;
         bool renderedPortraits;
         Font displayFont, textFont;
-        GUIStyle title, heading, section, caption, center, action, field;
+        readonly HudText hudText = new HudText();
+        GUIStyle title, heading, section, caption, center, field;
         readonly Color lime = new Color(.78f, 1f, .43f);
         readonly Color muted = new Color(.66f, .72f, .77f);
         static readonly Color Amber = new Color(1f, .72f, .38f);
@@ -36,16 +37,20 @@ namespace Trias.Native
             heading = Label(26, displayFont, Chalk);
             section = Label(17, displayFont, Chalk);
             caption = Label(15, textFont, muted);
-            lobbyWrap = new GUIStyle(caption) {wordWrap=true};
+            lobbyWrap = new GUIStyle(caption) { wordWrap = true, alignment = TextAnchor.UpperLeft };
             center = Label(17, displayFont, Chalk);
             center.alignment = TextAnchor.MiddleCenter;
-            field = new GUIStyle(GUI.skin.textField) { font = textFont, fontSize = 18, padding = new RectOffset(9, 9, 5, 3) };
-            action = new GUIStyle(GUI.skin.button) { font = displayFont, fontSize = 16, alignment = TextAnchor.MiddleCenter };
+            field = new GUIStyle(GUI.skin.textField) {
+                font = textFont, fontSize = 18, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(9, 9, 2, 2)
+            };
         }
 
         static GUIStyle Label(int size, Font font, Color color)
         {
-            return new GUIStyle(GUI.skin.label) { font = font, fontSize = size, clipping = TextClipping.Clip, normal = { textColor = color } };
+            return new GUIStyle(GUI.skin.label) {
+                font = font, fontSize = size, clipping = TextClipping.Overflow, wordWrap = false,
+                alignment = TextAnchor.MiddleLeft, padding = new RectOffset(), normal = { textColor = color }
+            };
         }
 
         bool Preset(Rect box, string text, string sub, bool selected)
@@ -57,8 +62,8 @@ namespace Trias.Native
                 CornerNotch(new Vector2(box.xMax - 5, box.yMax - 6), Amber);
             bool pressed = GUI.Button(box, GUIContent.none, GUIStyle.none);
             if (pressed) effects.InterfaceClick();
-            if (text != null) GUI.Label(new Rect(box.x + 8, box.y + (sub == null ? (box.height-24)*.5f : 5), box.width - 14, 24), text, section);
-            if (sub != null) GUI.Label(new Rect(box.x + 8, box.y + 30, box.width - 14, 20), sub, caption);
+            if (text != null) hudText.Draw(new Rect(box.x + 8, box.y + (sub == null ? (box.height-24)*.5f : 5), box.width - 14, 24), text, section);
+            if (sub != null) hudText.Draw(new Rect(box.x + 8, box.y + 30, box.width - 14, 20), sub, caption);
             return pressed;
         }
 
@@ -95,8 +100,8 @@ namespace Trias.Native
             CornerPanel(new Rect(26, 21, 214, 58), teamTint);
             if (mode == "ffa") DrawInsignia(new Vector2(47,49), 12, Amber);
             else DrawFaction(new Vector2(47,49), 12, own[3].Int, teamTint);
-            GUI.Label(new Rect(67, 25, 165, 28), world.Spec.label, section);
-            GUI.Label(new Rect(67, 51, 165, 21), room + "  ·  " + latency + " ms", caption);
+            hudText.Draw(new Rect(67, 25, 165, 28), world.Spec.label, section);
+            hudText.Draw(new Rect(67, 51, 165, 21), room + "  ·  " + latency + " ms", caption);
             float cx = w * .5f;
             if (mode != "horde") CornerPanel(new Rect(cx - 220, 21, 440, 55), teamTint);
             int time = state["time"].Int;
@@ -105,7 +110,7 @@ namespace Trias.Native
             {
                 int leading = 0;
                 foreach (var value in state["players"].Items) leading = Mathf.Max(leading, value[11].Int);
-                GUI.Label(new Rect(cx - 216, 26, 330, 37), "TY " + own[11].Int + "   /   VEDENÍ " + leading, center);
+                hudText.Draw(new Rect(cx - 216, 26, 330, 37), "TY " + own[11].Int + "   /   VEDENÍ " + leading, center);
             }
             else
             {
@@ -116,15 +121,16 @@ namespace Trias.Native
                     var area = new Rect(cx - 207 + 111 * team, 31, 104, 29);
                     Fill(new Rect(area.x + 6, area.y + 25, area.width - 12, 2), Catalog.Tint(catalog.teams[team].color));
                     DrawFaction(new Vector2(area.x + 14, area.y + 13), 7, team, Catalog.Tint(catalog.teams[team].color));
-                    GUI.Label(new Rect(area.x + 23,area.y,area.width - 23,area.height), catalog.teams[team].name + " " + score, center);
+                    hudText.Draw(new Rect(area.x + 23,area.y,area.width - 23,area.height), catalog.teams[team].name + " " + score, center);
                 }
             }
             if (mode != "horde")
-                GUI.Label(new Rect(cx + 125, 30, 85, 30), (time / 60) + ":" + (time % 60).ToString("00"), center);
+                hudText.Draw(new Rect(cx + 125, 30, 85, 30), (time / 60) + ":" + (time % 60).ToString("00"), center);
+            PaintArenaRhythm(cx);
             if (Time.unscaledTime < toastUntil && !string.IsNullOrEmpty(toast))
             {
-                Panel(new Rect(w - 268, 30, 246, 35));
-                GUI.Label(new Rect(w - 257, 34, 229, 25), toast, caption);
+                Panel(new Rect(w - 338, 30, 316, 38));
+                hudText.Draw(new Rect(w - 326, 33, 292, 30), toast, caption);
             }
             bool alive = own[6].Int > 0;
             PaintObjectiveHints(h, scale);
@@ -141,23 +147,23 @@ namespace Trias.Native
                 PaintVitals(w, h);
                 PaintDeployment(w,h);
                 string stateLabel = Prompt();
-                if (stateLabel != null) GUI.Label(new Rect(cx - 240, h - 88, 480, 27), stateLabel, center);
+                if (stateLabel != null) hudText.Draw(new Rect(cx - 240, h - 88, 480, 27), stateLabel, center);
                 CornerPanel(new Rect(cx - 95, h - 55, 190, 28), own[17].Int > 0 ? teamTint : Subtle);
-                GUI.Label(new Rect(cx - 93, h - 55, 186, 28), "G   GRANÁT   " + own[17].Int, center);
+                hudText.Draw(new Rect(cx - 93, h - 55, 186, 28), "G   GRANÁT   " + own[17].Int, center);
             }
             else if (state["winner"]["label"].Text != null) PaintResult(cx, h);
             else PaintDeath(cx,h);
             if (scoreboard)
             {
                 Panel(new Rect(cx - 290, h / 2 - 213, 580, 426));
-                GUI.Label(new Rect(cx - 270,h / 2 - 201,540,34), "Piloti    /    vyřazení    /    pády", heading);
+                hudText.Draw(new Rect(cx - 270,h / 2 - 201,540,34), "Piloti    /    vyřazení    /    pády", heading);
                 int j = 0;
                 foreach (var pilot in state["players"].Items)
                 {
                     string name = pilot[1].Text + ((pilot[2].Int & 1) == 1 ? "  BOT" : "");
                     Fill(new Rect(cx - 270, h / 2 - 158 + j * 27, 4, 22), PlayerTint(pilot));
-                    GUI.Label(new Rect(cx - 257, h / 2 - 160 + j * 27, 410, 30), name, section);
-                    GUI.Label(new Rect(cx + 136, h / 2 - 160 + j * 27, 137, 30), pilot[11].Int + "           " + pilot[12].Int, section);
+                    hudText.Draw(new Rect(cx - 257, h / 2 - 160 + j * 27, 378, 30), name, section);
+                    hudText.Draw(new Rect(cx + 136, h / 2 - 160 + j * 27, 137, 30), pilot[11].Int + "           " + pilot[12].Int, section);
                     j++;
                 }
             }
@@ -216,7 +222,7 @@ namespace Trias.Native
             if (capturing) Fill(new Rect(box.x, box.y + 24, box.width * progress, 2), color);
             if (faction >= 0)
                 DrawFaction(new Vector2(box.x + 12,box.y + 12),7,faction,color);
-            GUI.Label(new Rect(box.x + (faction >= 0 ? 20 : 0),box.y,box.width - (faction >= 0 ? 20 : 0),box.height),name,center);
+            hudText.Draw(new Rect(box.x + (faction >= 0 ? 20 : 0),box.y,box.width - (faction >= 0 ? 20 : 0),box.height),name,center);
         }
 
         static void Panel(Rect rect) => CornerPanel(rect, Amber);

@@ -36,6 +36,7 @@ function objectiveForMode(room, player, brain) {
         ally !== player && ally.team === player.team && ally.hp > 0 && ally.brain?.objective?.point === points[i]).length;
       const weight = (owned ? brain.traits.team > .76 ? 13 : -8 : 13)
         + (room.points[i].contested ? 8 * brain.traits.team : 0)
+        + (room.director?.directsBots && room.director.phase === 'recovery' && owned ? 5 * brain.traits.team : 0)
         + (anchor === i ? 9 : 0) - assigned * 10 - Math.sqrt(distanceSquared(player, points[i])) * .28;
       if (weight > best) { station = i; best = weight; }
     }
@@ -106,7 +107,7 @@ export function chooseObjective(room, player, brain, now) {
   const modeGoal = objectiveForMode(room, player, brain);
   if (modeGoal?.intent === 'return-flag' || modeGoal?.intent === 'recover-flag') return modeGoal;
   const supply = supplyFor(room, player, brain, now);
-  const retreat = target && player.hp + player.armor * .55 < PILOT_HP * brain.traits.retreat * brain.variation;
+  const retreat = target && player.hp + player.armor * .55 < PILOT_HP * brain.traits.retreat * brain.variation * (room.director?.retreatScale ?? 1);
   if (retreat) {
     const cover = retreatPoint(player, target, brain, layout);
     if (cover) return { point: cover, intent: 'retreat' };
@@ -150,6 +151,8 @@ export function chooseObjective(room, player, brain, now) {
     const turret = room.turrets.find(item => !item.user && distanceSquared(player,item) < 11 ** 2);
     if (turret) return { point: turret, turret, intent: 'turret' };
   }
+  const patrol = room.director?.patrol(player, brain, now);
+  if (patrol) return patrol;
   const points = room.layout.points;
   if (brain.patrol == null || distanceSquared(player,points[brain.patrol]) < 3.2 ** 2 || now > (brain.patrolAt ?? 0)) {
     brain.patrol = (brain.patrol == null ? player.team + player.slot : brain.patrol + (brain.strafe > 0 ? 1 : 2)) % points.length;

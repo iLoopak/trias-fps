@@ -43,6 +43,29 @@ namespace Trias.Preview
             return Clip(name, data, 1);
         }
 
+        internal static AudioClip Mechanism(string name, float duration, float body, float air, float metal, bool latch = false)
+        {
+            var samples = new float[Mathf.CeilToInt(Rate * duration)];
+            int seed = 31;
+            foreach (char c in name) seed = unchecked(seed * 37 + c);
+            var random = new System.Random(seed);
+            float pink = 0, mid = 0;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float t = (float)i / Rate;
+                float raw = (float)random.NextDouble() * 2 - 1;
+                pink = Mathf.Lerp(pink, raw, .12f);
+                mid = Mathf.Lerp(mid, raw, .39f);
+                float second = t - duration * .35f;
+                float contact = Mathf.Exp(-t * 93) + (latch && second > 0 ? .56f * Mathf.Exp(-second * 110) : 0);
+                float thud = (.48f * Mathf.Sin(Cycle * body * t) + .20f * pink) * Mathf.Exp(-t * 21);
+                float hiss = (mid - pink) * air * Mathf.Clamp01(t * 85) * Mathf.Exp(-t * (6 + 1.1f / duration));
+                float strike = metal * contact * (.43f * (raw - mid) + .14f * Mathf.Sin(Cycle * 842 * t) + .10f * Mathf.Sin(Cycle * 1219 * t));
+                samples[i] = (thud + hiss + strike) * Mathf.Clamp01(t * 1400) * Mathf.Clamp01((duration - t) * 100);
+            }
+            return Clip(name, samples, 1);
+        }
+
         internal static AudioClip NearMiss()
         {
             const float duration = .105f;

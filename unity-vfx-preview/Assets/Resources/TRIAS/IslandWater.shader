@@ -4,6 +4,7 @@ Shader "TRIAS/Island Water"
     {
         _MainTex ("Water grain", 2D) = "gray" {}
         _Effects ("Water movement", Range(0,1)) = 1
+        _WindGust ("Arena wind", Range(0,1)) = 0
     }
     SubShader
     {
@@ -17,7 +18,7 @@ Shader "TRIAS/Island Water"
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
             sampler2D _MainTex;
-            half _Effects;
+            half _Effects, _WindGust;
             struct Varyings
             {
                 float4 pos : SV_POSITION;
@@ -49,7 +50,7 @@ Shader "TRIAS/Island Water"
                 half depth = smoothstep(.015,.42,bank);
                 half3 tint = lerp(half3(.24,.56,.52), half3(.043,.24,.31), depth);
                 half boatLight = 1 - abs(dot(normalize(input.normal), normalize(_WorldSpaceCameraPos.xyz - input.world)));
-                tint += half3(.18,.27,.25) * boatLight * boatLight * (.38 + ripple * .40);
+                tint += half3(.18,.27,.25) * boatLight * boatLight * (.38 + ripple * (.40 + _WindGust * .31));
                 half foam = 1 - smoothstep(.020,.087,bank + (crossGrain - .52) * .075);
                 half runnel = smoothstep(.66,.93,ripple) * .27 + drop * smoothstep(.32,.68,grain) * .62;
                 tint = lerp(tint,half3(.72,.86,.75),saturate(foam * (.36 + .42 * ripple) + runnel * _Effects));

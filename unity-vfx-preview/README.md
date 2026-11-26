@@ -62,6 +62,8 @@ V lobby vyber **HORDA**. Až čtyři piloti spolu brání jádro na Relay Statio
 
 Během přípravy stiskni **B**. Klávesou **1** vybereš barikádu za 30 šrotu a **2** automatickou věž za 65. Namiř na volné stavební místo a klikni levým tlačítkem. Posádka začíná se 40 kusy šrotu a další získává za vyřazené nepřátele. Postavená obrana přetrvává mezi vlnami a nepřátelé ji mohou zničit. Modely obrany využívají bedny a blaster z Kenney Blaster Kit.
 
+Nastavení dynamických hlídek, živé arény, rytmu Hordy a zkoušky týmového rádia najdeš v [návodu k W7](W7-DIRECTOR.md).
+
 ## Desktopové sestavení
 
 Skript `Trias.Preview.BuildTrias` nabízí metody `BuildMac`, `BuildWindows` a `BuildLinux` pro dávkový režim Unity. Vybranou metodu předej jako `-executeMethod` a cestu k výstupu jako proměnnou `TRIAS_NATIVE_BUILD`. Windows a Linux potřebují příslušný modul Build Support v Unity Hubu. macOS build používá univerzální binárku pro Apple Silicon a Intel. Steam je cílová distribuční platforma.

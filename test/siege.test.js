@@ -83,14 +83,14 @@ test('actual weapon hits respect the shield and destroying two cores ends and re
   assert.equal(siege.cores[1].hp, SIEGE_CORE_HP);
 });
 
-test('a normal pilot needs seven Pulse hits and a med pack heals to at most 150 HP', () => {
+test('a healthy pilot survives nine Pulse hits and a med pack respects maximum health', () => {
   const { match, pilots } = roomWithPilots();
   const [attacker, target] = pilots;
-  for (let index = 0; index < 6; index++) match.damage(attacker, target, WEAPONS.pulse.damage, 2 + index, attacker);
+  for (let index = 0; index < 9; index++) match.damage(attacker, target, WEAPONS.pulse.damage, 2 + index, attacker);
   assert(target.hp > 0);
-  assert(match.damage(attacker, target, WEAPONS.pulse.damage, 9, attacker).eliminated);
+  assert(match.damage(attacker, target, WEAPONS.pulse.damage, 11, attacker).eliminated);
   const med = match.layout.pickups.find(item => item.type === 'med');
   Object.assign(attacker, med, { hp: PILOT_HP - MED_HEAL + 1 });
-  match.updatePickups(10);
+  match.updatePickups(12);
   assert.equal(attacker.hp, PILOT_HP);
 });

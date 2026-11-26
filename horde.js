@@ -137,13 +137,15 @@ export class Horde {
     const type = TYPES[variant];
     const id = 'horde-' + ++this.nextEnemy;
     const enemy = this.room.addPlayer(id, type.name, team, slot, now, true, type.character, this.nextEnemy % 2 === 0 ? 'male' : undefined);
-    const flank = 1 + (this.remaining + this.wave) % 2;
+    const director = this.room.director;
+    const flank = director?.hordeFlank(this.wave, this.remaining) ?? 1 + (this.remaining + this.wave) % 2;
     Object.assign(enemy, this.room.layout.spawns[flank][slot], { hordeType: variant, hordeSlot: index,
       hp: Math.round(type.hp * (1 + (this.wave - 1) * .10)),
       armor: type.armor, safeUntil: now + .35, strikeAt: now + .8, routeAt: now, weapon: type.weapon ?? 'pulse' });
     enemy.loadout[enemy.weapon] = { ammo: WEAPONS[enemy.weapon].magazine, reserve: Infinity };
     this.remaining--;
-    this.deployAt = now + Math.max(.43, 1.25 - this.wave * .10);
+    const interval = Math.max(.43, 1.25 - this.wave * .10);
+    this.deployAt = now + (director?.hordeInterval(interval, this.wave, this.remaining) ?? interval);
   }
 
   input(enemy, now) {

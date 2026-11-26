@@ -20,7 +20,7 @@ namespace Trias.Native
             bool heavy = kit == "bulwark", scout = kit == "kestrel", phase = kit == "wraith";
             float breadth = (heavy ? .51f : scout ? .32f : phase ? .35f : .40f) * (male ? 1.10f : .96f);
             float limbBuild = male ? 1.08f : .96f;
-            Material shell = heavy ? world.Hardware : phase ? world.Graphite : world.White;
+            Material shell = faction >= 0 ? world.FactionPaint[faction] : heavy ? world.Hardware : phase ? world.Graphite : world.White;
             var head = Bone("Head");
             var neck = Bone("Neck");
             var spine = Bone("Spine");
@@ -77,6 +77,8 @@ namespace Trias.Native
                 world.Armor(helmet, world.Glass, new Vector3(0,.038f,.112f), new Vector3(helmetWidth*.94f,.077f,.061f)).localRotation = Quaternion.Euler(0,0,-8);
                 world.Armor(helmet, accent, new Vector3(.025f,.040f,.145f), new Vector3(helmetWidth*.63f,.011f,.006f), false).localRotation = Quaternion.Euler(0,0,-8);
             }
+            if (faction == 1)
+                world.Armor(helmet, shell, new Vector3(0,.092f,-.025f),new Vector3(helmetWidth*1.23f,.102f,.24f));
 
             for (int sign = -1; sign <= 1; sign += 2)
             {
@@ -96,14 +98,17 @@ namespace Trias.Native
                     world.Armor(hand, shell, new Vector3(0,.027f,.026f), new Vector3(.071f,.031f,.082f));
                     var pauldron = Anchor("Articulated pauldron", shoulder,
                         Vector3.Lerp(Joint(shoulder),Joint(elbow),.10f) + new Vector3(sign*.034f,.020f,-.010f), Quaternion.identity);
-                    world.Armor(pauldron, shell, Vector3.zero,
-                        new Vector3(heavy ? .23f : scout ? .135f : .17f,heavy ? .18f : .13f,heavy ? .28f : .19f));
+                    var plate = world.Armor(pauldron, shell, Vector3.zero,
+                        new Vector3((heavy ? .23f : scout ? .135f : .17f) + (faction == 1 ? .044f : 0),
+                            (heavy ? .18f : .13f) + (faction == 2 ? .055f : 0),heavy ? .28f : .19f));
+                    if (faction == 0) plate.localRotation = Quaternion.Euler(-13,0,-sign * 17);
+                    if (faction == 2) plate.localRotation = Quaternion.Euler(0,0,sign * 27);
                     world.Armor(pauldron, accent, new Vector3(0,.01f,.104f),
                         new Vector3(heavy ? .107f : .076f,.027f,.022f), false);
                 }
                 if (thigh != null && knee != null && ankle != null)
                 {
-                    Limb(thigh, knee, world.Graphite, heavy ? .174f : .145f);
+                    Limb(thigh, knee, faction >= 0 ? shell : world.Graphite, heavy ? .174f : .145f);
                     Limb(knee, ankle, shell, heavy ? .16f : .124f);
                     var boot = Anchor("Ceramic boot", ankle, Joint(ankle) + new Vector3(0,-.014f,.053f), Quaternion.identity);
                     world.Armor(boot, world.Dark, Vector3.zero, new Vector3(.142f,.104f,.241f));
@@ -122,6 +127,13 @@ namespace Trias.Native
                     world.Armor(body, accent, new Vector3(sign*breadth*.39f,.007f,-.273f),
                         new Vector3(.054f,.13f,.018f), false);
                 }
+                if (faction == 0)
+                {
+                    var vane = world.Armor(body, shell, new Vector3(sign * breadth * .43f,.14f,-.219f),new Vector3(.074f,.31f,.128f));
+                    vane.localRotation = Quaternion.Euler(17,0,-sign * 24);
+                }
+                else if (faction == 1)
+                    world.Armor(body, shell, new Vector3(sign * breadth * .41f,.058f,-.208f),new Vector3(.103f,.22f,.161f));
             }
 
             if (phase)
@@ -136,11 +148,12 @@ namespace Trias.Native
             }
             if (faction >= 0)
             {
-                var backing = world.FactionPaint[faction];
-                world.Armor(body, backing, new Vector3(-breadth*.19f,.126f,.173f), new Vector3(.156f,.094f,.037f));
-                world.Armor(body, backing, new Vector3(0,.077f,-.265f), new Vector3(.172f,.154f,.038f));
-                world.Stamp(body, faction, accent, new Vector3(-breadth*.19f,.126f,.194f), .077f);
-                world.Stamp(body, faction, accent, new Vector3(0,.082f,-.286f), .105f).localRotation = Quaternion.Euler(0,180,0);
+                if (faction == 2)
+                    world.Armor(body, shell, new Vector3(0,.209f,-.237f),new Vector3(.104f,.43f,.131f)).localRotation = Quaternion.Euler(-19,0,11);
+                world.Armor(body, world.Graphite, new Vector3(-breadth*.19f,.125f,.183f), new Vector3(.177f,.130f,.038f));
+                world.Armor(body, world.Graphite, new Vector3(0,.060f,-.305f), new Vector3(.194f,.174f,.036f));
+                world.Stamp(body, faction, accent, new Vector3(-breadth*.19f,.125f,.205f), .109f);
+                world.Stamp(body, faction, accent, new Vector3(0,.060f,-.326f), .137f).localRotation = Quaternion.Euler(0,180,0);
             }
             else
                 world.Armor(pack, accent, new Vector3(0,0,-.57f), new Vector3(.54f,.17f,.07f), false);

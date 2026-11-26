@@ -2,7 +2,7 @@ import { performance } from 'node:perf_hooks';
 import { WebSocketServer } from 'ws';
 import { fireProfileData, Match } from '../match.js';
 import { interactionFlags } from '../interactions.js';
-import { aimVector, ARMORY, eyeHeight, TICK, wallDistance, WEAPONS } from '../public/rules.js';
+import { aimVector, ARMORY, eyeHeight, PILOT_HP, TICK, wallDistance, WEAPONS } from '../public/rules.js';
 import { NETWORK_VERSION, unpackInput } from '../public/netcode.js';
 
 const port = 3035;
@@ -20,7 +20,7 @@ function drill(room, player, targets, start) {
   for (const [i, point] of stations.entries()) {
     const target = targets[i] ?? room.addPlayer('dummy-' + i, point.name, 1, i, start, false, 'bulwark');
     targets[i] = target;
-    Object.assign(target, { x: point.x, y: 0, z: point.z, hp: 150, armor: point.armor, safeUntil: 0, yaw: 0, fireAt: Infinity });
+    Object.assign(target, { x: point.x, y: 0, z: point.z, hp: PILOT_HP, armor: point.armor, safeUntil: 0, yaw: 0, fireAt: Infinity });
   }
 }
 
@@ -56,7 +56,7 @@ server.on('connection', (socket, request) => {
       Object.assign(socket.player, { x: 0, z: -24, yaw: -Math.PI });
       drill(match, socket.player, targets, now());
       socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: 'FEEL LAB', mode: 'tdm',
-        arena: 'relay', v: NETWORK_VERSION, fireProfiles: fireProfileData(), lab: true }));
+        arena: 'relay', v: NETWORK_VERSION, fireProfiles: fireProfileData(), pace: match.pace, lab: true }));
       sessions.add(tick);
       return;
     }
@@ -101,7 +101,7 @@ server.on('connection', (socket, request) => {
     match.scores.fill(0);
     for (const [i, point] of stations.entries()) {
       const target = targets[i];
-      if (!target.hp && at >= target.respawnAt - 1.9) {
+      if (!target.hp && at >= target.respawnAt - match.pace.respawn + .9) {
         match.spawn(target, at);
         Object.assign(target, { x: point.x, y: 0, z: point.z, armor: point.armor, safeUntil: 0, yaw: 0, fireAt: Infinity });
       }

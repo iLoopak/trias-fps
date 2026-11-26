@@ -267,7 +267,7 @@ export function botInput(room, player, now) {
   let z = travelling ? Math.cos(relative) : 0;
   const tactical = enemy && (brain.intent === 'engage' || brain.intent === 'flank');
   if (tactical && !airborneRoute && (brain.intent !== 'flank' || enemy.distance < brain.traits.range * .89)) {
-    const direct = (enemy.distance - brain.traits.range) / 8;
+    const direct = (enemy.distance - brain.traits.range - (room.director?.rangeOffset ?? 0)) / 8;
     x = Math.sin(now * (2.5 + brain.traits.mobility) + player.slot) * .59 * brain.strafe;
     z = Math.max(-.76,Math.min(.95,direct));
     if (brain.kind === 'aggressor' && enemy.distance > 4) z = Math.max(.31,z);

@@ -1,6 +1,6 @@
 import {
   aimVector, ARENAS, ARMORY, CAPACITY, CHARACTERS, DEFAULT_CHARACTER, DEFAULT_WEAPON, distanceSquared, eyeHeight, floorBelow,
-  GRENADE, hitHeight, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, turretYaw, wallDistance, WEAPONS,
+  GRENADE, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, turretYaw, wallDistance, WEAPONS,
 } from './public/rules.js';
 import { botInput } from './bots.js';
 import { normalizeDifficulty } from './bot-profiles.js';
@@ -13,6 +13,7 @@ import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
 import { NETWORK_VERSION, packSnapshot } from './public/netcode.js';
 import { Signature } from './signature.js';
 import { explosionImpulse, grenadeOnRay } from './interactions.js';
+import { CombatDirector } from './combat-director.js';
 
 const EMPTY = { x: 0, z: 0, sprint: false, fire: false, reload: false, jump: false, dodge: false, crouch: false };
 const BOT_CHARACTERS = Object.keys(CHARACTERS);
@@ -28,6 +29,7 @@ export class Match {
   constructor(code, mode, bots, layout = ARENAS.relay, signature = {}) {
     this.code = code;
     this.mode = mode;
+    this.pace = { pilotHp: PILOT_HP, respawn: mode === 'horde' ? HORDE_RESPAWN : RESPAWN };
     this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' ? ARENAS.relay : layout;
     this.bots = bots;
     this.botDifficulty = normalizeDifficulty(signature.botDifficulty);
@@ -46,16 +48,20 @@ export class Match {
     this.horde = mode === 'horde' ? new Horde(this) : null;
     this.streaks = new Streaks(this);
     this.signature = new Signature(this, signature);
+    const director = signature.director;
+    this.director = director && (director.bots || director.horde || director.presentation) ? new CombatDirector(this, director) : null;
     this.reset(0);
   }
 
   reset(now) {
+    this.director?.reset(now);
     this.signature.reset();
     this.botSound = [];
     this.botSoundIndex = -1;
     this.botMetrics = { stuck: 0 };
     this.radioAt = [];
     this.radioReadyAt = now + 2.2;
+    this.nextRadioCheck = now + 3.8;
     this.endsAt = now + (MODES[this.mode]?.time ?? 0);
     this.restartAt = 0;
     this.winner = null;
@@ -120,6 +126,7 @@ export class Match {
     this.removePlayer('bot-' + team + '-' + slot, now);
     socket.player = this.addPlayer(socket.id, name, team, slot, now, false, character, frame);
     this.humans.add(socket);
+    this.director?.onJoin();
     this.fillBots(now);
     return true;
   }
@@ -149,6 +156,16 @@ export class Match {
     this.radioAt[player.team] = now + 8.5;
     player.radioAt = now + 19;
     return true;
+  }
+
+  checkTeamRadio(now) {
+    if (now < this.nextRadioCheck || this.mode === 'ffa' || !this.humans.size || (this.horde ? !this.hordeSupport : !this.bots)) return;
+    this.nextRadioCheck = now + 2;
+    for (const peer of this.humans) {
+      if (!peer.botRadio || peer.player.hp <= 0 || this.radioAt[peer.player.team] !== undefined) continue;
+      const ally = [...this.players.values()].find(bot => bot.bot && !bot.hordeType && bot.hp > 0 && bot.team === peer.player.team);
+      if (ally) this.radioBot(ally, this.horde ? 'core' : 'cover', now);
+    }
   }
 
   removePlayer(id, now) {
@@ -268,6 +285,7 @@ export class Match {
     const shieldBreak = absorbed > 0 && target.armor === 0;
     const health = Math.min(target.hp, amount - absorbed);
     target.hp -= health;
+    if (health + absorbed > 0) this.director?.record(now, health + absorbed, target.hp === 0);
     noteBotHit(attacker,target.id,health,now);
     if (!target.hp) {
       this.signature.respawn(target);
@@ -275,7 +293,7 @@ export class Match {
       if (target.hordeType) this.horde.salvage(target);
       attacker.kills++;
       target.deaths++;
-      target.respawnAt = now + (this.horde ? 5.5 : RESPAWN);
+      target.respawnAt = now + this.pace.respawn;
       this.unmount(target);
       this.fleet.release(target, now);
       this.dropFlag(target, now);
@@ -319,6 +337,7 @@ export class Match {
     const hits = [];
     const ends = [];
     this.events.push({ type: 'shot', id: player.id, weapon: key, from, ends, hits, alt, mounted, vehicle: vehicle?.id, fireId: trigger?.fireId, echo: trigger?.echo });
+    this.director?.record(now);
     const shotYaw = trigger?.yaw ?? player.yaw;
     const shotPitch = trigger?.pitch ?? player.pitch;
     const power = player.surgeUntil > now ? 1.6 : 1;
@@ -746,6 +765,8 @@ export class Match {
       this.siege?.step();
       this.streaks.step(now);
       this.checkEnd(now);
+      this.director?.step(now);
+      if (!this.restartAt) this.checkTeamRadio(now);
     }
     this.broadcast(now);
   }
@@ -787,6 +808,8 @@ export class Match {
     const state = {
       type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), horde: this.horde?.snapshot(now), time: Math.max(0, Math.ceil(this.endsAt - now)),
       signature: this.signature.snapshot(now),
+      arenaDirector: this.director?.publicFrame(now),
+      directorBots: this.director?.directsBots || undefined,
       interactions: Object.values(this.interactions).some(Boolean) ? this.interactions : undefined,
       streaks: this.streaks.snapshot(now),
       points: this.mode === 'dom' ? this.points : undefined, flags: this.mode === 'ctf' ? this.flags : undefined,

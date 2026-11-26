@@ -6,6 +6,7 @@ import { WebSocketServer } from 'ws';
 import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
 import { fireProfileData, Match } from './match.js';
 import { interactionFlags } from './interactions.js';
+import { directorOptions } from './combat-director.js';
 import { NETWORK_VERSION, unpackInput } from './public/netcode.js';
 
 const files = new Map([
@@ -43,6 +44,7 @@ const assets = new Map(await Promise.all((process.env.TRIAS_NATIVE_ONLY === '1' 
   [route, { type, data: await readFile(new URL(file, import.meta.url)) }],
 )));
 const rooms = new Map();
+const director = directorOptions(process.env);
 const pick = (options, value, fallback) => typeof value === 'string' && Object.hasOwn(options, value) ? value : fallback;
 const now = () => performance.now() / 1000;
 const server = createServer((request, response) => {
@@ -140,6 +142,7 @@ wss.on('connection', (socket, request) => {
         echo: process.env.TRIAS_COMBAT_ECHO !== '0', momentum: process.env.TRIAS_MOMENTUM !== '0',
         botDifficulty: process.env.TRIAS_BOT_DIFFICULTY, botDebug: process.env.TRIAS_BOT_DEBUG === '1',
         interactions: interactionFlags(process.env),
+        director,
         hordeSupport: mode === 'horde' && (message.hordeBots === true || process.env.TRIAS_HORDE_BOTS === '1'),
       });
       room.reset(time);
@@ -154,7 +157,8 @@ wss.on('connection', (socket, request) => {
     socket.player.signature = socket.protocolVersion === NETWORK_VERSION && message.signature === true;
     socket.botRadio = socket.protocolVersion === NETWORK_VERSION && message.botRadio === true;
     const fireProfiles = socket.protocolVersion === NETWORK_VERSION && message.predictFire === true ? fireProfileData() : undefined;
-    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion, fireProfiles }));
+    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots,
+      capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion, fireProfiles, pace: room.pace }));
   });
   socket.on('close', () => {
     const room = socket.room;

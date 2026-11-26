@@ -153,10 +153,10 @@ namespace Trias.Native
                 var types = construction["types"];
                 string wall = (buildKind == "barricade" ? "● " : "") + "1 BARIKÁDA " + types["barricade"]["cost"].Int;
                 string tower = (buildKind == "turret" ? "● " : "") + "2 VĚŽ " + types["turret"]["cost"].Int;
-                GUI.Label(new Rect(bar.x, bar.y + 3, bar.width, 22), balance, center);
+                hudText.Draw(new Rect(bar.x, bar.y + 3, bar.width, 22), balance, center);
                 hint = wall + "    ·    " + tower + "    ·    B ZAVŘÍT";
             }
-            GUI.Label(new Rect(bar.x, bar.y + (building ? 24 : 1), bar.width, 26), hint, center);
+            hudText.Draw(new Rect(bar.x, bar.y + (building ? 24 : 1), bar.width, 26), hint, center);
             if (!captured || scoreboard || !building) return;
             foreach (var pair in sites)
             {

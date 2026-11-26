@@ -5,6 +5,33 @@ import { ARENAS, PILOT_HP, WEAPONS, GANTRIES, GRENADE, LAUNCH_PADS, PICKUPS, TIC
 
 const neutral = { x: 0, z: 0, yaw: 0 };
 
+test('two fully connected Scatter blasts leave a healthy unshielded pilot alive', () => {
+  const match = new Match('PACE', 'tdm', false, { ...ARENAS.relay, cover: [], launchPads: [] });
+  const shooter = match.addPlayer('shooter', 'Shooter', 0, 0, 0, false, 'bulwark');
+  const target = match.addPlayer('target', 'Target', 1, 0, 0);
+  Object.assign(shooter, { x: 0, y: 0, z: 0, yaw: 0, pitch: -.15 });
+  Object.assign(target, { x: 0, y: 0, z: -1.6, safeUntil: 0 });
+  for (let shot = 0; shot < 2; shot++) match.shoot(shooter, 2 + shot * WEAPONS.scatter.interval);
+  assert.equal(target.hp, PILOT_HP - 2 * WEAPONS.scatter.pattern.length * WEAPONS.scatter.damage);
+  assert(target.hp > 0);
+  match.shoot(shooter, 2 + 2 * WEAPONS.scatter.interval);
+  assert.equal(target.hp, 0);
+});
+
+test('PvP and Horde pilots cannot respawn before their published deployment delay', () => {
+  for (const [mode, delay] of [['tdm', 5], ['horde', 7]]) {
+    const match = new Match('PACE', mode, false);
+    const pilot = match.addPlayer('pilot', 'Pilot', 0, 0, 0);
+    const attacker = match.addPlayer('attacker', 'Attacker', 1, 0, 0);
+    assert.deepEqual(match.pace, { pilotHp: pilot.hp, respawn: delay });
+    assert(match.damage(attacker, pilot, PILOT_HP, 1, attacker, 'pulse').eliminated);
+    match.step(1 + delay - TICK);
+    assert.equal(pilot.hp, 0, mode);
+    match.step(1 + delay);
+    assert.equal(pilot.hp, PILOT_HP, mode);
+  }
+});
+
 test('all three launch pads reach their gantry and leave a route underneath', () => {
   for (const [i, pad] of LAUNCH_PADS.entries()) {
     const gantry = GANTRIES[i * 2];

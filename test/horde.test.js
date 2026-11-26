@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../match.js';
-import { TICK } from '../public/rules.js';
+import { PILOT_HP, TICK } from '../public/rules.js';
 
 function enter(match, id) {
   const peer = { id, readyState: 0 };
@@ -98,7 +98,7 @@ test('a sentry shoots visible enemies, earns shared salvage and leaves allies al
   Object.assign(enemy, { x, y: 0, z: z + 1.75, hp: 15 });
   horde.fireTurrets(3, [enemy]);
   assert.equal(enemy.hp, 0);
-  assert.equal(pilot.hp, 150);
+  assert.equal(pilot.hp, PILOT_HP);
   assert.equal(horde.scrap, 8);
   assert.equal(match.events.some(event => event.type === 'tower-shot'), true);
 });

@@ -223,6 +223,7 @@ namespace Trias.Native
                 reticleWorld = eyeOrigin + ray * reticleRange;
                 if (Physics.Raycast(eyeOrigin, ray, out var surface, reticleRange, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
                     reticleWorld = surface.point;
+                IdentifyPilot(eyeOrigin, ray);
             }
             equipMotion = now < switchPreviewUntil
                 ? Mathf.MoveTowards(equipMotion, 1, dt * 15f)
@@ -273,12 +274,13 @@ namespace Trias.Native
             Fill(new Rect(0,0,w,h),new Color(.012f,.024f,.041f,.80f));
             CornerPanel(new Rect(x, y, 484, 477), Amber);
             DrawInsignia(new Vector2(x + 37, y + 35), 17, Amber);
-            GUI.Label(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
-            GUI.Label(new Rect(x + 24, y + 64, 436, 27), "Online zápas běží dál", caption);
+            hudText.Draw(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
+            hudText.Draw(new Rect(x + 24, y + 64, 436, 27), state["directorBots"].Bool
+                ? "Online zápas běží dál  ·  Dynamické hlídky aktivní" : "Online zápas běží dál", caption);
             DrawFeelOptions(new Rect(x + 22,y + 94,440,34));
             if (Preset(new Rect(x + 22, y + 367, 440, 39), "Zpět do zápasu", null, true)) Capture(true);
             if (Preset(new Rect(x + 22, y + 412, 440, 35), "Opustit místnost", null, false)) Disconnect(null);
-            GUI.Label(new Rect(x + 24, y + 450, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
+            hudText.Draw(new Rect(x + 24, y + 450, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
         }
 
         void DrawFeelOptions(Rect box)
@@ -298,7 +300,7 @@ namespace Trias.Native
 
         void Option(Rect row, string name, string key, ref float value, float min, float max, bool percent, int decimals = 0)
         {
-            GUI.Label(new Rect(row.x, row.y + 1, 145, 28), name, section);
+            hudText.Draw(new Rect(row.x, row.y + 1, 145, 28), name, section);
             optionTrack ??= new GUIStyle { fixedHeight = 19 };
             optionThumb ??= new GUIStyle { fixedWidth = 12, fixedHeight = 19 };
             var control = new Rect(row.x + 156, row.y + 7, 219, 19);
@@ -328,7 +330,7 @@ namespace Trias.Native
             Fill(new Rect(rail - 3, control.center.y - 5, 6, 10), control.Contains(Event.current.mousePosition) ? Chalk : Amber);
             string readout = percent ? Mathf.RoundToInt(value * 100) + "%" : value.ToString(decimals == 0 ? "F0" : "F1");
             if (key == "trias.fov") readout += "°";
-            GUI.Label(new Rect(row.x + 385, row.y + 2, 54, 26), readout, caption);
+            hudText.Draw(new Rect(row.x + 385, row.y + 2, 54, 26), readout, caption);
         }
     }
 }

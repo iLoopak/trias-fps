@@ -35,9 +35,10 @@ namespace Trias.Preview
         int telemetryRank;
         readonly AudioSource[] firingVoices = new AudioSource[4];
         int firingVoice;
-        AudioSource atmosphere;
+        AudioSource atmosphere, radioVoice;
+        float ambienceGain, rhythmLevel, rhythmTarget;
         AudioClip pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue, menuClick, landing;
-        AudioClip focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad;
+        AudioClip focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad, grenadeBlast;
         AudioClip phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue, shieldReturnCue;
         AudioClip menuBack, menuInvalid, menuDeploy, menuResult;
         readonly AudioClip[] factionEntry = new AudioClip[3];
@@ -63,6 +64,10 @@ namespace Trias.Preview
             telemetry = gameObject.AddComponent<AudioSource>();
             telemetry.playOnAwake = false;
             telemetry.priority = 24;
+            radioVoice = gameObject.AddComponent<AudioSource>();
+            radioVoice.playOnAwake = false;
+            radioVoice.spatialBlend = 0;
+            radioVoice.priority = 8;
             for (int i = 0; i < firingVoices.Length; i++)
             {
                 firingVoices[i] = gameObject.AddComponent<AudioSource>();
@@ -103,9 +108,9 @@ namespace Trias.Preview
             }
             foot = Trias.Preview.MatchSound.Foley("Boot impact", .115f, 89, 140);
             hurtCue = Trias.Preview.MatchSound.Foley("Suit struck", .23f, 74, 250);
-            confirm = EffectPreview.Cue("Hit telemetry", 1460, 530, .085f, 460);
-            shield = EffectPreview.Cue("Shield interrupted", 2080, 870, .135f, 310);
-            kill = EffectPreview.Cue("Elimination confirmed", 690, 1810, .19f, 233);
+            confirm = MatchSound.Mechanism("Hit telemetry", .083f, 181, .08f, .61f);
+            shield = MatchSound.Mechanism("Shield interrupted", .126f, 242, .22f, .76f);
+            kill = MatchSound.Mechanism("Elimination confirmed", .166f, 106, .09f, .66f, true);
             waveCue = Trias.Preview.MatchSound.Wave("Horde inbound", true);
             clearCue = Trias.Preview.MatchSound.Wave("Area clear", false);
             menuClick = MatchSound.Foley("Console contact", .06f, 490, 1650);
@@ -122,13 +127,14 @@ namespace Trias.Preview
             soil = MatchSound.Foley("Soil footstep", .135f, 62, 440);
             water = MatchSound.Discharge("Shallow water footstep", .15f, 78, 1330, .25f);
             thruster = MatchSound.Foley("Jump kick", .09f, 113, 610);
-            dodge = MatchSound.Discharge("Dodge air release", .18f, 91, 440, .44f);
-            airJump = EffectPreview.Cue("Air jump", 340, 860, .15f, 171);
-            pad = MatchSound.Discharge("Launch pad", .31f, 110, 860, .62f);
-            phaseForm = EffectPreview.Cue("Echo separation", 580, 280, .16f, 716);
-            phaseFire = MatchSound.Discharge("Echo activation", .20f, 135, 940, .37f);
-            phaseFade = EffectPreview.Cue("Echo decay", 540, 160, .13f, 119);
-            phaseRupture = MatchSound.Discharge("Echo rupture", .24f, 220, 2700, .54f);
+            dodge = MatchSound.Mechanism("Suit vent", .19f, 88, .79f, .31f);
+            airJump = MatchSound.Mechanism("Thruster kick", .166f, 114, .62f, .43f, true);
+            pad = MatchSound.Mechanism("Linear launch", .29f, 78, .68f, .48f, true);
+            grenadeBlast = MatchSound.Mechanism("Grenade concussion", .36f, 52, .53f, .95f);
+            phaseForm = MatchSound.Mechanism("Echo separation", .19f, 121, .82f, .22f);
+            phaseFire = MatchSound.Mechanism("Echo activation", .22f, 145, .60f, .61f, true);
+            phaseFade = MatchSound.Mechanism("Echo decay", .12f, 97, .58f, .05f);
+            phaseRupture = MatchSound.Mechanism("Echo rupture", .24f, 156, .82f, .93f, true);
             for (int i = 0; i < factionGlyphs.Length; i++) factionGlyphs[i] = Native.TriasMarkings.Emblem(i);
             factionEntry[0] = EffectPreview.Cue("ION deployment", 590, 990, .28f, 84);
             factionEntry[1] = EffectPreview.Cue("EMBER deployment", 345, 570, .28f, 104);
@@ -164,12 +170,17 @@ namespace Trias.Preview
         void Update()
         {
             float time = Time.time;
+            bool transmitting = radioVoice.isPlaying;
+            rhythmLevel = Mathf.Lerp(rhythmLevel, rhythmTarget, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 1.6f));
             int reports = 0;
             for (int i = 0; i < voices.Length; i++)
                 if (voiceIsReport[i] && voices[i].isPlaying) reports++;
             float target = Mathf.Min(1, 2.4f / Mathf.Sqrt(Mathf.Max(1, reports)));
             if (Time.unscaledTime < telemetryUntil) target *= .70f;
+            if (transmitting) target *= .72f;
             reportGain = Mathf.Lerp(reportGain, target, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 18));
+            float ambienceTarget = ambienceGain * (1 + .19f * rhythmLevel) * (transmitting ? .73f : 1);
+            atmosphere.volume = Mathf.Lerp(atmosphere.volume, ambienceTarget, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 8));
             for (int i = 0; i < voices.Length; i++)
                 if (voiceIsReport[i] && voices[i].isPlaying) voices[i].volume = voiceGain[i] * reportGain;
             for (int i = 0; i < traces.Length; i++)
@@ -263,7 +274,7 @@ namespace Trias.Preview
             voice.Stop();
             voice.pitch = pitch;
             voice.clip = cue;
-            voice.volume = .49f * scale;
+            voice.volume = .49f * scale * (radioVoice.isPlaying ? .69f : 1);
             voice.Play();
         }
 
@@ -290,7 +301,7 @@ namespace Trias.Preview
                 if (listener == null || (listener.position - position).sqrMagnitude < 380)
                     Illuminate(position, color, (grenade ? 5.4f : 7.3f) * intensity);
             }
-            Play(grenade ? pad : riftCue, position, grenade ? .44f : .57f);
+            Play(grenade ? grenadeBlast : riftCue, position, grenade ? .46f : .57f);
         }
 
         public void OrbitalImpact(Vector3 position)
@@ -390,7 +401,7 @@ namespace Trias.Preview
             if (now < telemetryUntil && rank <= telemetryRank) return;
             telemetry.Stop();
             telemetry.clip = cue;
-            telemetry.volume = gain;
+            telemetry.volume = gain * (radioVoice.isPlaying ? .74f : 1);
             telemetry.Play();
             telemetryRank = rank;
             telemetryUntil = now + Mathf.Min(.16f, cue.length * .8f);
@@ -445,19 +456,27 @@ namespace Trias.Preview
             };
             Play(cue,Vector3.zero,action == "result" ? .21f : .16f,true);
         }
-        internal void BotRadio(string key, bool male, float volume)
+        internal bool BotRadio(string key, bool male, float volume, bool preview = false)
         {
-            if (volume <= .01f || !radio.TryGetValue(key,out var voices)) return;
+            if (volume <= .01f || !preview && radioVoice.isPlaying || !radio.TryGetValue(key,out var voices)) return false;
             var clip = male ? voices.Male ?? voices.Female : voices.Female ?? voices.Male;
-            if (clip != null) Telemetry(clip,volume * .19f,0);
+            if (clip == null) return false;
+            radioVoice.Stop();
+            radioVoice.clip = clip;
+            radioVoice.volume = volume * .56f;
+            radioVoice.Play();
+            return true;
         }
 
         public void Land(Vector3 position, float force, int surface = 0) =>
             Play(surface == 2 ? water : surface == 1 ? soil : landing, position, .12f + force * .26f, true);
         public void AmbienceMix(float volume, bool playing)
         {
-            if (atmosphere != null) atmosphere.volume = .22f * Mathf.Clamp01(volume) * (playing ? 1 : .50f);
+            ambienceGain = .22f * Mathf.Clamp01(volume) * (playing ? 1 : .50f);
         }
+
+        internal void MixArenaRhythm(float level) => rhythmTarget = Mathf.Clamp01(level);
+        internal void StopAtmosphere() => atmosphere.Stop();
 
         public void SetAtmosphere(string arena)
         {
@@ -466,8 +485,8 @@ namespace Trias.Preview
                 bed = MatchSound.Ambience(arena);
                 beds.Add(arena, bed);
             }
-            atmosphere.clip = bed;
-            atmosphere.Play();
+            if (atmosphere.clip != bed) atmosphere.clip = bed;
+            if (!atmosphere.isPlaying) atmosphere.Play();
         }
 
         public void ClearTransient()
@@ -479,11 +498,13 @@ namespace Trias.Preview
             speaker.Stop();
             boots.Stop();
             telemetry.Stop();
+            radioVoice.Stop();
             telemetryUntil = 0;
             reportGain = 1;
             System.Array.Clear(voiceIsReport, 0, voiceIsReport.Length);
             foreach (var voice in firingVoices) voice.Stop();
             atmosphere.Stop();
+            rhythmLevel = rhythmTarget = 0;
             foreach (var voice in voices) voice.Stop();
             pulseLevel = 0;
         }

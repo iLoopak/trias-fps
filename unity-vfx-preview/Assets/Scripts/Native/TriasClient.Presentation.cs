@@ -5,8 +5,12 @@ namespace Trias.Native
     public sealed partial class TriasClient
     {
         float deploymentUntil, deploymentLength, deathReplayLength;
+        float pilotMaxHealth = 150, respawnDelay;
         bool firstDeployment, resumeCapture, resultContinued;
         string killerWeapon;
+
+        float HealthFraction => Mathf.Clamp01(own[6].Float / pilotMaxHealth);
+        float ReplayRemaining(float now) => Mathf.Clamp01((replayUntil - now) / Mathf.Max(.01f, deathReplayLength));
 
         void ResetDeployment()
         {
@@ -18,7 +22,7 @@ namespace Trias.Native
         void BeginDeployment(float now,bool initial)
         {
             firstDeployment = initial;
-            deploymentLength = initial ? 1.75f : .69f;
+            deploymentLength = initial ? 1.75f : 1.08f;
             deploymentUntil = now + deploymentLength;
             view.fieldOfView = baseFov;
             sceneFade = (initial ? .36f : .18f) * visualEffects * cameraMotion;
@@ -58,12 +62,12 @@ namespace Trias.Native
             else DrawFaction(new Vector2(x+29,y+27),13,own[3].Int,edge);
             var prior = GUI.color;
             GUI.color = new Color(1,1,1,fade);
-            GUI.Label(new Rect(x+53,y+6,333,27),firstDeployment ? world.Spec.label : "Průzor aktivní",section);
+            hudText.Draw(new Rect(x+53,y+6,333,27),firstDeployment ? world.Spec.label : "Průzor aktivní",section);
             string operation = Catalog.Find(catalog.modes,mode)?.label ?? mode;
             string faction = mode == "ffa" ? "SOLO" : catalog.teams[own[3].Int].name;
-            GUI.Label(new Rect(x+53,y+32,330,21),firstDeployment ? faction + "  /  " + operation : "Výstroj připravena",caption);
+            hudText.Draw(new Rect(x+53,y+32,330,21),firstDeployment ? faction + "  /  " + operation : "Výstroj připravena",caption);
             if (firstDeployment)
-                GUI.Label(new Rect(x+53,y+53,332,22),mode switch
+                hudText.Draw(new Rect(x+53,y+53,332,22),mode switch
                 {
                     "tdm" => "Bod za vyřazení soupeře", "dom" => "Obsazujte a držte stanice",
                     "ctf" => "Přineste vlajku na vlastní základnu", "siege" => "Propojte relé a odkryjte jádro",
@@ -85,12 +89,11 @@ namespace Trias.Native
             var box = new Rect(cx-204,y,408,112);
             CornerPanel(box,replay ? Fault : teamTint);
             if (!replay && mode != "ffa") DrawFaction(new Vector2(box.x+22,y+21),7,own[3].Int,teamTint);
-            GUI.Label(new Rect(box.x+41,y+8,236,21),label,section);
-            GUI.Label(new Rect(box.x+306,y+7,83,23),own[29].Float > 0 ? Mathf.CeilToInt(own[29].Float) + " s" : "ČEKÁM",caption);
-            GUI.Label(new Rect(box.x+16,y+34,372,35),who,heading);
-            GUI.Label(new Rect(box.x+17,y+75,365,23),controls,caption);
-            float phase = replay ? Mathf.Clamp01((replayUntil-now)/Mathf.Max(.01f,deathReplayLength))
-                : Mathf.Clamp01(own[29].Float/(mode=="horde" ? 5.5f : 2.8f));
+            hudText.Draw(new Rect(box.x+41,y+8,236,21),label,section);
+            hudText.Draw(new Rect(box.x+306,y+7,83,23),own[29].Float > 0 ? Mathf.CeilToInt(own[29].Float) + " s" : "ČEKÁM",caption);
+            hudText.Draw(new Rect(box.x+16,y+34,372,35),who,heading);
+            hudText.Draw(new Rect(box.x+17,y+75,365,23),controls,caption);
+            float phase = replay ? ReplayRemaining(now) : Mathf.Clamp01(own[29].Float / respawnDelay);
             Segments(new Rect(box.x+17,y+100,371,3),18,phase,replay ? Fault : teamTint);
         }
 
@@ -105,8 +108,8 @@ namespace Trias.Native
             if (resultContinued)
             {
                 CornerPanel(new Rect(cx-142,h-115,284,54),tint);
-                GUI.Label(new Rect(cx-117,h-108,246,27),countdown,center);
-                GUI.Label(new Rect(cx-115,h-84,230,21),"Backspace · do lobby",caption);
+                hudText.Draw(new Rect(cx-117,h-108,246,27),countdown,center);
+                hudText.Draw(new Rect(cx-115,h-84,230,21),"Backspace · do lobby",caption);
                 return;
             }
             float age = Mathf.Clamp01(resultAge/.32f);
@@ -116,14 +119,14 @@ namespace Trias.Native
             if (winningTeam >= 0 && mode != "ffa")
                 DrawFaction(new Vector2(plate.x+44,y+51),19,winningTeam,tint);
             else DrawInsignia(new Vector2(plate.x+44,y+51),20,tint);
-            GUI.Label(new Rect(plate.x+79,y+12,488,23),"VÝSLEDEK  /  " + world.Spec.label,section);
+            hudText.Draw(new Rect(plate.x+79,y+12,488,23),"VÝSLEDEK  /  " + world.Spec.label,section);
             string outcome = mode == "horde" ? winner["label"].Text : winner["label"].Text == "Remíza" ? "Remíza" : "Vítězí " + winner["label"].Text;
-            GUI.Label(new Rect(plate.x+76,y+39,495,40),outcome,heading);
+            hudText.Draw(new Rect(plate.x+76,y+39,495,40),outcome,heading);
             if (mode == "horde" || mode == "ffa")
             {
                 string score = mode == "ffa" ? "Nejvyšší skóre  " + LeadingKills() :
                     "Vlna  " + state["horde"]["wave"].Int + " / 8   ·   Jádro  " + state["horde"]["core"]["hp"].Int + " HP";
-                GUI.Label(new Rect(plate.x+20,y+94,566,30),score,section);
+                hudText.Draw(new Rect(plate.x+20,y+94,566,30),score,section);
             }
             else
                 for (int i=0;i<catalog.teams.Length;i++)
@@ -133,13 +136,13 @@ namespace Trias.Native
                     var teamColor = Catalog.Tint(catalog.teams[i].color);
                     CornerPanel(new Rect(at,y+92,180,51),teamColor);
                     DrawFaction(new Vector2(at+20,y+117),9,i,teamColor);
-                    GUI.Label(new Rect(at+39,y+101,132,27),catalog.teams[i].name + "  " + score + (mode=="siege" ? " HP" : ""),section);
+                    hudText.Draw(new Rect(at+39,y+101,132,27),catalog.teams[i].name + "  " + score + (mode=="siege" ? " HP" : ""),section);
                 }
-            GUI.Label(new Rect(plate.x+21,y+157,563,27),"VYŘAZENÍ  " + own[11].Int + "     ·     PÁDY  " + own[12].Int,section);
+            hudText.Draw(new Rect(plate.x+21,y+157,563,27),"VYŘAZENÍ  " + own[11].Int + "     ·     PÁDY  " + own[12].Int,section);
             if (flow != null && state["signature"]["momentum"].Bool)
-                GUI.Label(new Rect(plate.x+21,y+192,569,24),
+                hudText.Draw(new Rect(plate.x+21,y+192,569,24),
                     $"STYL   ·   Nejlepší řetězec {flow[5].Int}   ·   Násobič ×{flow[7].Float:0.#}   ·   Vyřazení ozvěnou {flow[8].Int}",caption);
-            GUI.Label(new Rect(plate.x+21,y+230,565,24),countdown,caption);
+            hudText.Draw(new Rect(plate.x+21,y+230,565,24),countdown,caption);
             Segments(new Rect(plate.x+21,y+254,567,3),19,state["restart"].Float/9,tint);
             if (Preset(new Rect(plate.x+21,y+270,272,42),"Zůstat na další kolo",null,true)) resultContinued = true;
             if (Preset(new Rect(plate.x+309,y+270,279,42),"Do lobby",null,false)) Disconnect(null);

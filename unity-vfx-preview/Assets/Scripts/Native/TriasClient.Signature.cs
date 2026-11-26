@@ -200,7 +200,7 @@ namespace Trias.Native
                 string label = now < echoRejectUntil ? echoStatus : state["interactions"]["recall"].Bool
                     ? $"{echoActivation}  VÝSTŘEL    ·    {echoRecall}  NÁVRAT" : echoActivation + "   OZVĚNA";
                 Fill(new Rect(x, y, width, 25), Ink);
-                GUI.Label(new Rect(x + 5, y, width - 10, 23), label, center);
+                hudText.Draw(new Rect(x + 5, y, width - 10, 23), label, center);
                 Segments(new Rect(x + 7, y + 22, width - 14, 2), 12, (echoExpires - now) / lifetime, tint);
             }
             if (flow == null || momentumPresentation <= .01f || (flow[1].Int == 0 && flow[11].Int == 0)) return;
@@ -216,9 +216,9 @@ namespace Trias.Native
             string labelFlow = live ? $"{FlowTiers[tier]}  ×{flow[2].Float:0.#}   {flow[1].Int}" : $"ŘETĚZEC  {flow[11].Int}";
             var saved = GUI.color;
             GUI.color = new Color(1, 1, 1, momentumPresentation);
-            GUI.Label(new Rect(atX + 8, atY + 4, 179, 22), labelFlow, section);
+            hudText.Draw(new Rect(atX + 8, atY + 4, 179, 22), labelFlow, section);
             if (mode != "ffa") DrawFaction(new Vector2(atX + 195,atY + 16), 8, own[3].Int, edge);
-            GUI.Label(new Rect(atX + 8, atY + 26, 201, 23), FlowAction(flow[10][0].Text), caption);
+            hudText.Draw(new Rect(atX + 8, atY + 26, 201, 23), FlowAction(flow[10][0].Text), caption);
             GUI.color = saved;
         }
 

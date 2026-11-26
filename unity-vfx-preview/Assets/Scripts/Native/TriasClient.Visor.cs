@@ -27,7 +27,7 @@ namespace Trias.Native
         bool waveStarts;
         struct KillEntry
         {
-            internal string Label;
+            internal string Attacker, Victim, Weapon;
             internal Color Tint;
             internal float Time;
         }
@@ -38,7 +38,7 @@ namespace Trias.Native
         {
             for (int i = killFeed.Length - 1; i > 0; i--) killFeed[i] = killFeed[i - 1];
             killFeed[0] = new KillEntry {
-                Label = attacker + "  ›  " + victim + "   ·   " + (Catalog.Find(catalog.weapons, key)?.label ?? key),
+                Attacker = attacker, Victim = victim, Weapon = Catalog.Find(catalog.weapons, key)?.label ?? key,
                 Tint = team >= 0 && team < catalog.teams.Length ? Catalog.Tint(catalog.teams[team].color) : Chalk,
                 Time = now,
             };
@@ -53,13 +53,16 @@ namespace Trias.Native
                 float age = Time.unscaledTime - entry.Time;
                 float opacity = Mathf.Clamp01((3.7f - age) * 2.7f);
                 if (opacity == 0) break;
-                float x = w - 267 + (1 - Mathf.Clamp01(age * 12)) * 13;
-                var row = new Rect(x, 132 + i * 26, 240, 24);
+                float x = w - 334 + (1 - Mathf.Clamp01(age * 12)) * 10;
+                var row = new Rect(x, 151 + i * 30, 308, 28);
                 var previous = GUI.color;
                 GUI.color = new Color(1, 1, 1, opacity);
                 Fill(row, new Color(Ink.r, Ink.g, Ink.b, Ink.a * opacity));
-                Fill(new Rect(row.x, row.y, 2, 24), new Color(entry.Tint.r, entry.Tint.g, entry.Tint.b, opacity));
-                GUI.Label(new Rect(row.x + 8, row.y + 1, 229, 22), entry.Label, caption);
+                Fill(new Rect(x, row.y, 2, row.height), new Color(entry.Tint.r, entry.Tint.g, entry.Tint.b, opacity));
+                hudText.Draw(new Rect(x + 8, row.y, 101, row.height), entry.Attacker, caption);
+                hudText.Draw(new Rect(x + 111, row.y, 11, row.height), "›", caption);
+                hudText.Draw(new Rect(x + 125, row.y, 101, row.height), entry.Victim, caption);
+                hudText.Draw(new Rect(x + 232, row.y, 68, row.height), entry.Weapon, caption);
                 GUI.color = previous;
             }
         }
@@ -107,6 +110,7 @@ namespace Trias.Native
                 Vector3 screen = view.WorldToViewportPoint(reticleWorld);
                 if (screen.z > 0) centerPoint = new Vector2(screen.x * w, (1 - screen.y) * h);
             }
+            PaintPilotIdentification(centerPoint);
             Color accent = Catalog.Tint(Catalog.Find(catalog.weapons, weaponName)?.color ?? "#daffff");
             accent = Color.Lerp(accent, Fault, dryPulse);
             float kick = tension * 4.6f + Mathf.Min(predicted.Velocity.magnitude * .15f, 2);
@@ -221,7 +225,7 @@ namespace Trias.Native
 
         void UpdateVitals(float now, float dt)
         {
-            float health = Mathf.Clamp01(own[6].Float / 150);
+            float health = HealthFraction;
             float armor = Mathf.Clamp01(own[7].Float / 50);
             float fade = 1 - Mathf.Exp(-dt * (vitalsPulse > .36f ? 3 : 12));
             healthTrail = health > healthTrail ? health : Mathf.Lerp(healthTrail, health, fade);
@@ -233,7 +237,7 @@ namespace Trias.Native
 
         void PaintVitals(float w, float h)
         {
-            float health = Mathf.Clamp01(own[6].Float / 150);
+            float health = HealthFraction;
             float armor = Mathf.Clamp01(own[7].Float / 50);
             Color vitality = Color.Lerp(Fault, teamTint, Mathf.Clamp01((health - .12f) * 2.8f));
             float y = h - 102;
@@ -256,11 +260,11 @@ namespace Trias.Native
                 glow.a = life * visualEffects;
                 Arc(dial, 37, 220, 280 * armor * Mathf.SmoothStep(0, 1, (1 - life) * 3), glow, 2.2f, 16);
             }
-            GUI.Label(new Rect(42, y + 25, 56, 29), own[6].Int.ToString(), center);
-            GUI.Label(new Rect(111, y + 9, 123, 22), catalog.teams[own[3].Int].name, section);
+            hudText.Draw(new Rect(42, y + 25, 56, 29), own[6].Int.ToString(), center);
+            hudText.Draw(new Rect(111, y + 9, 123, 22), catalog.teams[own[3].Int].name, section);
             string shieldLabel = shieldAlertUntil > 0 ? "ŠTÍT PRORAŽEN" : shieldReturnUntil > 0 ? "ŠTÍT OBNOVEN"
                 : own[7].Int > 0 ? "ŠTÍT " + own[7].Int : "ZDRAVÍ";
-            GUI.Label(new Rect(111, y + 31, 120, 18), shieldLabel, caption);
+            hudText.Draw(new Rect(111, y + 31, 120, 18), shieldLabel, caption);
             Segments(new Rect(111, y + 57, 108, 4), 9, health, vitality);
 
             var hull = state["vehicles"][own[16].Int];
@@ -270,13 +274,13 @@ namespace Trias.Native
             CornerPanel(new Rect(x, y, 213, 78), energy);
             string tool = own[16].Int >= 0 ? (hull[2].Text == "bastion" ? "BASTION" : "SKIMMER")
                 : own[15].Int >= 0 ? "HNÍZDO" : weapon?.label.ToUpperInvariant();
-            GUI.Label(new Rect(x + 13, y + 8, 173, 22), tool, section);
+            hudText.Draw(new Rect(x + 13, y + 8, 173, 22), tool, section);
             var mags = own[10][System.Array.IndexOf(Arsenal, weaponName)];
             int ammo = VisibleAmmo(weaponName);
             float heat = state["turrets"][own[15].Int]["heat"].Float;
             string count = own[16].Int >= 0 ? hull[5].Int + " HP" : own[15].Int >= 0 ? Mathf.RoundToInt(heat * 100) + " %"
                 : ammo + " / " + (mags[1].Int < 0 ? "∞" : mags[1].Int.ToString());
-            GUI.Label(new Rect(x + 12, y + 28, 174, 33), count, heading);
+            hudText.Draw(new Rect(x + 12, y + 28, 174, 33), count, heading);
             float magazine = fireProfiles.TryGetValue(weaponName ?? string.Empty, out var profile) ? profile.Magazine :
                 weaponName == "pulse" ? 24 : weaponName == "arc" ? 36 : weaponName == "scatter" ? 6 : 4;
             if (own[16].Int < 0) Segments(new Rect(x + 14, y + 64, 185, 4), 12, own[15].Int >= 0 ? heat : ammo / magazine,
@@ -300,10 +304,10 @@ namespace Trias.Native
             int wave = defense["wave"].Int;
             CornerPanel(new Rect(cx - 190, 21, 380, 58), countdown > 0 ? lime : teamTint);
             string phase = countdown > 0 ? "PŘÍPRAVA  " + countdown + " s" : "VLNA " + wave + " / " + defense["waves"].Int;
-            GUI.Label(new Rect(cx - 177, 27, 160, 22), phase, section);
-            if (countdown == 0) GUI.Label(new Rect(cx - 177, 52, 160, 20), "HROZBY  " + defense["enemies"].Int, caption);
+            hudText.Draw(new Rect(cx - 177, 27, 160, 22), phase, section);
+            if (countdown == 0) hudText.Draw(new Rect(cx - 177, 52, 160, 20), "HROZBY  " + defense["enemies"].Int, caption);
             else Segments(new Rect(cx - 175, 56, 144, 4), 8, countdown / 22f, lime);
-            GUI.Label(new Rect(cx - 7, 27, 172, 25), "JÁDRO  " + core["hp"].Int, section);
+            hudText.Draw(new Rect(cx - 7, 27, 172, 25), "JÁDRO  " + core["hp"].Int, section);
             var tint = Color.Lerp(Fault, teamTint, life);
             tint = Color.Lerp(tint, Fault, coreFlash);
             Segments(new Rect(cx - 4, 57, 178, 5), 12, life, tint);
@@ -315,7 +319,7 @@ namespace Trias.Native
             var tint = waveStarts ? Fault : lime;
             var at = new Rect(cx - 131, h * .28f, 262, 36);
             CornerPanel(at, tint);
-            GUI.Label(at, waveStarts ? "VLNA  " + state["horde"]["wave"].Int + "  PŘICHÁZÍ" : "VLNA ODRAŽENA", center);
+            hudText.Draw(at, waveStarts ? "VLNA  " + state["horde"]["wave"].Int + "  PŘICHÁZÍ" : "VLNA ODRAŽENA", center);
             Segments(new Rect(at.x + 12, at.yMax - 4, at.width - 24, 2), 12, waveFlash, tint);
         }
 

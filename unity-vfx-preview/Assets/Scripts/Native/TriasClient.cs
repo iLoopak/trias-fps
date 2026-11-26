@@ -154,6 +154,8 @@ namespace Trias.Native
             ResetConstruction();
             ResetPerks();
             ResetSignature();
+            arenaSecond = -1;
+            arenaRhythm = default;
             ResetFeel();
             ResetDeployment();
             hangarReady = false;
@@ -163,6 +165,7 @@ namespace Trias.Native
             killFeedCount = 0;
             waveFlash = coreFlash = hit = hurt = 0;
             toast = null; toastUntil = 0;
+            identified = null;
             nextSurfacePulse = nextBracedNotice = 0;
             sawInterceptHint = false;
             radioCaption = null; radioUntil = 0;
@@ -346,6 +349,9 @@ namespace Trias.Native
 #endif
                     room = message["room"].Text;
                     mode = message["mode"].Text;
+                    var pace = message["pace"];
+                    pilotMaxHealth = pace["pilotHp"].Int > 0 ? pace["pilotHp"].Int : 150;
+                    respawnDelay = pace["respawn"].Float > 0 ? pace["respawn"].Float : mode == "horde" ? 5.5f : 2.8f;
                     CloseHangar();
                     world = new TriasWorld(arena, catalog, mode, view);
                     visor.InMatch = true;
@@ -372,6 +378,7 @@ namespace Trias.Native
             lastTick = snapshot["tick"].Int;
             var priorState = state;
             state = snapshot;
+            SyncDirector(snapshot["arenaDirector"], now);
             if (mode == "horde" && priorState != null)
             {
                 var oldHorde = priorState["horde"];
@@ -433,7 +440,7 @@ namespace Trias.Native
                 pitch = -own[25].Float * Mathf.Rad2Deg;
                 if (spawn)
                 {
-                    healthTrail = Mathf.Clamp01(own[6].Float / 150);
+                    healthTrail = HealthFraction;
                     armorTrail = Mathf.Clamp01(own[7].Float / 50);
                     shieldAlertUntil = shieldReturnUntil = vitalsPulse = 0;
                     Array.Clear(incomingHits, 0, incomingHits.Length);
@@ -771,7 +778,7 @@ namespace Trias.Native
                     {
                         killer = evt["attacker"].Text;
                         killerWeapon = Catalog.Find(catalog.weapons,key)?.label;
-                        deathReplayLength = 1.12f;
+                        deathReplayLength = Mathf.Min(1.85f, own[29].Float);
                         replayUntil = now + deathReplayLength;
                         deploymentUntil = 0;
                         replayOrigin = At(body["from"]);
@@ -827,7 +834,8 @@ namespace Trias.Native
         void RenderWorld(float now, float dt)
         {
             UpdateResult(dt);
-            world.Animate(now, visualEffects);
+            UpdateArenaRhythm(now);
+            world.Animate(now, visualEffects, arenaRhythm.Pulse * visualEffects);
             bool alive = own[6].Int > 0, driving = own[16].Int >= 0, mounted = own[15].Int >= 0;
             float travel = 1 - Mathf.Exp(-dt * 54);
             foreach (var art in projectiles.Values)
@@ -877,7 +885,7 @@ namespace Trias.Native
                 followedPilot = null;
                 Vector3 direction = Vector3.ProjectOnPlane(replayOrigin - replayPoint, Vector3.up).normalized;
                 if (direction.sqrMagnitude < .001f) direction = Vector3.forward;
-                var angle = Quaternion.Euler(0, 29 + (replayUntil - now) * 20, 0);
+                var angle = Quaternion.Euler(0, 29 + ReplayRemaining(now) * 24, 0);
                 Chase(replayPoint, angle * direction, 3.50f, 1.20f);
                 view.transform.LookAt(Vector3.Lerp(replayPoint, replayOrigin, .14f));
             }

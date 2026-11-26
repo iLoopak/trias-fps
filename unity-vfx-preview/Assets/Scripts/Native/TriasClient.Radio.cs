@@ -6,6 +6,13 @@ namespace Trias.Native
     {
         float radioUntil;
         string radioCaption;
+        bool previewMale;
+
+        void PreviewBotRadio()
+        {
+            if (effects.BotRadio("cover", previewMale, radioVolume, true)) previewMale = !previewMale;
+            else effects.InterfaceTone("invalid");
+        }
 
         void ReadBotRadio(WireValue message,float now)
         {
@@ -30,9 +37,9 @@ namespace Trias.Native
         void PaintBotRadio(float h)
         {
             if (string.IsNullOrEmpty(radioCaption) || Time.unscaledTime >= radioUntil) return;
-            var panel = new Rect(26,h-147,258,37);
+            var panel = new Rect(26,h-155,318,46);
             CornerPanel(panel,teamTint);
-            GUI.Label(new Rect(panel.x+9,panel.y+6,panel.width-16,25),radioCaption,caption);
+            hudText.Draw(new Rect(panel.x+9,panel.y+6,panel.width-18,36),radioCaption,lobbyWrap);
         }
     }
 }

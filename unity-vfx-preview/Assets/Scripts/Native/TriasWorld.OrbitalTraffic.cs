@@ -93,7 +93,7 @@ namespace Trias.Native
             AnimateOrbitalTraffic(flightStart);
         }
 
-        void AnimateOrbitalTraffic(float time)
+        void AnimateOrbitalTraffic(float time, float arenaPulse = 0)
         {
             float age = time - flightStart;
             if (orbitalCarrier != null)
@@ -105,7 +105,7 @@ namespace Trias.Native
             if (orbitalFlight == null) return;
             float angle = age * (Spec.id == "basin" ? .15f : .25f) + flightPhase;
             float s = Mathf.Sin(angle), c = Mathf.Cos(angle);
-            orbitalFlight.localPosition = flightAnchor + new Vector3(s * 57, Mathf.Sin(angle * 2) * 4, c * 13);
+            orbitalFlight.localPosition = flightAnchor + new Vector3(s * 57, Mathf.Sin(angle * 2) * 4 + arenaPulse * 6, c * 13 + arenaPulse * 8);
             var tangent = new Vector3(c * 57, Mathf.Cos(angle * 2) * 8, -s * 13);
             orbitalFlight.localRotation = Quaternion.LookRotation(tangent) * Quaternion.Euler(0, 0, 14 * s);
         }
