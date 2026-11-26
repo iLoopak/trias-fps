@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { Match } from '../match.js';
+import { normalizeDifficulty } from '../bot-profiles.js';
 import { ARENAS, TICK } from '../public/rules.js';
 import { NETWORK_VERSION } from '../public/netcode.js';
 import { directorOptions } from '../combat-director.js';
@@ -9,7 +10,7 @@ const scenarios = [
   ['dom','relay'], ['ctf','relay'], ['siege','basin'], ['horde','relay'],
 ];
 const duration = Number(process.env.TRIAS_SCRIMMAGE_SECONDS ?? 720);
-const difficulty = process.env.TRIAS_BOT_DIFFICULTY ?? 'regular';
+const difficulty = normalizeDifficulty(process.env.TRIAS_BOT_DIFFICULTY);
 const director = directorOptions(process.env);
 for (const [mode,arena] of scenarios) {
   const match = new Match(`bench-${mode}-${arena}`,mode,true,ARENAS[arena],

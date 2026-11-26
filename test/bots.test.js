@@ -101,7 +101,7 @@ test('respawn preserves the bot identity and difficulty without changing combat 
   assert.equal(recruit.bot.hp,bot.hp);
   assert.deepEqual(recruit.bot.loadout,bot.loadout);
   assert(BOT_DIFFICULTIES.recruit.reaction > after.tuning.reaction);
-  assert.equal(normalizeDifficulty('unknown'),'regular');
+  assert.equal(normalizeDifficulty('unknown'),'recruit');
   assert.equal(normalizeDifficulty('mixed'),'mixed');
 });
 

@@ -79,11 +79,13 @@ namespace Trias.Native
             displayFont = Resources.Load<Font>("TRIAS/Fonts/ChakraPetch-Bold");
             textFont = Resources.Load<Font>("TRIAS/Fonts/BarlowSemiCondensed-Medium");
             LoadLobby();
+            InitInvites();
         }
 
         void OnDestroy()
         {
-            socket?.Dispose();
+            Application.deepLinkActivated -= ReceiveInvite;
+            socket?.Leave();
             CloseHangar();
             world?.Dispose();
             if (radarPlate != null) Destroy(radarPlate);
@@ -129,8 +131,10 @@ namespace Trias.Native
                 PlayerPrefs.SetString("trias.nick", player);
                 PlayerPrefs.SetInt("trias.pilotMale", male ? 1 : 0);
             }
+            sessionEndpoint = endpoint;
+            practiceRequested = intent == "practice";
             socket = new TriasSocket();
-            var request = new JoinCommand { type = "join", v = 2, room = code.Trim(), name = player.Trim(), mode = game, arena = map, character = kit, frame = male ? "male" : "female", intent = intent, bots = bots, predictFire = true, signature = true, botRadio = true, hordeBots = hordeBots };
+            var request = new JoinCommand { type = "join", v = 2, room = code.Trim(), name = player.Trim(), mode = game, arena = map, character = kit, frame = male ? "male" : "female", intent = intent, bots = bots, predictFire = true, signature = true, botRadio = true, hordeBots = hordeBots, resume = true };
             socket.Start(endpoint, JsonUtility.ToJson(request));
             joinedAt = Time.unscaledTime;
             status = "Připojuji se k serveru…";
@@ -138,9 +142,9 @@ namespace Trias.Native
 
         [Serializable] sealed class JoinCommand
         {
-            public string type, room, name, mode, arena, character, frame, intent;
+            public string type, room, name, mode, arena, character, frame, intent, ticket;
             public int v;
-            public bool bots, predictFire, signature, botRadio, hordeBots;
+            public bool bots, predictFire, signature, botRadio, hordeBots, resume;
         }
 
         internal void Disconnect(string reason)
@@ -149,7 +153,8 @@ namespace Trias.Native
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             ResetLab();
 #endif
-            socket?.Dispose(); socket = null;
+            socket?.Leave(); socket = null;
+            ResetConnection();
             world?.Dispose(); world = null;
             ResetConstruction();
             ResetPerks();
@@ -202,21 +207,24 @@ namespace Trias.Native
             float now = Time.unscaledTime;
             if (socket != null)
             {
-                for (int i = 0; i < 18 && socket != null && socket.Received.TryDequeue(out var raw); i++)
-                {
-                    try { Accept(WireValue.Parse(raw), now); }
-                    catch (FormatException) { Disconnect("Server poslal neplatný stav zápasu."); }
-                }
-                if (socket != null && socket.Error != null) Disconnect(socket.Error);
+                DrainMatchPackets(now);
+                if (socket != null && socket.Error != null) ConnectionInterrupted(socket.Error, now);
                 if (socket != null && ((own == null && now - joinedAt > 12) || (own != null && now - lastPacket > 6)))
-                    Disconnect("Server neodpověděl včas.");
+                    ConnectionInterrupted("Server neodpověděl včas.", now);
             }
+            if (TickReconnect(now)) return;
             if (world == null)
             {
                 UpdateLobby(now);
                 return;
             }
             if (own == null) return;
+            ReadCouncil();
+            if (practiceRoom && captured && state["practice"][0].Int == 3 && Input.GetKeyDown(KeyCode.Return))
+            {
+                Disconnect(null);
+                return;
+            }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UpdateLabControls();
 #endif
@@ -342,6 +350,24 @@ namespace Trias.Native
                         Disconnect("Server nemá kompatibilní verzi TRIAS.");
                         return;
                     }
+                    reconnectTicket = message["resume"].Text;
+                    reconnectGrace = message["resumeSeconds"].Float;
+                    practiceRoom = message["training"].Bool;
+                    if (practiceRequested && !practiceRoom)
+                    {
+                        Disconnect("Výcvik pilota vyžaduje server TRIAS W8.");
+                        return;
+                    }
+                    if (message["resumed"].Bool && world != null && reconnectUntil > 0)
+                    {
+                        ReadyForResume(message, now);
+                        return;
+                    }
+                    if (reconnectUntil > 0)
+                    {
+                        Disconnect("Server už nemůže obnovit původní zápas.");
+                        return;
+                    }
                     identity = message["id"].Text;
                     LoadFireProfiles(message["fireProfiles"]);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -367,7 +393,11 @@ namespace Trias.Native
                     sendAt = pingAt = lastPacket = now;
                     return;
                 case "state":
-                    if (world != null && message["tick"].Int > lastTick) Apply(message, now);
+                    if (world != null && message["tick"].Int > lastTick)
+                    {
+                        Apply(message, now);
+                        if (awaitingResumeFrame && own != null) CompleteResume();
+                    }
                     return;
             }
         }
@@ -485,6 +515,7 @@ namespace Trias.Native
             if (spawn && own[6].Int > 0) equipMotion = 1;
             SyncWorld(snapshot);
             SyncSignature(snapshot["signature"], now);
+            foreach (var evt in deferredEvents) GameEvent(evt, now);
             foreach (var evt in snapshot["events"].Items) GameEvent(evt, now);
             RemoveVanishedEchoes();
         }

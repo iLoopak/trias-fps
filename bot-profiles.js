@@ -26,7 +26,7 @@ const roster = Object.keys(PERSONALITIES);
 const difficulties = Object.keys(BOT_DIFFICULTIES);
 
 export function normalizeDifficulty(value) {
-  return value === 'mixed' || Object.hasOwn(BOT_DIFFICULTIES, value) ? value : 'regular';
+  return value === 'mixed' || Object.hasOwn(BOT_DIFFICULTIES, value) ? value : 'recruit';
 }
 
 function hash(value) {

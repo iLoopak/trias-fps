@@ -82,10 +82,12 @@ function driveBot(room, player, brain, now) {
     const toward = Math.atan2(hull.x - clockwise.x, hull.z - clockwise.z);
     hull.patrolDirection = Math.abs(wrapAngle(toward - hull.heading)) < Math.PI / 2 ? 1 : -1;
   }
-  const next = radial(angle + hull.patrolDirection * 0.31, room.layout.roadRadius);
+  const escort = room.siege?.escortGoal(hull,player.team);
+  const holding = escort?.holding;
+  const next = escort?.goal ?? radial(angle + hull.patrolDirection * 0.31, room.layout.roadRadius);
   const desired = Math.atan2(hull.x - next.x, hull.z - next.z);
   const turn = wrapAngle(desired - hull.heading);
-  if (Math.abs(hull.speed) < 1.05 && elapsed > 1.5 && now > (hull.recoverAfter ?? 0)) {
+  if (!holding && Math.abs(hull.speed) < 1.05 && elapsed > 1.5 && now > (hull.recoverAfter ?? 0)) {
     hull.reverseUntil = now + 0.72;
     hull.recoverAfter = now + 2.0;
   }
@@ -109,8 +111,9 @@ function driveBot(room, player, brain, now) {
 
   return {
     x: Math.max(-1, Math.min(1, -turn * 1.9)) * (reversing ? -1 : 1),
-    z: reversing ? -0.76 : Math.abs(turn) > 0.84 ? 0.49 : 0.94,
-    sprint: Math.abs(turn) < 0.21 && elapsed > 2 && hull.boost > 0.27,
+    z: holding ? 0 : reversing ? -0.76 : Math.abs(turn) > 0.84 ? 0.49 : 0.94,
+    brake: Boolean(holding),
+    sprint: !escort && Math.abs(turn) < 0.21 && elapsed > 2 && hull.boost > 0.27,
     ...aim, fire: Boolean(shootable && elapsed > 0.75 && Math.abs(wrapAngle(yaw - aim.yaw)) < .11),
   };
 }

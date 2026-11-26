@@ -275,10 +275,15 @@ namespace Trias.Native
             CornerPanel(new Rect(x, y, 484, 477), Amber);
             DrawInsignia(new Vector2(x + 37, y + 35), 17, Amber);
             hudText.Draw(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
+            if (!practiceRoom && Preset(new Rect(x + 278, y + 20, 184, 32),
+                Time.unscaledTime < inviteCopiedUntil ? "Odkaz zkopírován" : "Kopírovat odkaz", null, false))
+                CopyInvite(Event.current.shift);
             hudText.Draw(new Rect(x + 24, y + 64, 436, 27), state["directorBots"].Bool
                 ? "Online zápas běží dál  ·  Dynamické hlídky aktivní" : "Online zápas běží dál", caption);
             DrawFeelOptions(new Rect(x + 22,y + 94,440,34));
-            if (Preset(new Rect(x + 22, y + 367, 440, 39), "Zpět do zápasu", null, true)) Capture(true);
+            bool waitingInvite = pendingInviteServer != null;
+            if (Preset(new Rect(x + 22, y + 367, waitingInvite ? 207 : 440, 39), "Zpět do zápasu", null, true)) Capture(true);
+            if (waitingInvite && Preset(new Rect(x + 239, y + 367, 223, 39), "Přijmout pozvánku", null, false)) EnterInvite();
             if (Preset(new Rect(x + 22, y + 412, 440, 35), "Opustit místnost", null, false)) Disconnect(null);
             hudText.Draw(new Rect(x + 24, y + 450, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
         }

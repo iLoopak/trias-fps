@@ -128,14 +128,14 @@ namespace Trias.Native
         readonly ConcurrentQueue<string> send = new ConcurrentQueue<string>();
         internal readonly ConcurrentQueue<string> Received = new ConcurrentQueue<string>();
         internal volatile string Error;
-        int pending;
+        int pending, leaving;
         internal bool Running => client.State == WebSocketState.Open;
 
         internal void Start(Uri endpoint, string handshake) => _ = Run(endpoint, handshake);
 
         internal bool Send(string payload)
         {
-            if (!Running || stop.IsCancellationRequested) return false;
+            if (!Running || stop.IsCancellationRequested || leaving != 0) return false;
             if (Interlocked.Increment(ref pending) > 5)
             {
                 Interlocked.Decrement(ref pending);
@@ -195,6 +195,11 @@ namespace Trias.Native
                 {
                     await signal.WaitAsync(stop.Token).ConfigureAwait(false);
                     if (!send.TryDequeue(out var message)) continue;
+                    if (message.Length == 0)
+                    {
+                        await Write("{\"type\":\"leave\"}").ConfigureAwait(false);
+                        return;
+                    }
                     Interlocked.Decrement(ref pending);
                     await Write(message).ConfigureAwait(false);
                 }
@@ -210,6 +215,15 @@ namespace Trias.Native
         public void Dispose()
         {
             stop.Cancel();
+        }
+
+        internal void Leave()
+        {
+            if (!Running || stop.IsCancellationRequested) { Dispose(); return; }
+            if (Interlocked.Exchange(ref leaving, 1) != 0) return;
+            stop.CancelAfter(TimeSpan.FromMilliseconds(800));
+            send.Enqueue(string.Empty);
+            signal.Release();
         }
     }
 }

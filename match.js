@@ -113,9 +113,8 @@ export class Match {
   }
 
   join(socket, name, now, character = DEFAULT_CHARACTER, frame) {
-    if (this.horde && this.humans.size >= TEAM_SIZE) return false;
-    if (this.humans.size >= CAPACITY) return false;
     const counts = TEAMS.map((_, team) => [...this.players.values()].filter(p => !p.bot && p.team === team).length);
+    if (this.horde ? counts[0] >= TEAM_SIZE : counts.reduce((total, count) => total + count, 0) >= CAPACITY) return false;
     const open = counts.map((count, team) => ({ count, team })).filter(item => item.count < TEAM_SIZE);
     open.sort((a, b) => {
       const alive = this.siege ? Number(this.siege.alive(b.team)) - Number(this.siege.alive(a.team)) : 0;
@@ -176,6 +175,20 @@ export class Match {
     this.fleet.release(player, now);
     this.dropFlag(player, now);
     this.players.delete(id);
+  }
+
+  stopPlayerInput(player) {
+    this.clearRequests(player);
+    Object.assign(player, { input: EMPTY, inputAt: -Infinity, predictedTrigger: null, echoRequest: null });
+  }
+
+  park(player, now) {
+    player.away = true;
+    this.stopPlayerInput(player);
+    this.signature.clearEcho(player, 'exit');
+    this.unmount(player);
+    this.fleet.release(player, now);
+    this.dropFlag(player, now);
   }
 
   dropFlag(player, now) {
@@ -546,7 +559,7 @@ export class Match {
     for (const [i, pickup] of this.layout.pickups.entries()) {
       if (this.horde && !this.horde.available(pickup)) continue;
       if (this.pickups[i] > now) continue;
-      const player = [...this.players.values()].find(candidate => candidate.hp > 0 && candidate.vehicle < 0
+      const player = [...this.players.values()].find(candidate => candidate.hp > 0 && !candidate.away && candidate.vehicle < 0
         && !candidate.hordeType
         && Math.abs(candidate.y - pickup.y) < 0.78 && distanceSquared(candidate, pickup) < 1.14 ** 2
         && (pickup.type !== 'med' || candidate.hp < PILOT_HP)
@@ -569,7 +582,7 @@ export class Match {
   updateDominance(now) {
     for (const [i, location] of this.layout.points.entries()) {
       const point = this.points[i];
-      const present = new Set([...this.players.values()].filter(p => p.hp > 0 && p.vehicle < 0
+      const present = new Set([...this.players.values()].filter(p => p.hp > 0 && !p.away && p.vehicle < 0
         && distanceSquared(p, location) <= 3.05 ** 2 && p.y - (this.layout.terrain?.(p.x, p.z) ?? 0) < 1.6).map(p => p.team));
       point.contested = present.size > 1;
       if (point.contested) continue;
@@ -607,7 +620,7 @@ export class Match {
         flag.y = carrier.y;
         continue;
       }
-      const near = [...this.players.values()].filter(p => p.hp > 0 && p.vehicle < 0 && Math.abs(p.y - flag.y) < 1.25 && distanceSquared(p, flag) < 1.7 ** 2);
+      const near = [...this.players.values()].filter(p => p.hp > 0 && !p.away && p.vehicle < 0 && Math.abs(p.y - flag.y) < 1.25 && distanceSquared(p, flag) < 1.7 ** 2);
       if (flag.status === 'dropped' && near.some(p => p.team === team)) {
         this.returnFlag(team);
         continue;
@@ -630,6 +643,10 @@ export class Match {
   }
 
   checkEnd(now) {
+    if (this.practice) {
+      this.practice.step(now);
+      return;
+    }
     if (this.horde) {
       const label = this.horde.step(now);
       if (label) { this.winner = { label }; this.restartAt = now + ROUND_PAUSE; }
@@ -668,7 +685,7 @@ export class Match {
             this.rejectTrigger(player, player.predictedTrigger.fireId);
             player.predictedTrigger = null;
           }
-          if (!player.hordeType && now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
+          if (!player.away && !player.hordeType && now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
           continue;
         }
         let input = player.hordeType ? this.horde.input(player, now)
@@ -706,6 +723,7 @@ export class Match {
           ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest, dodge: input.dodge || player.dodgeRequest,
         }, TICK, this.combatLayout);
         this.signature.movement(player, pose, signal, now);
+        if (signal === 'dodge') this.practice?.dodge(player);
         if (signal === 'launch') {
           player.usedLaunch = true;
           player.launchAt = now;
@@ -808,6 +826,7 @@ export class Match {
     const state = {
       type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), horde: this.horde?.snapshot(now), time: Math.max(0, Math.ceil(this.endsAt - now)),
       signature: this.signature.snapshot(now),
+      practice: this.practice?.snapshot(),
       arenaDirector: this.director?.publicFrame(now),
       directorBots: this.director?.directsBots || undefined,
       interactions: Object.values(this.interactions).some(Boolean) ? this.interactions : undefined,

@@ -22,7 +22,8 @@ namespace Trias.Native
             float scale = Mathf.Min(Screen.width / 1280f, Screen.height / 720f);
             float w = Screen.width / scale, h = Screen.height / scale;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
-            if (world == null || own == null) DrawLobby(w,h);
+            if (reconnectUntil > 0) DrawReconnect(w,h);
+            else if (world == null || own == null) DrawLobby(w,h);
             else MatchHUD(w, h, scale);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (labMode && own != null && captured) PaintLab(w);
@@ -127,6 +128,8 @@ namespace Trias.Native
             if (mode != "horde")
                 hudText.Draw(new Rect(cx + 125, 30, 85, 30), (time / 60) + ":" + (time % 60).ToString("00"), center);
             PaintArenaRhythm(cx);
+            PaintPractice(cx);
+            if (mode == "horde") PaintCouncil(cx);
             if (Time.unscaledTime < toastUntil && !string.IsNullOrEmpty(toast))
             {
                 Panel(new Rect(w - 338, 30, 316, 38));
@@ -196,7 +199,7 @@ namespace Trias.Native
                 int team = status[i]["capture"].Int >= 0 ? status[i]["capture"].Int : status[i]["owner"].Int;
                 float progress = status[i]["progress"].Float;
                 bool contested = status[i]["contested"].Bool;
-                Objective(points[i].Position + Vector3.up * 2.35f, contested ? points[i].label + " · SPOR" : points[i].label,
+                Objective(points[i].Position + Vector3.up * 2.35f, SiegeNodeLabel(i, points[i], status[i], status),
                     contested ? Amber : team < 0 ? Chalk : Catalog.Tint(catalog.teams[team].color), h, scale, progress, team);
             }
             for (int i = 0; i < world.Flags.Length; i++)

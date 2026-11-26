@@ -271,6 +271,8 @@ namespace Trias.Native
             hudText.Draw(new Rect(x+17,y+246,620,50),"Použij kód od hostitele. Arénu, režim a nastavení místnosti načteš ze serveru.",lobbyWrap);
             hudText.Draw(new Rect(x+17,y+323,148,30),"Kód místnosti",section);
             roomCode = LobbyField("field.join",new Rect(x+17,y+357,389,45),roomCode,24);
+            if (LobbyButton("join.invite",new Rect(x+422,y+357,247,45),"Z pozvánky",false))
+                ReceiveInvite(GUIUtility.systemCopyBuffer);
             hudText.Draw(new Rect(x+18,y+434,637,39),"Pokročilé připojení a přezdívku najdeš v Nastavení.",caption);
         }
 
@@ -333,16 +335,17 @@ namespace Trias.Native
         void DrawLobbyFooter(float x,float y)
         {
             GUI.enabled = socket == null;
-            if (LobbyButton("training",new Rect(x,y,230,41),"Trénink offline",false))
+            if (LobbyButton("practice",new Rect(x,y,214,41),"Výcvik pilota",false)) StartPractice();
+            if (LobbyButton("training",new Rect(x+224,y,190,41),"Trénink offline",false))
             {
                 SaveLobby(false);
                 SceneManager.LoadScene("Relay Station");
             }
-            if (LobbyButton("settings",new Rect(x+240,y,160,41),"Nastavení",lobbyPage == LobbyPage.Settings))
+            if (LobbyButton("settings",new Rect(x+424,y,150,41),"Nastavení",lobbyPage == LobbyPage.Settings))
             {
                 if (lobbyPage != LobbyPage.Settings) { returnToPage = lobbyPage; lobbyPage = LobbyPage.Settings; }
             }
-            if (LobbyButton("exit",new Rect(x+410,y,120,41),"Ukončit",false))
+            if (LobbyButton("exit",new Rect(x+584,y,106,41),"Ukončit",false))
             {
                 SaveLobby(false);
                 Application.Quit();
@@ -357,6 +360,11 @@ namespace Trias.Native
             DrawFeelOptions(new Rect(x+22,y+177,440,34));
             if (LobbyButton("radio.test",new Rect(x+480,y+413,179,30),"Vyzkoušet rádio",false))
                 PreviewBotRadio();
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            if (LobbyButton("invite.install",new Rect(x+278,y+570,383,42),"Povolit klikací pozvánky",false))
+                RegisterWindowsInvites();
+            hudText.Draw(new Rect(x+22,y+612,635,19),status,caption);
+#endif
             hudText.Draw(new Rect(x+21,y+452,630,34),"Pokročilé připojení",heading);
             hudText.Draw(new Rect(x+22,y+482,420,22),"Adresa herního serveru",caption);
             hudText.Draw(new Rect(x+460,y+482,190,22),"Přezdívka",caption);

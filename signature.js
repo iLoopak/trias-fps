@@ -139,6 +139,7 @@ export class Signature {
     const pitch = Math.asin(direction.y);
     this.action(player, 'echo', now);
     this.match.shoot(player, now, request.alt, false, null, { origin, yaw, pitch, echo: echo.serial });
+    this.match.practice?.echo(player, now);
     this.clearEcho(player, 'fire');
     return true;
   }

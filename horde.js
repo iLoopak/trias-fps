@@ -23,6 +23,7 @@ const TYPES = {
 const UNLOCK = { scatter: 2, arc: 3, surge: 4, lance: 5, rift: 6 };
 const REWARDS = ['Doplňte munici', 'Scatter a granát', 'Arc a oprava jádra', 'Overcharge a léčení',
   'Lance a štít', 'Rift a granáty', 'Overcharge a oprava jádra', 'Veškeré zásoby'];
+const SUPPORT = ['repair', 'armor', 'scrap'];
 
 export class Horde {
   constructor(room) { this.room = room; }
@@ -32,6 +33,8 @@ export class Horde {
     this.core = { ...this.room.layout.bases[0], y: .78, hp: CORE_HP, maxHp: CORE_HP };
     this.wave = this.remaining = 0;
     this.scrap = 40;
+    this.votes = new Map();
+    this.lastSupport = null;
     this.structures = SITES.map(([x, z, angle], id) => ({ id, x, z, angle, kind: null }));
     this.layout = this.room.layout;
     this.nextEnemy = this.nextEnemy ?? 0;
@@ -44,6 +47,35 @@ export class Horde {
   }
 
   available(item) { return this.wave >= (UNLOCK[item.type] ?? 0); }
+
+  get council() { return this.nextWaveAt > 0 && this.wave > 0 && this.wave < WAVES && this.wave % 2 === 0; }
+
+  vote(pilot, option, now) {
+    if (!this.council || now >= this.nextWaveAt || this.room.restartAt || !SUPPORT.includes(option)
+        || ![...this.room.humans].some(peer => peer.player === pilot)) return false;
+    this.votes.set(pilot.id, option);
+    return true;
+  }
+
+  supportCounts() {
+    const tally = [0, 0, 0];
+    for (const peer of this.room.humans) {
+      const index = SUPPORT.indexOf(this.votes.get(peer.player.id));
+      if (index >= 0) tally[index]++;
+    }
+    return tally;
+  }
+
+  resolveSupport() {
+    const tally = this.supportCounts();
+    const max = Math.max(...tally);
+    if (!max) return null;
+    const priority = Math.floor(this.wave / 2 - 1) % SUPPORT.length;
+    for (let offset = 0; offset < SUPPORT.length; offset++) {
+      const i = (priority + offset) % SUPPORT.length;
+      if (tally[i] === max) return SUPPORT[i];
+    }
+  }
 
   build(pilot, id, kind, now) {
     const site = Number.isInteger(id) ? this.structures[id] : null;
@@ -118,12 +150,24 @@ export class Horde {
   }
 
   start(now) {
+    const support = this.council ? this.resolveSupport() : null;
+    this.votes.clear();
+    this.lastSupport = support;
     this.wave++;
     this.nextWaveAt = 0;
     this.deployAt = now;
     this.remaining = 4 + this.wave * 2 + Math.max(0, this.room.humans.size - 1) * 2;
     this.core.hp = Math.min(CORE_HP, this.core.hp + (this.wave === 3 || this.wave === 7 ? 115 : 42));
     for (const pilot of this.room.players.values()) if (pilot.hp > 0 && !pilot.hordeType) this.reward(pilot, now);
+    if (support === 'scrap') this.scrap += 45;
+    if (support === 'repair') {
+      this.core.hp = Math.min(CORE_HP, this.core.hp + 90);
+      for (const site of this.structures) if (site.kind) site.hp = Math.min(site.maxHp, site.hp + 35);
+    }
+    if (support === 'armor') for (const pilot of this.room.players.values()) if (pilot.hp > 0 && !pilot.hordeType) {
+      pilot.armor = Math.max(pilot.armor, 40);
+      pilot.grenades = Math.min(2, pilot.grenades + 1);
+    }
     this.room.events.push({ type: 'notice', text: `Vlna ${this.wave}/${WAVES} · ${REWARDS[this.wave - 1]}` });
   }
 
@@ -212,6 +256,8 @@ export class Horde {
   snapshot(now) {
     return { wave: this.wave, waves: WAVES, enemies: this.remaining + this.alive.length,
       countdown: Math.max(0, Math.ceil(this.nextWaveAt - now)), core: this.core,
+      council: this.council ? { counts: this.supportCounts(), votes: [...this.votes] } : undefined,
+      support: this.lastSupport ?? undefined,
       build: { scrap: this.scrap, range: BUILD_RANGE, types: STRUCTURES,
         sites: this.structures.map(({ id, x, z, angle, kind, hp, maxHp, yaw, pitch }) => ({ id, x, z, angle, kind, hp, maxHp, yaw, pitch })) } };
   }

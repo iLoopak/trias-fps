@@ -243,9 +243,18 @@ namespace Trias.Native
             float t = Mathf.Clamp01((now - Got) / frameSpan);
             Vector3 old = Position;
             Position = Vector3.Lerp(From, Desired, t);
+            int bits = row[2].Int;
+            float missing = Mathf.Clamp(now - Got - frameSpan, 0, .045f);
+            if ((bits & 2) != 0 && row[27].Float <= .02f && missing > 0 && row[6].Int > 0)
+            {
+                var drift = Vector3.ClampMagnitude(new Vector3(row[21].Float, 0, row[23].Float) * missing, .38f);
+                if (drift.sqrMagnitude > .0004f &&
+                    !Physics.Linecast(Desired + Vector3.up * .7f, Desired + drift + Vector3.up * .7f,
+                        TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
+                    Position += drift;
+            }
             Yaw = Mathf.LerpAngle(FromYaw, DesiredYaw, t);
             Root.SetPositionAndRotation(Position, Quaternion.Euler(0, Yaw, 0));
-            int bits = row[2].Int;
             float blend = 1 - Mathf.Exp(-dt * 16);
             stance = Mathf.Lerp(stance, (bits & 16) != 0 ? .65f : 1, blend);
             impactPose *= Mathf.Exp(-dt * 13);

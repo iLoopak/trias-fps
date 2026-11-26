@@ -2,6 +2,8 @@
 
 Hráči potřebují klienta TRIAS pro svůj systém. Jeden host provozuje Node.js server odpovídající verze. Windows klient se spouští z rozbalené složky souborem `TRIAS.exe`. Složku `TRIAS_Data` a knihovny ponech vedle něj.
 
+Pokud používáš W8, postup pro klikací pozvánky, obnovu spojení a výcvik popisuje [návod W8](W8-PLAY-TOGETHER.md).
+
 ## 1. Ověř server lokálně
 
 Nainstaluj Node.js v podporované LTS verzi alespoň 22. V kořeni repozitáře nebo rozbaleného serverového balíčku spusť:

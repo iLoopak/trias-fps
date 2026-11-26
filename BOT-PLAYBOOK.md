@@ -13,7 +13,7 @@ Osobnost vychází ze slotu a drobné odchylky ze jména místnosti a identity b
 
 ## Nastavení serveru
 
-- TRIAS_BOT_DIFFICULTY přijímá hodnoty recruit, regular, veteran, elite a mixed. Výchozí obtížnost je regular.
+- TRIAS_BOT_DIFFICULTY přijímá hodnoty recruit, regular, veteran, elite a mixed. Výchozí obtížnost je recruit.
 - TRIAS_HORDE_BOTS=1 zapíná automatické doplnění obránců v Hordě. W5 klient nabízí také volbu **Boti brání jádro** při zakládání. Člověk při vstupu převezme volný slot bota. Stavby platí a umisťují hráči.
 - TRIAS_BOT_DEBUG=1 zapisuje do stderr v rozestupu čtyř sekund na bota jeho úmysl, pozorovaný cíl, paměť, směrování a rozhodnutí o ozvěně. Diagnostika je výchozím nastavením vypnutá.
 - Příkaz **node tools/bot-scrimmage.mjs** simuluje zápasy na všech mapách a ve všech režimech. **TRIAS_SCRIMMAGE_SECONDS** nastavuje horní hranici herního času. Výstup obsahuje ukončení zápasu, rozdělení vyřazení, pohyb, ozvěny, průběh cílů, výskyt uváznutí a průměrný čas serverového ticku.

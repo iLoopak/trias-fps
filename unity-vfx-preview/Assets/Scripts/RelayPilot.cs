@@ -26,7 +26,8 @@ namespace Trias.Preview
         Vector3 waypoint;
         internal Vector3 DirectorGoal { get; private set; }
         internal bool DirectorContact { get; private set; }
-        float memoryUntil, goalUntil;
+        float memoryUntil, goalUntil, botReactionAt;
+        RelayPilot botContact;
         Vector3 lastSeen;
 
         internal Vector3 Eye => transform.position + Vector3.up * 1.56f;
@@ -67,6 +68,7 @@ namespace Trias.Preview
             goalUntil = memoryUntil = -1;
             DirectorGoal = new Vector3(1024, 0, 1024);
             DirectorContact = false;
+            botContact = null;
             ProtectedUntil = Time.time + 1.4f;
             NextShot = Time.time + 0.22f;
             if (Human) PositionCamera();
@@ -141,9 +143,16 @@ namespace Trias.Preview
             Vector3 direction = distance > 0.05f ? flat / distance : transform.forward;
             if (visible)
             {
-                Vector3 look = enemy.Eye - Eye - Vector3.up * 0.38f + Vector3.Cross(Vector3.up, direction) * Mathf.Sin(Time.time * 9 + Slot) * (0.30f + distance * 0.022f);
-                Yaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
-                Pitch = -Mathf.Atan2(look.y, new Vector2(look.x, look.z).magnitude) * Mathf.Rad2Deg;
+                if (botContact != enemy)
+                {
+                    botContact = enemy;
+                    botReactionAt = Time.time + .47f + (Slot % 4) * .06f;
+                }
+                Vector3 look = enemy.Eye - Eye - Vector3.up * 0.38f + Vector3.Cross(Vector3.up, direction) * Mathf.Sin(Time.time * 8 + Slot) * (0.48f + distance * 0.035f);
+                float aimYaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
+                float aimPitch = -Mathf.Atan2(look.y, new Vector2(look.x, look.z).magnitude) * Mathf.Rad2Deg;
+                Yaw = Mathf.MoveTowardsAngle(Yaw, aimYaw, dt * 142);
+                Pitch = Mathf.MoveTowardsAngle(Pitch, aimPitch, dt * 100);
                 Vector3 side = Vector3.Cross(Vector3.up, direction);
                 var advance = distance > 10 ? direction * 0.82f : distance < 4 ? -direction * 0.42f : Vector3.zero;
                 if (directed)
@@ -154,10 +163,12 @@ namespace Trias.Preview
                 }
                 advance += side * Mathf.Sin(Time.time * 1.9f + Slot * 2 + Team) * 0.62f;
                 Move(Vector3.ClampMagnitude(advance, 1), 6.1f, false, dt);
-                Fire();
+                if (Time.time >= botReactionAt && Mathf.Abs(Mathf.DeltaAngle(Yaw, aimYaw)) < 7 && Mathf.Abs(Mathf.DeltaAngle(Pitch, aimPitch)) < 6)
+                    Fire();
             }
             else
             {
+                botContact = null;
                 Vector3 delta = waypoint - transform.position;
                 delta.y = 0;
                 if (Time.time >= seekAt || delta.sqrMagnitude < 0.45f)
