@@ -132,7 +132,35 @@ namespace Trias.Native
             if (kit == "wraith" || kit == "kestrel")
                 TriasWorld.Part(pack, shell, new Vector3(.096f,.28f,0),new Vector3(.022f,.35f,.022f)).localRotation = Quaternion.Euler(0, 0, -13);
             if (kit == "bulwark")
-                TriasWorld.Part(body, shell, new Vector3(0, 1.20f, .15f), new Vector3(.31f, .22f, .11f));
+            {
+                TriasWorld.Part(body, shell, new Vector3(0, 1.20f, .15f), new Vector3(.37f, .27f, .14f));
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    var heavy = TriasWorld.Part(body, shell, new Vector3(side * .32f, 1.42f, -.018f), new Vector3(.245f, .20f, .29f));
+                    heavy.localRotation = Quaternion.Euler(0, 0, side * 14);
+                    TriasWorld.Part(body, accent, new Vector3(side * .34f, 1.46f, .133f), new Vector3(.115f, .036f, .023f));
+                }
+            }
+            else if (kit == "wraith")
+            {
+                var scanner = TriasWorld.Part(pack, w.Dark, new Vector3(-.14f,.22f,-.06f), new Vector3(.18f,.31f,.14f));
+                scanner.localRotation = Quaternion.Euler(8, 0, 19);
+                TriasWorld.Part(scanner, accent, new Vector3(0,.24f,-.55f), new Vector3(.54f,.11f,.12f));
+            }
+            else if (kit == "kestrel")
+            {
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    var fin = TriasWorld.Part(pack, w.Steel, new Vector3(side * .22f,.11f,-.064f), new Vector3(.095f,.39f,.19f));
+                    fin.localRotation = Quaternion.Euler(-11, 0, side * -21);
+                    TriasWorld.Part(pack, accent, new Vector3(side * .21f,.03f,-.168f), new Vector3(.044f,.095f,.025f));
+                }
+            }
+            else
+            {
+                TriasWorld.Part(body, shell, new Vector3(-.21f,1.13f,.135f), new Vector3(.17f,.25f,.14f));
+                TriasWorld.Part(body, accent, new Vector3(-.22f,1.15f,.209f), new Vector3(.10f,.028f,.024f));
+            }
         }
 
         Transform Leg(int side)

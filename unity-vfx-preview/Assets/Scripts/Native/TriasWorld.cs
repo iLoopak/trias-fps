@@ -206,6 +206,7 @@ namespace Trias.Native
             BuildInfrastructure();
             if (basin)
             {
+                BuildMiningRigs();
                 var road = MaterialAt("#82707c");
                 Ring(Root, Vector3.up * 0.02f, Spec.roadRadius, road, 7.6f, 128);
                 Ring(Root, Vector3.up * 0.04f, Spec.roadRadius + 3.75f, Dark, 0.10f, 128);
@@ -219,10 +220,11 @@ namespace Trias.Native
             }
             else
             {
-                var hot = MaterialAt(foundry ? "#ff7138" : "#ff4b85", true);
-                BuildReactor(foundry);
                 if (foundry)
                 {
+                    BuildCrucible();
+                    BuildFoundryStacks();
+                    var hot = MaterialAt("#ff7138", true);
                     for (int i = 0; i < 3; i++)
                     {
                         var channel = Group(Root, "Molten channel");
@@ -232,6 +234,7 @@ namespace Trias.Native
                         Part(channel, Dark, new Vector3(1.20f, 0.023f, 19), new Vector3(0.18f, 0.029f, 23));
                     }
                 }
+                else BuildReactor();
             }
         }
 

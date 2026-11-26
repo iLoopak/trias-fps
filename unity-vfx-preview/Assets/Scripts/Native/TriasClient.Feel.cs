@@ -4,7 +4,7 @@ namespace Trias.Native
 {
     public sealed partial class TriasClient
     {
-        float baseFov, cameraMotion, masterVolume, ambienceVolume;
+        float baseFov, cameraMotion, masterVolume, ambienceVolume, visualEffects;
         float gunTravel, gunTravelVelocity, gunLift, gunLiftVelocity, gunTwist, gunTwistVelocity;
         float cameraKick, cameraKickVelocity, landingStep, landingVelocity, airSpeed;
         float previousPitch, previousYaw, swayX, swayY;
@@ -20,6 +20,8 @@ namespace Trias.Native
             cameraMotion = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.motion", .82f));
             masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.volume", .85f));
             ambienceVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.ambience", .72f));
+            visualEffects = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.visualEffects", 1));
+            visor.Intensity = visualEffects;
             sensitivity = Mathf.Clamp(PlayerPrefs.GetFloat("trias.sensitivity", sensitivity), .5f, 5);
             AudioListener.volume = masterVolume;
         }
@@ -125,9 +127,9 @@ namespace Trias.Native
 
         void PaintPause(float w, float h)
         {
-            float x = w / 2 - 242, y = h / 2 - 205;
+            float x = w / 2 - 242, y = h / 2 - 223;
             Fill(new Rect(0,0,w,h),new Color(.012f,.024f,.041f,.80f));
-            CornerPanel(new Rect(x, y, 484, 410), Amber);
+            CornerPanel(new Rect(x, y, 484, 444), Amber);
             DrawInsignia(new Vector2(x + 37, y + 35), 17, Amber);
             GUI.Label(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
             GUI.Label(new Rect(x + 24, y + 64, 436, 27), "Online zápas běží dál", caption);
@@ -137,11 +139,13 @@ namespace Trias.Native
             box.y += 34; Option(box, "Pohyb kamery", "trias.motion", ref cameraMotion, 0, 1, true);
             box.y += 34; Option(box, "Hlasitost", "trias.volume", ref masterVolume, 0, 1, true);
             box.y += 34; Option(box, "Atmosféra", "trias.ambience", ref ambienceVolume, 0, 1, true);
+            box.y += 34; Option(box, "Světelné efekty", "trias.visualEffects", ref visualEffects, 0, 1, true);
+            visor.Intensity = visualEffects;
             AudioListener.volume = masterVolume;
             effects.AmbienceMix(ambienceVolume, false);
-            if (Preset(new Rect(x + 22, y + 277, 440, 42), "Zpět do zápasu", null, true)) Capture(true);
-            if (Preset(new Rect(x + 22, y + 327, 440, 41), "Opustit místnost", null, false)) Disconnect(null);
-            GUI.Label(new Rect(x + 24, y + 376, 430, 22), "WASD  ·  Shift  ·  mezerník  ·  Q úhyb  ·  R přebít  ·  E použít", caption);
+            if (Preset(new Rect(x + 22, y + 311, 440, 42), "Zpět do zápasu", null, true)) Capture(true);
+            if (Preset(new Rect(x + 22, y + 361, 440, 41), "Opustit místnost", null, false)) Disconnect(null);
+            GUI.Label(new Rect(x + 24, y + 410, 430, 22), "WASD  ·  Shift  ·  mezerník  ·  Q úhyb  ·  R přebít  ·  E použít", caption);
         }
 
         void Option(Rect row, string name, string key, ref float value, float min, float max, bool percent, int decimals = 0)

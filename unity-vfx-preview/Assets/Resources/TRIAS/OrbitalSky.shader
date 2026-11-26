@@ -7,6 +7,7 @@ Shader "TRIAS/Orbital Sky"
         _LightColor("Light", Color) = (1,.56,.26,1)
         _Body("Planet", Color) = (.09,.16,.24,1)
         _Planet("Bearing and radius", Vector) = (-.77,.31,.54,.30)
+        _SunDirection("Daylight sun direction", Vector) = (-.9,.19,.41,0)
         _Daylight("Daylight", Float) = 0
     }
     SubShader
@@ -19,7 +20,7 @@ Shader "TRIAS/Orbital Sky"
             #pragma vertex vert
             #pragma fragment frag
             #include "UnityCG.cginc"
-            float4 _Zenith, _Horizon, _LightColor, _Body, _Planet;
+            float4 _Zenith, _Horizon, _LightColor, _Body, _Planet, _SunDirection;
             float _Daylight;
 
             struct SkyPixel { float4 vertex : SV_POSITION; float3 direction : TEXCOORD0; };
@@ -57,6 +58,8 @@ Shader "TRIAS/Orbital Sky"
                 color += _LightColor.rgb * sunset * (.06 + .20 * sky);
                 if (_Daylight > .5)
                 {
+                    float sun = saturate(dot(normalize(_SunDirection.xyz), ray));
+                    color += _LightColor.rgb * (pow(sun, 56) * .14 + smoothstep(.99935,.99965,sun) * .88);
                     color += _LightColor.rgb * smoothstep(.53,.80,detail) * saturate(ray.y * 7) * .37;
                     return half4(color,1);
                 }

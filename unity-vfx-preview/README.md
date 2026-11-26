@@ -14,7 +14,9 @@ Mířidlo mění tvar podle zbraně, zobrazuje postup přebití a odlišuje bě�
 
 Sluchátka pomáhají určit směr kroků a výstřelů. Kryt je tlumí. Každá aréna má vlastní zvuk prostředí. V Hordě hlásí samostatné signály nástup a odražení vlny.
 
-V nabídce **Esc** můžeš upravit zorné pole, citlivost myši, pohyb kamery, celkovou hlasitost a hlasitost prostředí. Nastavení se ukládá na daném počítači. Zpětný ráz se liší podle zbraně. Tvrdý dopad doprovází tlumený zvuk magnetických bot.
+V nabídce **Esc** můžeš upravit zorné pole, citlivost myši, pohyb kamery, celkovou hlasitost, hlasitost prostředí a intenzitu světelných efektů. Nastavení se ukládá na daném počítači. Zpětný ráz se liší podle zbraně. Tvrdý dopad doprovází tlumený zvuk magnetických bot.
+
+Světelné efekty ovládají přízemní mlhu, bloom a paprsky rozptýleného světla. Využívají hloubku obrazu a mají vlastní barvy a intenzitu pro každou arénu. Vantu rámují tavicí komora a vysoké výduchy, Meridian Basin pohyblivé těžební stroje a Mechový ostrov má chladný opar v nížinách.
 
 Za **3, 5, 7 a 9 osobních vyřazení v jednom životě** se postupně odemykají odměny. **6** zobrazí na 8 sekund soupeře na radaru. **7** spustí polní modul pro okolní spoluhráče. Vektor léčí, Bašta přidává štít, Přízrak doplňuje munici a Poštolka přidává granát a menší štít. **8** označí zem pro orbitální úder s dvousekundovým varováním. **9** přidá štít a na 12 sekund zvýší poškození. Vyřazení ruší nevyužité odměny.
 
