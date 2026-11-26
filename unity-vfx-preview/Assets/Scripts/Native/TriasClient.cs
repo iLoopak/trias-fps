@@ -103,7 +103,7 @@ namespace Trias.Native
                 if (actor.Root.gameObject.activeSelf) actor.PlaceHands();
         }
 
-        public void Join(string address, string code, string player, string map, string game, string kit, bool bots, bool remember = true, bool male = false, string intent = null)
+        public void Join(string address, string code, string player, string map, string game, string kit, bool bots, bool remember = true, bool male = false, string intent = null, bool hordeBots = false)
         {
             Disconnect(null);
             if (address.IndexOf("://", StringComparison.Ordinal) < 0) address = "ws://" + address;
@@ -130,7 +130,7 @@ namespace Trias.Native
                 PlayerPrefs.SetInt("trias.pilotMale", male ? 1 : 0);
             }
             socket = new TriasSocket();
-            var request = new JoinCommand { type = "join", v = 2, room = code.Trim(), name = player.Trim(), mode = game, arena = map, character = kit, frame = male ? "male" : "female", intent = intent, bots = bots, predictFire = true, signature = true };
+            var request = new JoinCommand { type = "join", v = 2, room = code.Trim(), name = player.Trim(), mode = game, arena = map, character = kit, frame = male ? "male" : "female", intent = intent, bots = bots, predictFire = true, signature = true, botRadio = true, hordeBots = hordeBots };
             socket.Start(endpoint, JsonUtility.ToJson(request));
             joinedAt = Time.unscaledTime;
             status = "Připojuji se k serveru…";
@@ -140,7 +140,7 @@ namespace Trias.Native
         {
             public string type, room, name, mode, arena, character, frame, intent;
             public int v;
-            public bool bots, predictFire, signature;
+            public bool bots, predictFire, signature, botRadio, hordeBots;
         }
 
         internal void Disconnect(string reason)
@@ -163,6 +163,7 @@ namespace Trias.Native
             killFeedCount = 0;
             waveFlash = coreFlash = hit = hurt = 0;
             toast = null; toastUntil = 0;
+            radioCaption = null; radioUntil = 0;
             if (grip != null) Destroy(grip.gameObject);
             grip = null;
             effects.ClearTransient();
@@ -316,6 +317,9 @@ namespace Trias.Native
         {
             switch (message["type"].Text)
             {
+                case "bot-radio":
+                    ReadBotRadio(message,now);
+                    return;
                 case "perk-error":
                 case "build-error":
                     AddNotice(message["message"].Text);

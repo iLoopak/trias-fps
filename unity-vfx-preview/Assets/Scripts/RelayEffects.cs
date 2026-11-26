@@ -49,6 +49,7 @@ namespace Trias.Preview
         float reportGain = 1;
         readonly System.Collections.Generic.Dictionary<string, AudioClip> beds = new System.Collections.Generic.Dictionary<string, AudioClip>();
         int stepCount;
+        readonly System.Collections.Generic.Dictionary<string, (AudioClip Female, AudioClip Male)> radio = new System.Collections.Generic.Dictionary<string, (AudioClip, AudioClip)>();
         readonly System.Collections.Generic.Dictionary<string, AudioClip> shots = new System.Collections.Generic.Dictionary<string, AudioClip>();
 
         void Awake()
@@ -94,6 +95,12 @@ namespace Trias.Preview
             }
             arrivalCue = EffectPreview.Cue("Re-entry", 191, 773, 0.58f, 97);
             reloadCue = EffectPreview.Cue("Reload", 550, 140, 0.10f, 171);
+            foreach (var key in new[] { "contact","cover","flank","retreat","flag","core" })
+            {
+                var female = Resources.Load<AudioClip>("TRIAS/Radio/" + key + "-female");
+                var male = Resources.Load<AudioClip>("TRIAS/Radio/" + key + "-male");
+                if (female != null || male != null) radio.Add(key,(female,male));
+            }
             foot = Trias.Preview.MatchSound.Foley("Boot impact", .115f, 89, 140);
             hurtCue = Trias.Preview.MatchSound.Foley("Suit struck", .23f, 74, 250);
             confirm = EffectPreview.Cue("Hit telemetry", 1460, 530, .085f, 460);
@@ -418,6 +425,13 @@ namespace Trias.Preview
             };
             Play(cue,Vector3.zero,action == "result" ? .21f : .16f,true);
         }
+        internal void BotRadio(string key, bool male, float volume)
+        {
+            if (volume <= .01f || !radio.TryGetValue(key,out var voices)) return;
+            var clip = male ? voices.Male ?? voices.Female : voices.Female ?? voices.Male;
+            if (clip != null) Telemetry(clip,volume * .19f,0);
+        }
+
         public void Land(Vector3 position, float force, int surface = 0) =>
             Play(surface == 2 ? water : surface == 1 ? soil : landing, position, .12f + force * .26f, true);
         public void AmbienceMix(float volume, bool playing)

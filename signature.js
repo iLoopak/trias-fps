@@ -27,7 +27,7 @@ export class Signature {
   }
 
   enabled(player) {
-    return player.signature === true || player.bot && this.match.mode !== 'horde' &&
+    return player.signature === true || player.bot && !player.hordeType &&
       [...this.match.humans].some(socket => socket.player?.signature);
   }
 
@@ -144,7 +144,7 @@ export class Signature {
       player.lastDodge = now;
       this.dodge(player, pose, now);
     }
-    if (!this.momentumEnabled || !player.signature) return;
+    if (!this.momentumEnabled || !this.enabled(player)) return;
     const speed = Math.hypot(player.vx, player.vz);
     const distance = Math.hypot(player.x - pose.x, player.z - pose.z);
     const sprinting = player.sprint && player.grounded && speed > 8.5 && distance > .20;
@@ -175,7 +175,7 @@ export class Signature {
   }
 
   action(player, action, now, victim = '') {
-    if (!this.momentumEnabled || !player.signature) return;
+    if (!this.momentumEnabled || !this.enabled(player)) return;
     let chain = this.chains.get(player.id);
     if (!chain) {
       chain = { score: 0, peak: 0, tier: 0, bestTier: 0, multi: 1, bestMulti: 1, last: 0, done: 0,

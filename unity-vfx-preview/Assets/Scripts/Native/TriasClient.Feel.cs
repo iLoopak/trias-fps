@@ -10,7 +10,7 @@ namespace Trias.Native
         [SerializeField, Range(0, 2)] float weaponInertia = 1;
         [SerializeField, Range(0, 2)] float strideAmplitude = 1;
 
-        float baseFov, cameraMotion, masterVolume, ambienceVolume, visualEffects;
+        float baseFov, cameraMotion, masterVolume, ambienceVolume, visualEffects, radioVolume;
         float gunTravel, gunTravelVelocity, gunLift, gunLiftVelocity, gunTwist, gunTwistVelocity;
         float cameraKick, cameraKickVelocity, landingStep, landingVelocity, airSpeed;
         float previousPitch, previousYaw, swayX, swayY;
@@ -32,6 +32,7 @@ namespace Trias.Native
             baseFov = Mathf.Clamp(PlayerPrefs.GetFloat("trias.fov", 70), 60, 95);
             cameraMotion = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.motion", .82f));
             masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.volume", .85f));
+            radioVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.radio", .74f));
             ambienceVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.ambience", .72f));
             visualEffects = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.visualEffects", 1));
             momentumPresentation = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.momentum", momentumPresentation));
@@ -275,9 +276,9 @@ namespace Trias.Native
             GUI.Label(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
             GUI.Label(new Rect(x + 24, y + 64, 436, 27), "Online zápas běží dál", caption);
             DrawFeelOptions(new Rect(x + 22,y + 94,440,34));
-            if (Preset(new Rect(x + 22, y + 345, 440, 42), "Zpět do zápasu", null, true)) Capture(true);
-            if (Preset(new Rect(x + 22, y + 395, 440, 41), "Opustit místnost", null, false)) Disconnect(null);
-            GUI.Label(new Rect(x + 24, y + 444, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
+            if (Preset(new Rect(x + 22, y + 367, 440, 39), "Zpět do zápasu", null, true)) Capture(true);
+            if (Preset(new Rect(x + 22, y + 412, 440, 35), "Opustit místnost", null, false)) Disconnect(null);
+            GUI.Label(new Rect(x + 24, y + 450, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
         }
 
         void DrawFeelOptions(Rect box)
@@ -289,6 +290,7 @@ namespace Trias.Native
             box.y += 34; Option(box, "Atmosféra", "trias.ambience", ref ambienceVolume, 0, 1, true);
             box.y += 34; Option(box, "Světelné efekty", "trias.visualEffects", ref visualEffects, 0, 1, true);
             box.y += 34; Option(box, "Momentum HUD", "trias.momentum", ref momentumPresentation, 0, 1, true);
+            box.y += 34; Option(box, "Týmové rádio", "trias.radio", ref radioVolume, 0, 1, true);
             visor.Intensity = visualEffects;
             AudioListener.volume = masterVolume;
             effects.AmbienceMix(ambienceVolume, false);

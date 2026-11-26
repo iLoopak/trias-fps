@@ -133,6 +133,7 @@ namespace Trias.Native
             if (captured && !scoreboard) PaintKillFeed(w);
             if (alive && captured && !scoreboard) PaintRadar();
             PaintWaveBanner(cx, h);
+            if (alive && captured && !scoreboard) PaintBotRadio(h);
             if (alive && state["winner"]["label"].Text == null)
             {
                 PaintReticle(w, h);

@@ -15,7 +15,7 @@ namespace Trias.Native
         TriasWorld hangar;
         Avatar hangarPilot;
         string hangarKit, lobbyFocus, keyboardButton, lobbyHover;
-        bool hangarMale, hangarReady, lobbyDragging;
+        bool hangarMale, hangarReady, lobbyDragging, hordeSupport;
         int previewFaction;
         float hangarStart, pilotSwitchAt, hangarYaw, hoverAt;
         static readonly string[] ModeTitles = { "Týmový boj", "Deathmatch", "Dominance", "Obléhání", "Vlajky", "Horda" };
@@ -30,6 +30,7 @@ namespace Trias.Native
             selectedPilot = SavedChoice("trias.pilot",catalog.pilots,selectedPilot);
             fillBots = PlayerPrefs.GetInt("trias.bots",fillBots ? 1 : 0) != 0;
             roomCode = PlayerPrefs.GetString("trias.room","");
+            hordeSupport = PlayerPrefs.GetInt("trias.hordeBots",0) != 0;
             if (!Supports(selectedMap,selectedMode)) selectedMode = "tdm";
 
             static string SavedChoice(string key,Choice[] data,string fallback)
@@ -49,6 +50,7 @@ namespace Trias.Native
             PlayerPrefs.SetString("trias.pilot",selectedPilot);
             PlayerPrefs.SetInt("trias.pilotMale",selectedMale ? 1 : 0);
             PlayerPrefs.SetInt("trias.bots",fillBots ? 1 : 0);
+            PlayerPrefs.SetInt("trias.hordeBots",hordeSupport ? 1 : 0);
             PlayerPrefs.SetString("trias.server",serverAddress);
             PlayerPrefs.SetString("trias.nick",nickname);
             if (saveRoom) PlayerPrefs.SetString("trias.room",roomCode);
@@ -66,7 +68,7 @@ namespace Trias.Native
             SaveLobby(!quick);
             string code = quick ? QuickRoom() : roomCode;
             Join(serverAddress,code,nickname,selectedMap,selectedMode,selectedPilot,quick || fillBots,
-                male: selectedMale, intent: create ? "create" : quick ? null : "join");
+                male: selectedMale, intent: create ? "create" : quick ? null : "join", hordeBots: selectedMode == "horde" && hordeSupport);
             effects.InterfaceTone(socket == null ? "invalid" : "deploy");
         }
 
@@ -244,16 +246,22 @@ namespace Trias.Native
             bool horde = selectedMode == "horde";
             GUI.Label(new Rect(x+16,y+475,318,22),horde ? "1–4 obránci · 8 vln" : selectedMode=="ffa" ? "Až 12 hráčů · každý za sebe" : "Až 12 hráčů · tři týmy po čtyřech",caption);
             if (lobbyPage == LobbyPage.Quick)
-                GUI.Label(new Rect(x+16,y+505,649,23),"Místnost " + QuickRoom() + " na nastaveném serveru",caption);
+                GUI.Label(new Rect(x+16,y+505,315,23),"Místnost " + QuickRoom(),caption);
             else
             {
                 GUI.Label(new Rect(x+16,y+506,100,23),"Kód místnosti",caption);
                 roomCode = LobbyField("field.create",new Rect(x+122,y+498,204,32),roomCode,24);
-                if (!horde && LobbyButton("bots",new Rect(x+349,y+498,201,32),fillBots ? "Boti zapnuti" : "Boti vypnuti",fillBots))
-                {
-                    fillBots = !fillBots;
-                    SaveLobby(false);
-                }
+            }
+            if (horde && LobbyButton("horde-bots",new Rect(x+349,y+498,201,32),hordeSupport ? "Boti brání jádro" : "Obrana bez botů",hordeSupport))
+            {
+                hordeSupport = !hordeSupport;
+                SaveLobby(false);
+            }
+            if (!horde && lobbyPage == LobbyPage.Create &&
+                LobbyButton("bots",new Rect(x+349,y+498,201,32),fillBots ? "Boti zapnuti" : "Boti vypnuti",fillBots))
+            {
+                fillBots = !fillBots;
+                SaveLobby(false);
             }
         }
 
@@ -347,11 +355,11 @@ namespace Trias.Native
             CornerPanel(new Rect(x,y+111,690,528),Amber);
             GUI.Label(new Rect(x+21,y+123,630,37),"Nastavení",heading);
             DrawFeelOptions(new Rect(x+22,y+177,440,34));
-            GUI.Label(new Rect(x+21,y+435,630,34),"Pokročilé připojení",heading);
-            GUI.Label(new Rect(x+22,y+470,420,22),"Adresa herního serveru",caption);
-            GUI.Label(new Rect(x+460,y+470,190,22),"Přezdívka",caption);
-            serverAddress = LobbyField("field.server",new Rect(x+22,y+496,422,34),serverAddress,160);
-            nickname = LobbyField("field.player",new Rect(x+460,y+496,207,34),nickname,18);
+            GUI.Label(new Rect(x+21,y+452,630,34),"Pokročilé připojení",heading);
+            GUI.Label(new Rect(x+22,y+482,420,22),"Adresa herního serveru",caption);
+            GUI.Label(new Rect(x+460,y+482,190,22),"Přezdívka",caption);
+            serverAddress = LobbyField("field.server",new Rect(x+22,y+507,422,34),serverAddress,160);
+            nickname = LobbyField("field.player",new Rect(x+460,y+507,207,34),nickname,18);
             if (LobbyButton("back",new Rect(x+22,y+570,206,42),"Hotovo",true)) CloseLobbySettings();
         }
 

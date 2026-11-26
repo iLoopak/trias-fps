@@ -137,6 +137,8 @@ wss.on('connection', (socket, request) => {
       const arena = MODES[mode]?.arena ?? pick(ARENAS, message.arena, DEFAULT_ARENA);
       room = new Match(code, mode, message.bots !== false, ARENAS[arena], {
         echo: process.env.TRIAS_COMBAT_ECHO !== '0', momentum: process.env.TRIAS_MOMENTUM !== '0',
+        botDifficulty: process.env.TRIAS_BOT_DIFFICULTY, botDebug: process.env.TRIAS_BOT_DEBUG === '1',
+        hordeSupport: mode === 'horde' && (message.hordeBots === true || process.env.TRIAS_HORDE_BOTS === '1'),
       });
       room.reset(time);
       rooms.set(code, room);
@@ -148,6 +150,7 @@ wss.on('connection', (socket, request) => {
     socket.room = room;
     socket.protocolVersion = message.v === NETWORK_VERSION ? NETWORK_VERSION : 1;
     socket.player.signature = socket.protocolVersion === NETWORK_VERSION && message.signature === true;
+    socket.botRadio = socket.protocolVersion === NETWORK_VERSION && message.botRadio === true;
     const fireProfiles = socket.protocolVersion === NETWORK_VERSION && message.predictFire === true ? fireProfileData() : undefined;
     socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion, fireProfiles }));
   });

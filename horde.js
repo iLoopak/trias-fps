@@ -1,4 +1,6 @@
-import { route, visible } from './bots.js';
+import { guideBotAim, route, visible } from './bots.js';
+import { brainFor } from './bot-profiles.js';
+import { senseBots } from './bot-perception.js';
 import { distanceSquared, eyeHeight, packCover, PILOT_HP, TEAM_SIZE, wallDistance, WEAPONS } from './public/rules.js';
 
 const WAVES = 8;
@@ -147,17 +149,20 @@ export class Horde {
   input(enemy, now) {
     const type = TYPES[enemy.hordeType];
     const core = this.core;
-    const player = [...this.room.players.values()]
-      .filter(pilot => !pilot.hordeType && pilot.hp > 0 && pilot.safeUntil <= now
-        && distanceSquared(enemy, pilot) <= type.reach ** 2 && visible(enemy, pilot, this.layout))
-      .sort((a, b) => distanceSquared(enemy, a) - distanceSquared(enemy, b))[0];
+    const brain = brainFor(this.room,enemy);
+    senseBots(this.room,enemy,brain,now);
+    const observed = brain.target;
+    const candidate = observed && observed.distance <= type.reach ? this.room.players.get(observed.id) : null;
+    const player = candidate?.hp > 0 && candidate.safeUntil <= now && visible(enemy,candidate,this.layout) ? candidate : null;
     const nearCore = distanceSquared(enemy, core) <= (type.weapon ? type.reach * .69 : type.reach) ** 2
       && visible(enemy, core, this.layout);
     const barrier = this.structures.find(site => site.kind
       && distanceSquared(enemy, site) <= Math.max(type.reach * (type.weapon ? .55 : 1), 2.25) ** 2
       && visible(enemy, { ...site, y: 0 }, this.room.layout));
     const focus = player ?? barrier ?? (nearCore ? core : null);
-    const attack = focus && now >= enemy.strikeAt;
+    const firingYaw = focus ? Math.atan2(enemy.x-focus.x,enemy.z-focus.z) : enemy.yaw;
+    const attack = focus && now >= enemy.strikeAt && (!player || brain.reactionAt <= now &&
+      (!type.weapon || Math.abs(Math.atan2(Math.sin(firingYaw-enemy.yaw),Math.cos(firingYaw-enemy.yaw))) < .16));
     const from = { x: enemy.x, y: enemy.y + eyeHeight(enemy), z: enemy.z };
     if (attack) {
       enemy.strikeAt = now + type.delay;
@@ -180,8 +185,11 @@ export class Horde {
     while (enemy.path.length && distanceSquared(enemy, enemy.path[0]) < 1.1 ** 2) enemy.path.shift();
     const target = focus ?? enemy.path[0] ?? core;
     const yaw = Math.atan2(enemy.x - target.x, enemy.z - target.z);
-    return { x: 0, z: focus ? 0 : type.pace, yaw,
-      pitch: player ? Math.atan2(player.y + eyeHeight(player) - .43 - from.y, Math.sqrt(distanceSquared(enemy, player))) : 0,
+    const pitch = player ? Math.atan2(player.y + eyeHeight(player) - .43 - from.y,Math.sqrt(distanceSquared(enemy,player)))
+      + Math.sin(now*6+enemy.slot)*brain.tuning.error*.42 : 0;
+    const aim = focus ? guideBotAim(brain,yaw,pitch) : { yaw,pitch: 0 };
+    if (!focus) brain.lookYaw = yaw;
+    return { x: 0, z: focus ? 0 : type.pace, ...aim,
       fire: Boolean(attack && player && type.weapon), sprint: !focus && enemy.hordeType === 'runner', reload: true };
   }
 

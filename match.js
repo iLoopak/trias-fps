@@ -3,6 +3,8 @@ import {
   GRENADE, hitHeight, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, turretYaw, wallDistance, WEAPONS,
 } from './public/rules.js';
 import { botInput } from './bots.js';
+import { normalizeDifficulty } from './bot-profiles.js';
+import { botSound, noteBotHit } from './bot-perception.js';
 import { Fleet } from './fleet.js';
 import { Siege } from './siege.js';
 import { Horde } from './horde.js';
@@ -27,6 +29,9 @@ export class Match {
     this.mode = mode;
     this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' ? ARENAS.relay : layout;
     this.bots = bots;
+    this.botDifficulty = normalizeDifficulty(signature.botDifficulty);
+    this.botDebug = signature.botDebug === true;
+    this.hordeSupport = signature.hordeSupport === true;
     this.players = new Map();
     this.humans = new Set();
     this.events = [];
@@ -43,6 +48,11 @@ export class Match {
 
   reset(now) {
     this.signature.reset();
+    this.botSound = [];
+    this.botSoundIndex = -1;
+    this.botMetrics = { stuck: 0 };
+    this.radioAt = [];
+    this.radioReadyAt = now + 2.2;
     this.endsAt = now + (MODES[this.mode]?.time ?? 0);
     this.restartAt = 0;
     this.winner = null;
@@ -112,13 +122,30 @@ export class Match {
   }
 
   fillBots(now) {
-    if (!this.bots || this.horde) return;
+    if (this.horde ? !this.hordeSupport : !this.bots) return;
     for (const [team, spawns] of this.layout.spawns.entries()) {
+      if (this.horde && team !== 0) continue;
       for (const slot of spawns.keys()) {
         if ([...this.players.values()].some(player => player.team === team && player.slot === slot)) continue;
         this.addPlayer('bot-' + team + '-' + slot, BOT_NAMES[team * TEAM_SIZE + slot], team, slot, now, true, BOT_CHARACTERS[(team + slot) % BOT_CHARACTERS.length], slot % 2 === 0 ? 'male' : undefined);
       }
     }
+  }
+
+  radioBot(player, line, now) {
+    if (this.mode === 'ffa' || now < (this.radioAt[player.team] ?? this.radioReadyAt) ||
+        now < (player.radioAt ?? 0)) return false;
+    let message;
+    for (const socket of this.humans) {
+      if (!socket.botRadio || socket.player.team !== player.team || socket.player.hp <= 0 ||
+          socket.readyState !== 1 || socket.bufferedAmount >= 8192) continue;
+      message ??= JSON.stringify({ type: 'bot-radio', name: player.name, line, frame: player.frame === 'male' ? 'male' : 'female' });
+      socket.send(message);
+    }
+    if (!message) return false;
+    this.radioAt[player.team] = now + 8.5;
+    player.radioAt = now + 19;
+    return true;
   }
 
   removePlayer(id, now) {
@@ -238,6 +265,7 @@ export class Match {
     const shieldBreak = absorbed > 0 && target.armor === 0;
     const health = Math.min(target.hp, amount - absorbed);
     target.hp -= health;
+    noteBotHit(attacker,target.id,health,now);
     if (!target.hp) {
       this.signature.respawn(target);
       this.streaks.kill(attacker, target, direct);
@@ -280,9 +308,11 @@ export class Match {
     if (!mounted && !vehicle) player.loadout[key].ammo -= weapon.cost ?? 1;
     if (!vehicle) player.fireAt = now + weapon.interval;
     player.safeUntil = now;
+    if (player.bot && player.brain) player.brain.lastDischargeAt = now;
     const mountedAim = vehicle && this.vehicleAim(player, vehicle, weapon.range);
     const origin = trigger?.origin ?? mountedAim?.origin ?? { x: player.x, y: player.y + eyeHeight(player), z: player.z };
     const from = [origin.x, origin.y - 0.12, origin.z];
+    botSound(this,player,origin,now,key === 'arc' ? 21 : 26);
     const hits = [];
     const ends = [];
     this.events.push({ type: 'shot', id: player.id, weapon: key, from, ends, hits, alt, mounted, vehicle: vehicle?.id, fireId: trigger?.fireId, echo: trigger?.echo });
@@ -650,9 +680,10 @@ export class Match {
             signal = 'step';
           }
         } else player.stride = 0;
-        if (signal) this.events.push({
-          type: 'movement', id: player.id, action: signal, position: [player.x, player.y, player.z], team: player.team,
-        });
+        if (signal) {
+          this.events.push({ type: 'movement',id: player.id,action: signal,position: [player.x,player.y,player.z],team: player.team });
+          botSound(this,player,{ x: player.x,y: player.y + .6,z: player.z },now,signal === 'step' ? 9 : 13);
+        }
         const switchTo = input.weapon ?? player.weaponRequest;
         if (switchTo) this.selectWeapon(player, switchTo, now);
         const spec = WEAPONS[player.weapon];
@@ -668,7 +699,7 @@ export class Match {
         if (player.bot && !active.ammo && !active.reserve) this.selectWeapon(player, DEFAULT_WEAPON, now);
         if (player.grenadeRequest && player.grenades > 0) this.throwGrenade(player, now);
         const echoRequest = player.echoRequest ?? (input.echo ? {
-          echo: this.signature.echoes.get(player.id)?.serial, yaw: player.yaw, pitch: player.pitch, alt: false,
+          echo: this.signature.echoes.get(player.id)?.serial, yaw: input.echo.yaw, pitch: input.echo.pitch, alt: false,
         } : null);
         player.echoRequest = null;
         const echoFired = this.signature.fire(player, echoRequest, now);
