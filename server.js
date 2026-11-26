@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
-import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, TICK, roomCode } from './public/rules.js';
+import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
 import { Match } from './match.js';
 import { NETWORK_VERSION, unpackInput } from './public/netcode.js';
 
@@ -75,7 +75,7 @@ server.on('upgrade', (request, socket, head) => {
     socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
     return;
   }
-  wss.handleUpgrade(request, socket, head, ws => wss.emit('connection', ws));
+  wss.handleUpgrade(request, socket, head, ws => wss.emit('connection', ws, request));
 });
 
 function reject(socket, message) {
@@ -83,7 +83,7 @@ function reject(socket, message) {
   socket.close(1008);
 }
 
-wss.on('connection', socket => {
+wss.on('connection', (socket, request) => {
   Object.assign(socket, { id: randomUUID(), created: now(), alive: true, messages: 0, window: now() });
   socket.on('error', () => socket.terminate());
   socket.on('pong', () => { socket.alive = true; });
@@ -120,16 +120,20 @@ wss.on('connection', socket => {
     let room = rooms.get(code);
     if (!room) {
       if (rooms.size >= 16) return reject(socket, 'Server má plno. Zkus existující místnost.');
-      const mode = pick(MODES, message.mode, DEFAULT_MODE);
-      const arena = MODES[mode].arena ?? pick(ARENAS, message.arena, DEFAULT_ARENA);
+      const mode = message.mode === 'horde' && message.v === NETWORK_VERSION && !request.headers.origin
+        ? 'horde' : pick(MODES, message.mode, DEFAULT_MODE);
+      const arena = MODES[mode]?.arena ?? pick(ARENAS, message.arena, DEFAULT_ARENA);
       room = new Match(code, mode, message.bots !== false, ARENAS[arena]);
       room.reset(time);
       rooms.set(code, room);
     }
-    if (!room.join(socket, name || 'Pilot', time, pick(CHARACTERS, message.character, DEFAULT_CHARACTER))) return reject(socket, 'Místnost už má 12 hráčů.');
+    if (room.horde && (message.v !== NETWORK_VERSION || request.headers.origin))
+      return reject(socket, 'Horda je dostupná v nativním klientu TRIAS.');
+    if (!room.join(socket, name || 'Pilot', time, pick(CHARACTERS, message.character, DEFAULT_CHARACTER)))
+      return reject(socket, room.horde ? 'Obrana má plný tým čtyř hráčů.' : 'Místnost už má 12 hráčů.');
     socket.room = room;
     socket.protocolVersion = message.v === NETWORK_VERSION ? NETWORK_VERSION : 1;
-    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: CAPACITY, v: socket.protocolVersion }));
+    socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: code, mode: room.mode, arena: room.layout.id, bots: room.bots, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion }));
   });
   socket.on('close', () => {
     const room = socket.room;

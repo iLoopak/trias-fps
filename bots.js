@@ -36,7 +36,7 @@ function nearestCell(position, { cells, edges }) {
   return index;
 }
 
-function route(from, to, layout) {
+export function route(from, to, layout) {
   const grid = navigationFor(layout);
   const { cells, edges } = grid;
   const start = nearestCell(from, grid);
@@ -58,7 +58,7 @@ function route(from, to, layout) {
   return path.reverse();
 }
 
-function visible(from, to, layout) {
+export function visible(from, to, layout) {
   const dy = to.y + eyeHeight(to) - from.y - eyeHeight(from);
   const distance = Math.hypot(to.x - from.x, dy, to.z - from.z);
   if (distance < 0.01) return true;

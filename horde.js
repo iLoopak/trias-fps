@@ -1,0 +1,124 @@
+import { route, visible } from './bots.js';
+import { distanceSquared, eyeHeight, PILOT_HP, TEAM_SIZE, WEAPONS } from './public/rules.js';
+
+const WAVES = 8;
+const MAX_ACTIVE = 8;
+const CORE_HP = 740;
+const TYPES = {
+  runner: { name: 'Lovec', character: 'kestrel', hp: 64, armor: 0, reach: 1.85, damage: 13, pace: 1.0, delay: .9 },
+  striker: { name: 'Střelec', character: 'vector', hp: 100, armor: 10, reach: 14, damage: 13, pace: .82, delay: 1.2, weapon: 'arc' },
+  crusher: { name: 'Drtič', character: 'bulwark', hp: 218, armor: 25, reach: 2.6, damage: 39, pace: .55, delay: 1.5 },
+  sentinel: { name: 'Strážce', character: 'wraith', hp: 270, armor: 45, reach: 17, damage: 30, pace: .64, delay: 1.45, weapon: 'lance' },
+};
+const UNLOCK = { scatter: 2, arc: 3, surge: 4, lance: 5, rift: 6 };
+const REWARDS = ['Doplňte munici', 'Scatter a granát', 'Arc a oprava jádra', 'Overcharge a léčení',
+  'Lance a štít', 'Rift a granáty', 'Overcharge a oprava jádra', 'Veškeré zásoby'];
+
+export class Horde {
+  constructor(room) { this.room = room; }
+
+  reset(now) {
+    for (const pilot of this.room.players.values()) if (pilot.hordeType) this.room.players.delete(pilot.id);
+    this.core = { ...this.room.layout.bases[0], y: .78, hp: CORE_HP, maxHp: CORE_HP };
+    this.wave = this.remaining = 0;
+    this.nextEnemy = this.nextEnemy ?? 0;
+    this.nextWaveAt = now + 10;
+    this.deployAt = now;
+  }
+
+  get alive() {
+    return [...this.room.players.values()].filter(pilot => pilot.hordeType && pilot.hp > 0);
+  }
+
+  available(item) { return this.wave >= (UNLOCK[item.type] ?? 0); }
+
+  reward(pilot, now) {
+    for (const [weapon, wave] of Object.entries(UNLOCK)) {
+      if (wave > this.wave || !Object.hasOwn(WEAPONS, weapon)) continue;
+      const spec = WEAPONS[weapon];
+      pilot.loadout[weapon] = { ammo: spec.magazine, reserve: spec.reserve };
+    }
+    if (this.wave > 1) pilot.grenades = this.wave >= 6 ? 2 : 1;
+    if (this.wave >= 4) pilot.hp = Math.min(PILOT_HP, pilot.hp + 30);
+    if (this.wave >= 5) pilot.armor = Math.max(pilot.armor, 30);
+    if (this.wave === 7 || this.wave === 8) pilot.surgeUntil = now + 18;
+  }
+
+  start(now) {
+    this.wave++;
+    this.nextWaveAt = 0;
+    this.deployAt = now;
+    this.remaining = 4 + this.wave * 2 + Math.max(0, this.room.humans.size - 1) * 2;
+    this.core.hp = Math.min(CORE_HP, this.core.hp + (this.wave === 3 || this.wave === 7 ? 115 : 42));
+    for (const pilot of this.room.players.values()) if (pilot.hp > 0 && !pilot.hordeType) this.reward(pilot, now);
+    this.room.events.push({ type: 'notice', text: `Vlna ${this.wave}/${WAVES} · ${REWARDS[this.wave - 1]}` });
+  }
+
+  dispatch(now, active) {
+    const index = Array.from({ length: MAX_ACTIVE }, (_, i) => i).find(i => !active.some(pilot => pilot.hordeSlot === i));
+    const team = 1 + Math.floor(index / TEAM_SIZE);
+    const slot = index % TEAM_SIZE;
+    const variant = this.wave >= 5 && this.remaining % 6 === 1 ? 'sentinel'
+      : this.wave >= 3 && this.remaining % 4 === 0 ? 'crusher'
+        : this.wave >= 2 && this.remaining % 3 === 0 ? 'striker' : 'runner';
+    const type = TYPES[variant];
+    const id = 'horde-' + ++this.nextEnemy;
+    const enemy = this.room.addPlayer(id, type.name, team, slot, now, true, type.character);
+    const flank = 1 + (this.remaining + this.wave) % 2;
+    Object.assign(enemy, this.room.layout.spawns[flank][slot], { hordeType: variant, hordeSlot: index,
+      hp: Math.round(type.hp * (1 + (this.wave - 1) * .10)),
+      armor: type.armor, safeUntil: now + .35, strikeAt: now + .8, routeAt: now, weapon: type.weapon ?? 'pulse' });
+    enemy.loadout[enemy.weapon] = { ammo: WEAPONS[enemy.weapon].magazine, reserve: Infinity };
+    this.remaining--;
+    this.deployAt = now + Math.max(.43, 1.25 - this.wave * .10);
+  }
+
+  input(enemy, now) {
+    const type = TYPES[enemy.hordeType];
+    const core = this.core;
+    const player = [...this.room.players.values()]
+      .filter(pilot => !pilot.hordeType && pilot.hp > 0 && pilot.safeUntil <= now
+        && distanceSquared(enemy, pilot) <= type.reach ** 2 && visible(enemy, pilot, this.room.layout))
+      .sort((a, b) => distanceSquared(enemy, a) - distanceSquared(enemy, b))[0];
+    const nearCore = distanceSquared(enemy, core) <= (type.weapon ? type.reach * .69 : type.reach) ** 2
+      && visible(enemy, core, this.room.layout);
+    const focus = player ?? (nearCore ? core : null);
+    const attack = focus && now >= enemy.strikeAt;
+    const from = { x: enemy.x, y: enemy.y + eyeHeight(enemy), z: enemy.z };
+    if (attack) {
+      enemy.strikeAt = now + type.delay;
+      if (!player) {
+        this.core.hp = Math.max(0, core.hp - Math.round(type.damage * (1 + (this.wave - 1) * .06)));
+        this.room.events.push({ type: 'core-hit', from: [enemy.x, from.y, enemy.z], position: [core.x, core.y, core.z], weapon: type.weapon ?? 'scatter' });
+      } else if (!type.weapon) this.room.damage(enemy, player, type.damage, now, from, 'scatter');
+    }
+    if (now >= enemy.routeAt) {
+      enemy.routeAt = now + .48 + enemy.slot * .07;
+      enemy.path = route(enemy, core, this.room.layout);
+    }
+    while (enemy.path.length && distanceSquared(enemy, enemy.path[0]) < 1.1 ** 2) enemy.path.shift();
+    const target = focus ?? enemy.path[0] ?? core;
+    const yaw = Math.atan2(enemy.x - target.x, enemy.z - target.z);
+    return { x: 0, z: focus ? 0 : type.pace, yaw,
+      pitch: player ? Math.atan2(player.y + eyeHeight(player) - .43 - from.y, Math.sqrt(distanceSquared(enemy, player))) : 0,
+      fire: Boolean(attack && player && type.weapon), sprint: !focus && enemy.hordeType === 'runner', reload: true };
+  }
+
+  step(now) {
+    for (const pilot of this.room.players.values()) if (pilot.hordeType && pilot.hp <= 0) this.room.removePlayer(pilot.id, now);
+    const active = this.alive;
+    if (this.core.hp === 0) return 'Jádro padlo';
+    if (this.nextWaveAt && now >= this.nextWaveAt) this.start(now);
+    if (this.remaining > 0 && now >= this.deployAt && active.length < MAX_ACTIVE) this.dispatch(now, active);
+    if (!this.nextWaveAt && !this.remaining && !active.length) {
+      if (this.wave === WAVES) return 'Jádro ubráněno';
+      this.nextWaveAt = now + 12;
+      this.room.events.push({ type: 'notice', text: `Vlna ${this.wave} odražena · 12 sekund na přípravu` });
+    }
+  }
+
+  snapshot(now) {
+    return { wave: this.wave, waves: WAVES, enemies: this.remaining + this.alive.length,
+      countdown: Math.max(0, Math.ceil(this.nextWaveAt - now)), core: this.core };
+  }
+}

@@ -5,6 +5,7 @@ import {
 import { botInput } from './bots.js';
 import { Fleet } from './fleet.js';
 import { Siege } from './siege.js';
+import { Horde } from './horde.js';
 import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
 import { NETWORK_VERSION, packSnapshot } from './public/netcode.js';
 
@@ -17,7 +18,7 @@ export class Match {
   constructor(code, mode, bots, layout = ARENAS.relay) {
     this.code = code;
     this.mode = mode;
-    this.layout = mode === 'siege' ? ARENAS.basin : layout;
+    this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' ? ARENAS.relay : layout;
     this.bots = bots;
     this.players = new Map();
     this.humans = new Set();
@@ -27,11 +28,12 @@ export class Match {
     this.tickNumber = 0;
     this.fleet = new Fleet(this);
     this.siege = mode === 'siege' ? new Siege(this, this.layout.siege) : null;
+    this.horde = mode === 'horde' ? new Horde(this) : null;
     this.reset(0);
   }
 
   reset(now) {
-    this.endsAt = now + MODES[this.mode].time;
+    this.endsAt = now + (MODES[this.mode]?.time ?? 0);
     this.restartAt = 0;
     this.winner = null;
     this.scores = TEAMS.map(() => 0);
@@ -40,6 +42,7 @@ export class Match {
     this.pickups = this.layout.pickups.map(() => 0);
     this.projectiles = [];
     this.siege?.reset();
+    this.horde?.reset(now);
     this.fleet.reset(now);
     this.turrets = this.layout.turrets.map(item => ({ ...item, user: null, heat: 0, hot: false, firedAt: -100 }));
 
@@ -67,6 +70,7 @@ export class Match {
       safeUntil: now + 1.4, reloadAt: 0, respawnAt: 0, input: EMPTY, inputAt: now, fireRequest: false, reloadRequest: false, jumpRequest: false, dodgeRequest: false, altRequest: false, grenadeRequest: false, useRequest: false, weaponRequest: null,
       spawn: player.spawn + 1, target: null, routeAt: 0, path: [], usedLaunch: false, launchAt: -100, dodgeDecisionAt: 0, stride: 0, sprint: false,
     });
+    this.horde?.reward(player, now);
   }
 
   addPlayer(id, name, team, slot, now, bot = false, character = DEFAULT_CHARACTER) {
@@ -77,6 +81,7 @@ export class Match {
   }
 
   join(socket, name, now, character = DEFAULT_CHARACTER) {
+    if (this.horde && this.humans.size >= TEAM_SIZE) return false;
     if (this.humans.size >= CAPACITY) return false;
     const counts = TEAMS.map((_, team) => [...this.players.values()].filter(p => !p.bot && p.team === team).length);
     const open = counts.map((count, team) => ({ count, team })).filter(item => item.count < TEAM_SIZE);
@@ -84,7 +89,7 @@ export class Match {
       const alive = this.siege ? Number(this.siege.alive(b.team)) - Number(this.siege.alive(a.team)) : 0;
       return alive || a.count - b.count || a.team - b.team;
     });
-    const team = open[0].team;
+    const team = this.horde ? 0 : open[0].team;
     const slot = this.layout.spawns[team].findIndex((_, i) => ![...this.players.values()].some(p => p.team === team && p.slot === i && !p.bot));
     this.removePlayer('bot-' + team + '-' + slot, now);
     socket.player = this.addPlayer(socket.id, name, team, slot, now, false, character);
@@ -94,7 +99,7 @@ export class Match {
   }
 
   fillBots(now) {
-    if (!this.bots) return;
+    if (!this.bots || this.horde) return;
     for (const [team, spawns] of this.layout.spawns.entries()) {
       for (const slot of spawns.keys()) {
         if ([...this.players.values()].some(player => player.team === team && player.slot === slot)) continue;
@@ -156,7 +161,8 @@ export class Match {
   }
 
   hostile(attacker, target) {
-    return target !== attacker && target.hp > 0 && target.vehicle < 0 && (this.mode === 'ffa' || target.team !== attacker.team);
+    return target !== attacker && target.hp > 0 && target.vehicle < 0
+      && (this.horde ? Boolean(target.hordeType) !== Boolean(attacker.hordeType) : this.mode === 'ffa' || target.team !== attacker.team);
   }
 
   trace(player, origin, direction, range, width = 0) {
@@ -188,9 +194,9 @@ export class Match {
     return { target, distance };
   }
 
-  damage(attacker, target, value, now, origin) {
+  damage(attacker, target, value, now, origin, weapon, impact) {
     if (target.opened !== undefined) return this.siege.damage(attacker, target, value, now);
-    if (target.kind) return this.fleet.damage(attacker, target, value, now, origin);
+    if (target.kind) return this.fleet.damage(attacker, target, value, now, origin, weapon, impact);
     const amount = Math.round(value);
     const absorbed = Math.min(target.armor, Math.ceil(amount * 0.7));
     target.armor -= absorbed;
@@ -199,16 +205,16 @@ export class Match {
     if (!target.hp) {
       attacker.kills++;
       target.deaths++;
-      target.respawnAt = now + RESPAWN;
+      target.respawnAt = now + (this.horde ? 5.5 : RESPAWN);
       this.unmount(target);
       this.fleet.release(target, now);
       this.dropFlag(target, now);
       if (this.mode === 'tdm') this.scores[attacker.team]++;
       this.events.push({ type: 'kill', attacker: attacker.name, victim: target.name, team: attacker.team,
-        attackerId: attacker.id, victimId: target.id,
+        attackerId: attacker.id, victimId: target.id, weapon, impact,
         body: { x: target.x, y: target.y, z: target.z, vx: target.vx, vy: target.vy, vz: target.vz,
           yaw: target.yaw, crouch: target.crouch, team: target.team, slot: target.slot, character: target.character,
-          weapon: target.weapon, from: [origin.x, origin.y, origin.z] },
+          weapon: target.weapon, hordeType: target.hordeType, from: [origin.x, origin.y, origin.z] },
       });
     }
     return { id: target.id, health, absorbed, eliminated: target.hp === 0 };
@@ -253,7 +259,13 @@ export class Match {
     for (const [index, offset] of weapon.pattern.entries()) {
       const direction = mountedAim?.direction ?? aimVector(player.yaw + offset, player.pitch + (index % 2 ? offset * 0.7 : -offset * 0.7));
       const { target, distance } = this.trace(player, origin, direction, weapon.range);
-      if (target && (target.opened !== undefined || target.kind || target.safeUntil <= now)) damage.set(target, (damage.get(target) ?? 0) + weapon.damage * power);
+      if (target && (target.opened !== undefined || target.kind || target.safeUntil <= now)) {
+        const hit = damage.get(target);
+        if (hit) hit.damage += weapon.damage * power;
+        else damage.set(target, { damage: weapon.damage * power, impact: [
+          origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance,
+        ] });
+      }
       const impact = target?.opened !== undefined
         ? (target.opened & (1 << player.team) ? 'core' : 'shield')
         : target ? (target.kind || target.armor || target.safeUntil > now ? 'shield' : 'pilot')
@@ -261,7 +273,7 @@ export class Match {
       ends.push([origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance, impact]);
     }
     for (const [target, value] of damage) {
-      const hit = this.damage(player, target, value, now, origin);
+      const hit = this.damage(player, target, value.damage, now, origin, key, value.impact);
       if (hit) hits.push(hit);
     }
   }
@@ -326,7 +338,7 @@ export class Match {
         strength = 1 - Math.max(0, gap - (core ? other.radius : 0)) / spec.radius;
       }
       const amount = other === target ? projectile.spec.damage : Math.max(8, spec.splash * strength);
-      const hit = this.damage(owner, other, amount * power * (vehicle ? 1.32 : 1), now, origin);
+      const hit = this.damage(owner, other, amount * power * (vehicle ? 1.32 : 1), now, origin, weapon);
       if (!hit) continue;
       hits.push(hit);
       if (!hit.eliminated && !vehicle && !core) {
@@ -410,8 +422,10 @@ export class Match {
 
   updatePickups(now) {
     for (const [i, pickup] of this.layout.pickups.entries()) {
+      if (this.horde && !this.horde.available(pickup)) continue;
       if (this.pickups[i] > now) continue;
       const player = [...this.players.values()].find(candidate => candidate.hp > 0 && candidate.vehicle < 0
+        && !candidate.hordeType
         && Math.abs(candidate.y - pickup.y) < 0.78 && distanceSquared(candidate, pickup) < 1.14 ** 2
         && (pickup.type !== 'med' || candidate.hp < PILOT_HP)
         && (pickup.type !== 'shield' || candidate.armor < SHIELD_ARMOR));
@@ -494,6 +508,11 @@ export class Match {
   }
 
   checkEnd(now) {
+    if (this.horde) {
+      const label = this.horde.step(now);
+      if (label) { this.winner = { label }; this.restartAt = now + ROUND_PAUSE; }
+      return;
+    }
     if (this.siege) {
       const winner = this.siege.winner(now >= this.endsAt);
       if (winner) {
@@ -522,10 +541,11 @@ export class Match {
       }
       for (const player of this.players.values()) {
         if (player.hp <= 0) {
-          if (now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
+          if (!player.hordeType && now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
           continue;
         }
-        let input = player.bot ? botInput(this, player, now) : now - player.inputAt < 0.24 ? player.input : EMPTY;
+        let input = player.hordeType ? this.horde.input(player, now)
+          : player.bot ? botInput(this, player, now) : now - player.inputAt < 0.24 ? player.input : EMPTY;
         if (player.triggerAim && (now - player.triggerAim.time) <= 0.12 && player.triggerAim.time >= player.inputAt) {
           input = { ...input, yaw: player.triggerAim.yaw, pitch: player.triggerAim.pitch };
         }
@@ -625,11 +645,12 @@ export class Match {
       yaw: p.yaw, pitch: p.pitch, hp: p.hp, armor: p.armor, surge: Math.max(0, Math.ceil(p.surgeUntil - now)), weapon: p.weapon,
       loadout: ARMORY.map(key => p.loadout[key] ? [p.loadout[key].ammo, Number.isFinite(p.loadout[key].reserve) ? p.loadout[key].reserve : -1] : null), kills: p.kills, deaths: p.deaths, spawn: p.spawn, ack: p.ack,
       respawn: Math.max(0, p.respawnAt - now), reload: p.reloadAt > now, reloadRemaining: Math.max(0, p.reloadAt - now), shield: p.safeUntil > now,
+      hordeType: p.hordeType,
     }));
     const state = {
-      type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), time: Math.max(0, Math.ceil(this.endsAt - now)),
+      type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), horde: this.horde?.snapshot(now), time: Math.max(0, Math.ceil(this.endsAt - now)),
       points: this.mode === 'dom' ? this.points : undefined, flags: this.mode === 'ctf' ? this.flags : undefined,
-      pickups: this.pickups.map(time => Math.max(0, Math.ceil(time - now))),
+      pickups: this.pickups.map((time, i) => this.horde && !this.horde.available(this.layout.pickups[i]) ? 1 : Math.max(0, Math.ceil(time - now))),
       vehicles: this.fleet.snapshot(now),
       turrets: this.turrets.map(item => ({ user: item.user, heat: item.heat, hot: item.hot })),
       projectiles: this.projectiles.map(shot => ({

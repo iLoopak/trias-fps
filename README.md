@@ -4,6 +4,12 @@ Původní 3D multiplayerová FPS na orbitální stanici Relay. Zápas se odehrá
 
 ## Spuštění
 
+### Unity
+
+Unity je hlavní klient TRIAS. Otevři projekt `unity-vfx-preview` v Unity 6.3 LTS a zvol **TRIAS → Open full game**. Online zápas řídí samostatný server Node.js. [Návod pro Unity](unity-vfx-preview/README.md)
+
+### Webová verze
+
 Potřebuješ Node.js 22 nebo novější a desktopový prohlížeč s WebGL 2 a podporou zámku myši.
 
 ```sh

@@ -75,7 +75,7 @@ export class Fleet {
     return hull.hp > 0 && hull.driver !== attacker.id && (this.match.mode === 'ffa' || hull.team !== attacker.team);
   }
 
-  damage(attacker, hull, amount, now, origin) {
+  damage(attacker, hull, amount, now, origin, weapon, impact) {
     if (hull.protectedUntil > now) return null;
     const lost = Math.min(hull.hp, Math.round(amount));
     hull.hp -= lost;
@@ -85,7 +85,7 @@ export class Fleet {
     this.match.events.push({ type: 'wreck', id: hull.id, position: [hull.x, 0.62, hull.z], kind: hull.kind, team: hull.team });
     hull.respawnAt = now + VEHICLES[hull.kind].respawn;
     hull.speed = 0;
-    if (driver?.hp > 0) return this.match.damage(attacker, driver, driver.hp + driver.armor, now, origin);
+    if (driver?.hp > 0) return this.match.damage(attacker, driver, driver.hp + driver.armor, now, origin, weapon, impact);
     hull.driver = null;
     return hit;
   }
@@ -119,7 +119,7 @@ export class Fleet {
       target.grounded = false;
       const hits = [];
       this.match.events.push({ type: 'collision', id: player.id, from: [hull.x, spec.height * 0.6, hull.z], hits });
-      hits.push(this.match.damage(player, target, Math.min(52, Math.abs(hull.speed) * 2.1), now, { x: hull.x, y: 0.8, z: hull.z }));
+      hits.push(this.match.damage(player, target, Math.min(52, Math.abs(hull.speed) * 2.1), now, { x: hull.x, y: 0.8, z: hull.z }, 'collision'));
       hull.speed *= 0.82;
     }
   }

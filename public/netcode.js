@@ -46,6 +46,7 @@ export function packSnapshot(state, frame, time) {
     ...world, tick: frame, at: Math.round(time * 1000), v: NETWORK_VERSION,
     players: players.map(p => [
       p.id, p.name, flags(p, PLAYER_FLAGS), ...PLAYER_FIELDS.map(key => p[key]), ...PLAYER_MOTION.map(key => round(p[key])),
+      ...(p.hordeType ? [p.hordeType] : []),
     ]),
     vehicles: vehicles.map(hull => [
       ...VEHICLE_FIELDS.map(key => hull[key]), ...VEHICLE_MOTION.map(key => round(hull[key])),
