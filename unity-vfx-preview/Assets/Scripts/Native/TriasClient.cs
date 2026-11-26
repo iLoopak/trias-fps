@@ -114,6 +114,7 @@ namespace Trias.Native
         {
             socket?.Dispose(); socket = null;
             world?.Dispose(); world = null;
+            ResetConstruction();
             if (grip != null) Destroy(grip.gameObject);
             grip = null;
             effects.ClearTransient();
@@ -131,7 +132,7 @@ namespace Trias.Native
         {
             captured = enabled;
             scoreboard = false;
-            if (!enabled) { queuedButtons = 0; requestedWeapon = null; }
+            if (!enabled) { queuedButtons = 0; requestedWeapon = null; building = false; }
             Cursor.lockState = enabled ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !enabled;
         }
@@ -151,6 +152,7 @@ namespace Trias.Native
                     Disconnect("Server neodpověděl včas.");
             }
             if (world == null || own == null) return;
+            if (!CanBuild) building = false;
             if (Input.GetKeyDown(KeyCode.Escape)) Capture(!captured);
             if (captured && Cursor.lockState != CursorLockMode.Locked && Application.isFocused) Capture(false);
 
@@ -176,6 +178,7 @@ namespace Trias.Native
                 socket.Send("{\"type\":\"ping\",\"id\":" + (++pingId) + "}");
             }
             RenderWorld(now, Time.unscaledDeltaTime);
+            RenderConstruction();
         }
 
         void ReadKeys()
@@ -184,6 +187,7 @@ namespace Trias.Native
             pitch = Mathf.Clamp(pitch - Input.GetAxisRaw("Mouse Y") * sensitivity, -84.8f, 84.8f);
             if (Input.GetKeyDown(KeyCode.Space)) queuedButtons |= 1 << 5;
             if (Input.GetKeyDown(KeyCode.Q)) queuedButtons |= 1 << 6;
+            if (ReadConstruction()) return;
             if (Input.GetKeyDown(KeyCode.R)) queuedButtons |= 1 << 4;
             if (Input.GetKeyDown(KeyCode.G)) queuedButtons |= 1 << 8;
             if (Input.GetKeyDown(KeyCode.E)) queuedButtons |= 1 << 9;
@@ -225,7 +229,7 @@ namespace Trias.Native
                 if (Input.GetKey(KeyCode.C)) bits |= 1;
                 if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) bits |= 1 << 1;
                 if (Input.GetKey(KeyCode.Space)) bits |= 1 << 2;
-                if (Input.GetMouseButton(0)) bits |= 1 << 3;
+                if (!building && Input.GetMouseButton(0)) bits |= 1 << 3;
             }
             var command = new Command {
                 Seq = sequence + 1, Bits = bits, Horizontal = Playing ? -Input.GetAxisRaw("Horizontal") : 0,
@@ -241,13 +245,16 @@ namespace Trias.Native
             if (own[6].Int <= 0 || own[15].Int >= 0 || own[16].Int >= 0 || state["winner"]["label"].Text != null) return;
             commands.Add(command);
             if (commands.Count > 24) commands.RemoveAt(0);
-            predicted.Step(command, world.Spec);
+            predicted.Step(command, movement ?? world.Spec);
         }
 
         void Accept(WireValue message, float now)
         {
             switch (message["type"].Text)
             {
+                case "build-error":
+                    AddNotice(message["message"].Text);
+                    return;
                 case "error":
                     Disconnect(message["message"].Text);
                     return;
@@ -329,12 +336,13 @@ namespace Trias.Native
                     spectator = killer = null; replayUntil = 0;
                 }
             }
+            SyncConstruction(snapshot["horde"]["build"]);
             int applied = own[14].Int;
             int count = 0;
             while (count < commands.Count && commands[count].Seq <= applied) count++;
             if (count > 0) commands.RemoveRange(0, count);
             if (own[6].Int > 0 && own[15].Int < 0 && own[16].Int < 0 && snapshot["winner"]["label"].Text == null)
-                foreach (var input in commands) predicted.Step(input, world.Spec);
+                foreach (var input in commands) predicted.Step(input, movement ?? world.Spec);
             if (previous != null)
             {
                 if (own[6].Int < previous[6].Int || own[7].Int < previous[7].Int) hurt = 1;
@@ -443,6 +451,12 @@ namespace Trias.Native
             bool local = evt["id"].Text == identity;
             switch (type)
             {
+                case "built":
+                    effects.Pickup(At(evt["position"]), Catalog.Tint("#c3fa83"), false);
+                    break;
+                case "tower-shot":
+                    effects.Shot(At(evt["from"]), At(evt["position"]), true, false, Catalog.Tint("#99f8ff"), "arc");
+                    break;
                 case "shot":
                     Vector3 source = At(evt["from"]);
                     if (local && own[15].Int < 0 && own[16].Int < 0) source = grip.TransformPoint(new Vector3(0, .04f, .32f));

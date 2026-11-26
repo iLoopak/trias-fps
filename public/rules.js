@@ -132,7 +132,7 @@ const relayCover = [
   { x: 0, z: 0, w: 2.25, d: 2.25, h: 4.5, sector: -1, relay: true },
 ];
 
-function packCover(cover) {
+export function packCover(cover) {
   return cover.map(box => ({
     bottom: 0, ...box, cos: Math.cos(box.angle ?? 0), sin: Math.sin(box.angle ?? 0),
     radius: Math.hypot(box.w, box.d) / 2,

@@ -524,7 +524,7 @@ namespace Trias.Native
 
         public void Dispose()
         {
-            Object.Destroy(Root.gameObject);
+            if (Root != null) Object.Destroy(Root.gameObject);
             foreach (var material in Paint) Object.Destroy(material);
             foreach (var mesh in meshes) Object.Destroy(mesh);
         }

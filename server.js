@@ -107,6 +107,11 @@ wss.on('connection', (socket, request) => {
         if (input) socket.room.input(socket.player, input, time);
       }
       if (socket.protocolVersion === NETWORK_VERSION && message.type === 'trigger') socket.room.trigger(socket.player, message, time);
+      if (socket.protocolVersion === NETWORK_VERSION && message.type === 'build' && socket.room.horde
+        && typeof message.kind === 'string') {
+        const error = socket.room.horde.build(socket.player, message.site, message.kind, time);
+        if (error) socket.send(JSON.stringify({ type: 'build-error', message: error }));
+      }
       if (message.type === 'ping' && Number.isSafeInteger(message.id) && socket.bufferedAmount < 8192) {
         socket.send(JSON.stringify({ type: 'pong', id: message.id }));
       }

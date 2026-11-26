@@ -105,12 +105,8 @@ namespace Trias.Native
 
         internal bool Nature(Transform parent, string name, Vector3 size, Vector3 at, float yaw = 0)
         {
-            var item = Place(parent, "Nature/" + name, Quaternion.Euler(0, yaw, 0), out var bounds);
+            var item = Sized(parent, "Nature/" + name, size, at, yaw);
             if (item == null) return false;
-            Vector3 scale = new Vector3(size.x / Mathf.Max(.001f, bounds.size.x),
-                size.y / Mathf.Max(.001f, bounds.size.y), size.z / Mathf.Max(.001f, bounds.size.z));
-            item.localScale = scale;
-            item.localPosition = at - Vector3.Scale(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z), scale);
             foreach (var renderer in item.GetComponentsInChildren<Renderer>())
             {
                 var surfaces = renderer.sharedMaterials;
@@ -119,6 +115,25 @@ namespace Trias.Native
                 renderer.sharedMaterials = surfaces;
             }
             return true;
+        }
+
+        internal bool SupplyCrate(Transform parent, bool wide, Vector3 size)
+        {
+            var item = Sized(parent, wide ? "Weapons/crate-wide" : "Weapons/crate-medium", size, Vector3.zero, 0);
+            if (item == null) return false;
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>()) renderer.sharedMaterial = blaster;
+            return true;
+        }
+
+        Transform Sized(Transform parent, string resource, Vector3 size, Vector3 at, float yaw)
+        {
+            var item = Place(parent, resource, Quaternion.Euler(0, yaw, 0), out var bounds);
+            if (item == null) return null;
+            Vector3 scale = new Vector3(size.x / Mathf.Max(.001f, bounds.size.x),
+                size.y / Mathf.Max(.001f, bounds.size.y), size.z / Mathf.Max(.001f, bounds.size.z));
+            item.localScale = scale;
+            item.localPosition = at - Vector3.Scale(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z), scale);
+            return item;
         }
 
         internal Transform Pilot(Transform parent, string kit, out Animation motion)

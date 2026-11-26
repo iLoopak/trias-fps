@@ -1,9 +1,17 @@
 import { route, visible } from './bots.js';
-import { distanceSquared, eyeHeight, PILOT_HP, TEAM_SIZE, WEAPONS } from './public/rules.js';
+import { distanceSquared, eyeHeight, packCover, PILOT_HP, TEAM_SIZE, wallDistance, WEAPONS } from './public/rules.js';
 
 const WAVES = 8;
 const MAX_ACTIVE = 8;
 const CORE_HP = 740;
+const PREPARATION = 22;
+const BUILD_RANGE = 6;
+const SITES = [[-8, -20, .25], [0, -17, 0], [8, -20, -.25], [-5.5, -24, .55], [5.5, -24, -.55]];
+const STRUCTURES = {
+  barricade: { cost: 30, hp: 220, w: 2.9, d: .8, h: 1.2 },
+  turret: { cost: 65, hp: 130, w: 1.15, d: 1.15, h: .89 },
+};
+const SALVAGE = { runner: 8, striker: 11, crusher: 17, sentinel: 23 };
 const TYPES = {
   runner: { name: 'Lovec', character: 'kestrel', hp: 64, armor: 0, reach: 1.85, damage: 13, pace: 1.0, delay: .9 },
   striker: { name: 'Střelec', character: 'vector', hp: 100, armor: 10, reach: 14, damage: 13, pace: .82, delay: 1.2, weapon: 'arc' },
@@ -21,8 +29,11 @@ export class Horde {
     for (const pilot of this.room.players.values()) if (pilot.hordeType) this.room.players.delete(pilot.id);
     this.core = { ...this.room.layout.bases[0], y: .78, hp: CORE_HP, maxHp: CORE_HP };
     this.wave = this.remaining = 0;
+    this.scrap = 40;
+    this.structures = SITES.map(([x, z, angle], id) => ({ id, x, z, angle, kind: null }));
+    this.layout = this.room.layout;
     this.nextEnemy = this.nextEnemy ?? 0;
-    this.nextWaveAt = now + 10;
+    this.nextWaveAt = now + PREPARATION;
     this.deployAt = now;
   }
 
@@ -31,6 +42,66 @@ export class Horde {
   }
 
   available(item) { return this.wave >= (UNLOCK[item.type] ?? 0); }
+
+  build(pilot, id, kind, now) {
+    const site = Number.isInteger(id) ? this.structures[id] : null;
+    const spec = Object.hasOwn(STRUCTURES, kind) ? STRUCTURES[kind] : null;
+    if (!pilot || pilot.bot || pilot.hp <= 0 || this.room.restartAt || !this.nextWaveAt || now >= this.nextWaveAt)
+      return 'Stavět můžeš jen během přípravy.';
+    if (!site || !spec || site.kind) return 'Vyber volné stavební místo.';
+    if (distanceSquared(pilot, site) > BUILD_RANGE ** 2 || Math.abs(pilot.y) > 2)
+      return 'Přibliž se ke stavebnímu místu.';
+    if (this.scrap < spec.cost) return 'Týmu chybí šrot.';
+    const { w, d, h, hp, cost } = spec;
+    const [box] = packCover([{ x: site.x, z: site.z, angle: site.angle, w, d, h }]);
+    if ([...this.room.players.values()].some(p => {
+      if (p.hp <= 0 || p.y >= h) return false;
+      const dx = p.x - site.x, dz = p.z - site.z;
+      return Math.abs(dx * box.cos - dz * box.sin) < w / 2 + .43 && Math.abs(dx * box.sin + dz * box.cos) < d / 2 + .43;
+    })) return 'Na stavebním místě někdo stojí.';
+    Object.assign(site, { kind, box, hp, maxHp: hp, yaw: 0, pitch: 0, readyAt: now, builder: pilot });
+    this.scrap -= cost;
+    this.refreshCover();
+    this.room.events.push({ type: 'built', position: [site.x, .25, site.z], kind });
+    return null;
+  }
+
+  refreshCover() {
+    this.layout = { ...this.room.layout, cover: [...this.room.layout.cover, ...this.structures.filter(s => s.kind).map(s => s.box)] };
+  }
+
+  salvage(enemy) { this.scrap += SALVAGE[enemy.hordeType]; }
+
+  damageStructure(site, damage) {
+    site.hp = Math.max(0, site.hp - damage);
+    if (site.hp) return;
+    this.room.events.push({ type: 'wreck', position: [site.x, .42, site.z] });
+    this.structures[site.id] = { id: site.id, x: site.x, z: site.z, angle: site.angle, kind: null };
+    this.refreshCover();
+  }
+
+  fireTurrets(now, active) {
+    for (const site of this.structures) {
+      if (site.kind !== 'turret' || now < site.readyAt) continue;
+      const from = { x: site.x, y: 1.27, z: site.z };
+      let target, best = 19;
+      for (const enemy of active) {
+        if (enemy.hp <= 0 || enemy.safeUntil > now) continue;
+        const dx = enemy.x - from.x, dy = enemy.y + .82 - from.y, dz = enemy.z - from.z;
+        const distance = Math.hypot(dx, dy, dz);
+        if (distance >= best || distance < .001) continue;
+        if (wallDistance(from, { x: dx / distance, y: dy / distance, z: dz / distance }, distance, this.layout) < distance - .04) continue;
+        target = enemy; best = distance;
+      }
+      if (!target) continue;
+      site.readyAt = now + .47;
+      const to = [target.x, target.y + .82, target.z];
+      site.yaw = Math.atan2(to[0] - from.x, to[2] - from.z);
+      site.pitch = Math.asin((to[1] - from.y) / best);
+      this.room.events.push({ type: 'tower-shot', from: [from.x, from.y, from.z], position: to });
+      this.room.damage(site.builder, target, 15, now, from, 'arc', to);
+    }
+  }
 
   reward(pilot, now) {
     for (const [weapon, wave] of Object.entries(UNLOCK)) {
@@ -78,16 +149,23 @@ export class Horde {
     const core = this.core;
     const player = [...this.room.players.values()]
       .filter(pilot => !pilot.hordeType && pilot.hp > 0 && pilot.safeUntil <= now
-        && distanceSquared(enemy, pilot) <= type.reach ** 2 && visible(enemy, pilot, this.room.layout))
+        && distanceSquared(enemy, pilot) <= type.reach ** 2 && visible(enemy, pilot, this.layout))
       .sort((a, b) => distanceSquared(enemy, a) - distanceSquared(enemy, b))[0];
     const nearCore = distanceSquared(enemy, core) <= (type.weapon ? type.reach * .69 : type.reach) ** 2
-      && visible(enemy, core, this.room.layout);
-    const focus = player ?? (nearCore ? core : null);
+      && visible(enemy, core, this.layout);
+    const barrier = this.structures.find(site => site.kind
+      && distanceSquared(enemy, site) <= Math.max(type.reach * (type.weapon ? .55 : 1), 2.25) ** 2
+      && visible(enemy, { ...site, y: 0 }, this.room.layout));
+    const focus = player ?? barrier ?? (nearCore ? core : null);
     const attack = focus && now >= enemy.strikeAt;
     const from = { x: enemy.x, y: enemy.y + eyeHeight(enemy), z: enemy.z };
     if (attack) {
       enemy.strikeAt = now + type.delay;
-      if (!player) {
+      if (focus === barrier) {
+        this.damageStructure(barrier, Math.round(type.damage * (1 + (this.wave - 1) * .06)));
+        this.room.events.push({ type: 'core-hit', from: [from.x, from.y, from.z],
+          position: [barrier.x, .72, barrier.z], weapon: type.weapon ?? 'scatter' });
+      } else if (!player) {
         this.core.hp = Math.max(0, core.hp - Math.round(type.damage * (1 + (this.wave - 1) * .06)));
         this.room.events.push({ type: 'core-hit', from: [enemy.x, from.y, enemy.z], position: [core.x, core.y, core.z], weapon: type.weapon ?? 'scatter' });
       } else if (!type.weapon) this.room.damage(enemy, player, type.damage, now, from, 'scatter');
@@ -109,16 +187,19 @@ export class Horde {
     const active = this.alive;
     if (this.core.hp === 0) return 'Jádro padlo';
     if (this.nextWaveAt && now >= this.nextWaveAt) this.start(now);
+    if (!this.nextWaveAt) this.fireTurrets(now, active);
     if (this.remaining > 0 && now >= this.deployAt && active.length < MAX_ACTIVE) this.dispatch(now, active);
-    if (!this.nextWaveAt && !this.remaining && !active.length) {
+    if (!this.nextWaveAt && !this.remaining && !active.some(enemy => enemy.hp > 0)) {
       if (this.wave === WAVES) return 'Jádro ubráněno';
-      this.nextWaveAt = now + 12;
-      this.room.events.push({ type: 'notice', text: `Vlna ${this.wave} odražena · 12 sekund na přípravu` });
+      this.nextWaveAt = now + PREPARATION;
+      this.room.events.push({ type: 'notice', text: `Vlna ${this.wave} odražena · ${PREPARATION} sekund na přípravu` });
     }
   }
 
   snapshot(now) {
     return { wave: this.wave, waves: WAVES, enemies: this.remaining + this.alive.length,
-      countdown: Math.max(0, Math.ceil(this.nextWaveAt - now)), core: this.core };
+      countdown: Math.max(0, Math.ceil(this.nextWaveAt - now)), core: this.core,
+      build: { scrap: this.scrap, range: BUILD_RANGE, types: STRUCTURES,
+        sites: this.structures.map(({ id, x, z, angle, kind, hp, maxHp, yaw, pitch }) => ({ id, x, z, angle, kind, hp, maxHp, yaw, pitch })) } };
   }
 }

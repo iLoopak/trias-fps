@@ -158,6 +158,7 @@ namespace Trias.Native
             }
             bool alive = own[6].Int > 0;
             PaintObjectiveHints(h, scale);
+            PaintConstruction(w, h, scale);
             if (alive) Minimap();
             if (hurt > 0)
             {

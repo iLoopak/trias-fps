@@ -28,6 +28,12 @@ namespace Trias.Native
 
     [Serializable] internal sealed class ArenaSpec
     {
+        internal ArenaSpec WithCover(BoxSpec[] boxes)
+        {
+            var copy = (ArenaSpec)MemberwiseClone();
+            copy.cover = boxes;
+            return copy;
+        }
         public string id, label, description;
         public float length, edgeRadius, roadRadius;
         public BoxSpec[] cover;

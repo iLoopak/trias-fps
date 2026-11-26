@@ -165,8 +165,10 @@ export class Match {
       && (this.horde ? Boolean(target.hordeType) !== Boolean(attacker.hordeType) : this.mode === 'ffa' || target.team !== attacker.team);
   }
 
+  get combatLayout() { return this.horde?.layout ?? this.layout; }
+
   trace(player, origin, direction, range, width = 0) {
-    let distance = wallDistance(origin, direction, range, this.layout);
+    let distance = wallDistance(origin, direction, range, this.combatLayout);
     let target;
     for (const other of this.players.values()) {
       if (!this.hostile(player, other)) continue;
@@ -203,6 +205,7 @@ export class Match {
     const health = Math.min(target.hp, amount - absorbed);
     target.hp -= health;
     if (!target.hp) {
+      if (target.hordeType) this.horde.salvage(target);
       attacker.kills++;
       target.deaths++;
       target.respawnAt = now + (this.horde ? 5.5 : RESPAWN);
@@ -299,7 +302,7 @@ export class Match {
       const sign = Math.sign(velocity[axis]);
       const direction = { x: 0, y: 0, z: 0 };
       direction[axis] = sign;
-      const travel = wallDistance(position, direction, step, this.layout);
+      const travel = wallDistance(position, direction, step, this.combatLayout);
       if (travel < step - 0.00001) {
         position[axis] += sign * Math.max(0, travel - 0.026);
         velocity[axis] *= axis === 'y' ? -0.53 : -0.58;
@@ -334,7 +337,7 @@ export class Match {
       if (other !== target) {
         if (gap >= spec.radius + (core ? other.radius : 0)) continue;
         const norm = gap || 1;
-        if (wallDistance(origin, { x: x / norm, y: y / norm, z: z / norm }, gap, this.layout) < gap - 0.04) continue;
+        if (wallDistance(origin, { x: x / norm, y: y / norm, z: z / norm }, gap, this.combatLayout) < gap - 0.04) continue;
         strength = 1 - Math.max(0, gap - (core ? other.radius : 0)) / spec.radius;
       }
       const amount = other === target ? projectile.spec.damage : Math.max(8, spec.splash * strength);
@@ -567,7 +570,7 @@ export class Match {
         const startZ = player.z;
         let signal = movePlayer(player, {
           ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest, dodge: input.dodge || player.dodgeRequest,
-        }, TICK, this.layout);
+        }, TICK, this.combatLayout);
         if (signal === 'launch') {
           player.usedLaunch = true;
           player.launchAt = now;
