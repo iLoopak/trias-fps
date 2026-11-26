@@ -143,18 +143,20 @@ namespace Trias.Native
         {
             if (construction == null) return;
             float cx = w / 2;
-            Panel(new Rect(cx - 215, 86, 430, 53));
-            float x = cx - 208;
-            GUI.Label(new Rect(x, 87, 416, 23), "TÝMOVÝ ŠROT  " + construction["scrap"].Int, center);
-            string hint = CanBuild ? "B   STAVĚNÍ" : "ZÍSKEJ ŠROT VYŘAZOVÁNÍM NEPŘÁTEL";
+            float width = building ? 430 : 325;
+            var bar = new Rect(cx - width / 2, 84, width, building ? 53 : 30);
+            CornerPanel(bar, CanBuild ? lime : Subtle);
+            string balance = "ŠROT  " + construction["scrap"].Int;
+            string hint = CanBuild ? balance + "    ·    B STAVĚNÍ" : balance;
             if (building)
             {
                 var types = construction["types"];
                 string wall = (buildKind == "barricade" ? "● " : "") + "1 BARIKÁDA " + types["barricade"]["cost"].Int;
                 string tower = (buildKind == "turret" ? "● " : "") + "2 VĚŽ " + types["turret"]["cost"].Int;
+                GUI.Label(new Rect(bar.x, bar.y + 3, bar.width, 22), balance, center);
                 hint = wall + "    ·    " + tower + "    ·    B ZAVŘÍT";
             }
-            GUI.Label(new Rect(x, 110, 416, 26), hint, center);
+            GUI.Label(new Rect(bar.x, bar.y + (building ? 24 : 1), bar.width, 26), hint, center);
             if (!captured || scoreboard || !building) return;
             foreach (var pair in sites)
             {

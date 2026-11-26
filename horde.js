@@ -99,7 +99,7 @@ export class Horde {
       site.yaw = Math.atan2(to[0] - from.x, to[2] - from.z);
       site.pitch = Math.asin((to[1] - from.y) / best);
       this.room.events.push({ type: 'tower-shot', from: [from.x, from.y, from.z], position: to });
-      this.room.damage(site.builder, target, 15, now, from, 'arc', to);
+      this.room.damage(site.builder, target, 15, now, from, 'arc', to, false);
     }
   }
 
@@ -168,7 +168,10 @@ export class Horde {
       } else if (!player) {
         this.core.hp = Math.max(0, core.hp - Math.round(type.damage * (1 + (this.wave - 1) * .06)));
         this.room.events.push({ type: 'core-hit', from: [enemy.x, from.y, enemy.z], position: [core.x, core.y, core.z], weapon: type.weapon ?? 'scatter' });
-      } else if (!type.weapon) this.room.damage(enemy, player, type.damage, now, from, 'scatter');
+      } else if (!type.weapon) {
+        const hit = this.room.damage(enemy, player, type.damage, now, from, 'scatter');
+        this.room.events.push({ type: 'damage', id: enemy.id, from: [from.x, from.y, from.z], hits: [hit] });
+      }
     }
     if (now >= enemy.routeAt) {
       enemy.routeAt = now + .48 + enemy.slot * .07;

@@ -107,6 +107,10 @@ wss.on('connection', (socket, request) => {
         if (input) socket.room.input(socket.player, input, time);
       }
       if (socket.protocolVersion === NETWORK_VERSION && message.type === 'trigger') socket.room.trigger(socket.player, message, time);
+      if (socket.protocolVersion === NETWORK_VERSION && message.type === 'perk' && !request.headers.origin) {
+        const error = socket.room.streaks.activate(socket.player, message, time);
+        if (error) socket.send(JSON.stringify({ type: 'perk-error', message: error }));
+      }
       if (socket.protocolVersion === NETWORK_VERSION && message.type === 'build' && socket.room.horde
         && typeof message.kind === 'string') {
         const error = socket.room.horde.build(socket.player, message.site, message.kind, time);

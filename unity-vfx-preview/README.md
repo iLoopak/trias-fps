@@ -10,6 +10,20 @@ Online klient používá autoritativní server pro pět soutěžních režimů, 
 - Levé tlačítko střílí, **R** přebíjí, **1–5** volí zbraň, **F** použije alternativní střelbu Scatteru a **G** hodí granát.
 - **E** obsluhuje vozidla a věže. Při čekání na respawn přepíná spoluhráče. **Tab** zobrazí skóre a **Esc** uvolní kurzor.
 
+Mířidlo mění tvar podle zbraně, zobrazuje postup přebití a odlišuje běžný zásah, zásah do štítu a vyřazení. Červený oblouk ukazuje směr příchozího zásahu. Radar se otáčí spolu s pohledem a značky ukazují spoluhráče a cíle režimu.
+
+Sluchátka pomáhají určit směr kroků a výstřelů. Kryt je tlumí. Každá aréna má vlastní zvuk prostředí. V Hordě hlásí samostatné signály nástup a odražení vlny.
+
+V nabídce **Esc** můžeš upravit zorné pole, citlivost myši, pohyb kamery, celkovou hlasitost a hlasitost prostředí. Nastavení se ukládá na daném počítači. Zpětný ráz se liší podle zbraně. Tvrdý dopad doprovází tlumený zvuk magnetických bot.
+
+Za **3, 5, 7 a 9 osobních vyřazení v jednom životě** se postupně odemykají odměny. **6** zobrazí na 8 sekund soupeře na radaru. **7** spustí polní modul pro okolní spoluhráče. Vektor léčí, Bašta přidává štít, Přízrak doplňuje munici a Poštolka přidává granát a menší štít. **8** označí zem pro orbitální úder s dvousekundovým varováním. **9** přidá štít a na 12 sekund zvýší poškození. Vyřazení ruší nevyužité odměny.
+
+Rozhraní používá [Chakra Petch](https://github.com/google/fonts/tree/main/ofl/chakrapetch) a [Barlow Semi Condensed](https://github.com/google/fonts/tree/main/ofl/barlowsemicondensed) pod licencí SIL Open Font License. Licenční soubory jsou v `Assets/Resources/TRIAS/Fonts`.
+
+Obraz lobby `Assets/Resources/TRIAS/relay-eclipse.jpg` vznikl vestavěným nástrojem ImageGen. Zadání:
+
+> Use case: stylized-concept. Asset type: wide 16:9 native Unity game lobby background plate for TRIAS, a fictional arena shooter. Render a severe orbital relay station in dark ink-blue space; three colossal offset antenna fins and a single slim amber eclipse cut an unmistakable silhouette on the far right. Warm amber navigation pinpricks, subtle blue and muted teal metal, off-black navy negative space on the left and lower two-thirds where a live settings menu will overlay. Camera is outside the station, slightly above the armored structure, with layered scale and a thin horizon arc only in the upper right. Look like an optical-instrument photograph printed on matte technical stock: precise crisp silhouette, quiet fine film grain, believable surfaces, strongly restrained color, huge quiet darkness, no generic glowing panel patterns. Keep hot highlights away from the central controls area. Full-bleed art only with no characters, titles, letters, labels, HUD, text or watermarks.
+
 Pro společný vývoj verzuj `Assets` včetně `.meta`, `Packages` a `ProjectSettings`. Cache Unity a sestavení v `output/` ignoruje Git.
 
 ## Modely a animace

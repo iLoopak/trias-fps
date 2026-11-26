@@ -6,7 +6,7 @@ using Object = UnityEngine.Object;
 
 namespace Trias.Native
 {
-    internal sealed class TriasWorld : IDisposable
+    internal sealed partial class TriasWorld : IDisposable
     {
         internal readonly ArenaSpec Spec;
         internal readonly TriasKit Kit;
@@ -47,7 +47,7 @@ namespace Trias.Native
             RenderSettings.ambientEquatorColor = Catalog.Tint("#424653");
             RenderSettings.ambientGroundColor = Catalog.Tint("#424448");
             view.backgroundColor = fog;
-            view.clearFlags = CameraClearFlags.SolidColor;
+            ConfigureSky(view);
             var lamp = Group(Root, "Key").gameObject.AddComponent<Light>();
             lamp.type = LightType.Directional;
             lamp.intensity = island ? 1.35f : 1.52f;
@@ -203,7 +203,7 @@ namespace Trias.Native
                     Part(wall, TeamNeutral, new Vector3(x + 1.4f, 3.05f, Spec.length - 0.03f), new Vector3(1.7f, 0.045f, 0.035f));
                 }
             }
-            Stars();
+            BuildInfrastructure();
             if (basin)
             {
                 var road = MaterialAt("#82707c");
@@ -220,13 +220,7 @@ namespace Trias.Native
             else
             {
                 var hot = MaterialAt(foundry ? "#ff7138" : "#ff4b85", true);
-                float y = foundry ? 8.3f : 9.2f;
-                var globe = Part(Root, hot, new Vector3(0, y, 0), new Vector3(3.7f, 3.42f, 3.7f), PrimitiveType.Sphere);
-                Transform reactor = Group(Root, "Ruptured reactor", globe.position);
-                Ring(reactor, Vector3.zero, 3.15f, TeamNeutral, 0.056f).transform.rotation = Quaternion.Euler(11, 19, -23);
-                Ring(reactor, Vector3.up * 0.24f, 2.63f, hot, 0.082f).transform.rotation = Quaternion.Euler(-27, 0, 28);
-                Ring(reactor, Vector3.up * 0.11f, 3.08f, Dark, 0.17f).transform.rotation = Quaternion.Euler(39, 0, -37);
-                spinning.Add(reactor);
+                BuildReactor(foundry);
                 if (foundry)
                 {
                     for (int i = 0; i < 3; i++)
@@ -239,27 +233,6 @@ namespace Trias.Native
                     }
                 }
             }
-        }
-
-        void Stars()
-        {
-            var star = MaterialAt("#c1e5ff", true);
-            var planet = Part(Root, MaterialAt("#465679", true), new Vector3(-76, 28, 54), Vector3.one * 43, PrimitiveType.Sphere);
-            Ring(Root, planet.position, 28, MaterialAt("#657496", true), 1.7f, 96).transform.rotation = Quaternion.Euler(16, 16, 21);
-            var dust = new List<Vector3>();
-            var triangles = new List<int>();
-            for (int i = 0; i < 230; i++)
-            {
-                float a = R(6.283f), h = 0.035f + R(1.35f);
-                Vector3 center = new Vector3(Mathf.Sin(a) * Mathf.Cos(h), Mathf.Sin(h), Mathf.Cos(a) * Mathf.Cos(h)) * 103f;
-                float size = 0.06f + R(0.17f);
-                int j = dust.Count;
-                Vector3 right = new Vector3(Mathf.Cos(a), 0, -Mathf.Sin(a));
-                dust.Add(center - right * size); dust.Add(center + Vector3.up * size); dust.Add(center + right * size);
-                triangles.Add(j); triangles.Add(j + 1); triangles.Add(j + 2);
-                triangles.Add(j + 2); triangles.Add(j + 1); triangles.Add(j);
-            }
-            MeshAt("Star field", dust, triangles, null, star);
         }
 
         void Meadow()
@@ -438,6 +411,7 @@ namespace Trias.Native
 
         internal void Animate(float time)
         {
+            AnimateLandmark(time);
             for (int i = 0; i < spinning.Count; i++)
             {
                 var item = spinning[i];
@@ -509,7 +483,7 @@ namespace Trias.Native
             return line;
         }
 
-        static LineRenderer Ring(Transform parent, Vector3 at, float radius, Material tint, float width = .045f, int segments = 56)
+        internal static LineRenderer Ring(Transform parent, Vector3 at, float radius, Material tint, float width = .045f, int segments = 56)
         {
             var line = Line(parent, Vector3.zero, Vector3.one, tint, width);
             line.transform.localPosition = at;
@@ -524,6 +498,7 @@ namespace Trias.Native
 
         public void Dispose()
         {
+            if (orbitalSky != null && RenderSettings.skybox == orbitalSky) RenderSettings.skybox = null;
             if (Root != null) Object.Destroy(Root.gameObject);
             foreach (var material in Paint) Object.Destroy(material);
             foreach (var mesh in meshes) Object.Destroy(mesh);

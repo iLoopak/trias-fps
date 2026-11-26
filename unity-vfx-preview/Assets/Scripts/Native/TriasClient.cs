@@ -57,15 +57,20 @@ namespace Trias.Native
             serverAddress = PlayerPrefs.GetString("trias.server", serverAddress);
             nickname = PlayerPrefs.GetString("trias.nick", nickname);
             view.farClipPlane = 235;
+            visor = view.gameObject.AddComponent<VisorComposite>();
+            LoadFeel();
             view.backgroundColor = Catalog.Tint("#10182a");
-            overlay = Resources.Load<Texture2D>("TRIAS/orbit");
-            portraits = Resources.Load<Texture2D>("TRIAS/pilot-portraits");
+            overlay = Resources.Load<Texture2D>("TRIAS/relay-eclipse") ?? Resources.Load<Texture2D>("TRIAS/orbit");
+            portraits = Resources.Load<Texture2D>("TRIAS/visor-pilots") ?? Resources.Load<Texture2D>("TRIAS/pilot-portraits");
+            displayFont = Resources.Load<Font>("TRIAS/Fonts/ChakraPetch-Bold");
+            textFont = Resources.Load<Font>("TRIAS/Fonts/BarlowSemiCondensed-Medium");
         }
 
         void OnDestroy()
         {
             socket?.Dispose();
             world?.Dispose();
+            if (radarPlate != null) Destroy(radarPlate);
             Capture(false);
         }
 
@@ -115,6 +120,14 @@ namespace Trias.Native
             socket?.Dispose(); socket = null;
             world?.Dispose(); world = null;
             ResetConstruction();
+            ResetPerks();
+            ResetFeel();
+            roundResult = null;
+            sceneFade = 0;
+            visor.InMatch = false;
+            impactTime = -10;
+            waveFlash = coreFlash = hit = hurt = 0;
+            toast = null; toastUntil = 0;
             if (grip != null) Destroy(grip.gameObject);
             grip = null;
             effects.ClearTransient();
@@ -135,6 +148,7 @@ namespace Trias.Native
             if (!enabled) { queuedButtons = 0; requestedWeapon = null; building = false; }
             Cursor.lockState = enabled ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !enabled;
+            if (effects != null) effects.AmbienceMix(ambienceVolume, enabled);
         }
 
         void Update()
@@ -188,6 +202,7 @@ namespace Trias.Native
             if (Input.GetKeyDown(KeyCode.Space)) queuedButtons |= 1 << 5;
             if (Input.GetKeyDown(KeyCode.Q)) queuedButtons |= 1 << 6;
             if (ReadConstruction()) return;
+            ReadPerks();
             if (Input.GetKeyDown(KeyCode.R)) queuedButtons |= 1 << 4;
             if (Input.GetKeyDown(KeyCode.G)) queuedButtons |= 1 << 8;
             if (Input.GetKeyDown(KeyCode.E)) queuedButtons |= 1 << 9;
@@ -252,6 +267,7 @@ namespace Trias.Native
         {
             switch (message["type"].Text)
             {
+                case "perk-error":
                 case "build-error":
                     AddNotice(message["message"].Text);
                     return;
@@ -272,7 +288,12 @@ namespace Trias.Native
                     room = message["room"].Text;
                     mode = message["mode"].Text;
                     world = new TriasWorld(arena, catalog, mode, view);
+                    visor.InMatch = true;
+                    visor.Grade(arena.id);
                     effects.listener = view.transform;
+                    effects.SetAtmosphere(arena.id);
+                    effects.AmbienceMix(ambienceVolume, true);
+                    sceneFade = .87f;
                     orb = world.MaterialAt("#ff62c5", true);
                     grenade = world.MaterialAt("#ffd28e");
                     grip = TriasWorld.Group(view.transform, "First person arms");
@@ -289,7 +310,23 @@ namespace Trias.Native
         {
             lastPacket = now;
             lastTick = snapshot["tick"].Int;
+            var priorState = state;
             state = snapshot;
+            if (mode == "horde" && priorState != null)
+            {
+                var oldHorde = priorState["horde"];
+                var current = state["horde"];
+                bool newWave = current["wave"].Int > oldHorde["wave"].Int;
+                bool cleared = oldHorde["wave"].Int > 0 && current["countdown"].Int > 0 && oldHorde["countdown"].Int == 0;
+                if (newWave || cleared)
+                {
+                    waveStarts = newWave;
+                    waveFlash = 1;
+                    effects.Wave(newWave);
+                    if (newWave) world.SurgeLandmark();
+                }
+                if (current["core"]["hp"].Int < oldHorde["core"]["hp"].Int) coreFlash = 1;
+            }
             WireValue previous = own;
             present.Clear();
             foreach (var row in snapshot["players"].Items)
@@ -337,6 +374,7 @@ namespace Trias.Native
                 }
             }
             SyncConstruction(snapshot["horde"]["build"]);
+            SyncPerks(snapshot["streaks"]);
             int applied = own[14].Int;
             int count = 0;
             while (count < commands.Count && commands[count].Seq <= applied) count++;
@@ -345,9 +383,18 @@ namespace Trias.Native
                 foreach (var input in commands) predicted.Step(input, movement ?? world.Spec);
             if (previous != null)
             {
-                if (own[6].Int < previous[6].Int || own[7].Int < previous[7].Int) hurt = 1;
+                bool healthLost = own[6].Int < previous[6].Int;
+                bool armorLost = own[7].Int < previous[7].Int;
+                if (!spawn && (healthLost || armorLost))
+                {
+                    effects.Hurt(armorLost && !healthLost);
+                    hurt = 1;
+                }
                 if ((own[2].Int & 64) != (previous[2].Int & 64) && !spawn && own[6].Int > 0)
+                {
                     effects.Reload(display, (own[2].Int & 64) == 0);
+                    if ((own[2].Int & 64) != 0) reloadPeriod = Mathf.Max(.10f, own[30].Float);
+                }
             }
             SwitchWeapon(own[9].Text ?? "pulse");
             SyncWorld(snapshot);
@@ -451,6 +498,20 @@ namespace Trias.Native
             bool local = evt["id"].Text == identity;
             switch (type)
             {
+                case "perk-ready":
+                    if (local)
+                    {
+                        effects.Wave(false);
+                        int slot = Array.IndexOf(Perks, evt["perk"].Text);
+                        if (slot >= 0) AddNotice((slot == 1 ? ModuleName() : PerkNames[slot]) + " připraveno  ·  " + (6 + slot));
+                    }
+                    break;
+                case "perk-used":
+                    effects.Pickup(At(evt["position"]), Amber, local);
+                    break;
+                case "orbital-impact":
+                    effects.OrbitalImpact(At(evt["from"]));
+                    break;
                 case "built":
                     effects.Pickup(At(evt["position"]), Catalog.Tint("#c3fa83"), false);
                     break;
@@ -468,7 +529,11 @@ namespace Trias.Native
                         var end = evt["ends"][i];
                         effects.Shot(source, At(end), end[3].Text != null, local, tint, key, i == 0);
                     }
-                    if (local && own[6].Int > 0) tension = key == "scatter" || key == "rift" ? 1.5f : key == "lance" ? 1.2f : .82f;
+                    if (local && own[6].Int > 0)
+                    {
+                        tension = key == "scatter" || key == "rift" ? 1.5f : key == "lance" ? 1.2f : .82f;
+                        KickWeapon(key);
+                    }
                     break;
                 case "burst":
                     effects.Detonation(At(evt["from"]));
@@ -479,6 +544,7 @@ namespace Trias.Native
                 case "core-wreck":
                 case "wreck":
                     effects.Detonation(At(evt["position"]));
+                    world.SurgeLandmark();
                     if (type == "core-wreck") AddNotice("Jádro " + catalog.teams[evt["team"].Int].name + " zničeno.");
                     break;
                 case "pickup":
@@ -486,11 +552,18 @@ namespace Trias.Native
                     if (local) AddNotice("Sebráno · " + (Catalog.Find(catalog.powerups, evt["item"].Text) ?? Catalog.Find(catalog.weapons, evt["item"].Text))?.label);
                     break;
                 case "movement":
-                    if (evt["action"].Text == "launch" || evt["action"].Text == "double")
+                    if (evt["action"].Text == "step") effects.Footstep(At(evt["position"]) + Vector3.up * .08f, local, world.Spec.id == "island");
+                    else if (evt["action"].Text == "launch" || evt["action"].Text == "double")
                         effects.Launch(At(evt["position"]), Catalog.Tint(catalog.teams[evt["team"].Int].color), local);
                     break;
                 case "notice":
-                    AddNotice(evt["text"].Text);
+                    string notice = evt["text"].Text;
+                    if (mode == "horde" && waveFlash > .9f && notice?.StartsWith("Vlna ", StringComparison.Ordinal) == true)
+                    {
+                        int reward = notice.IndexOf(" · ", StringComparison.Ordinal);
+                        if (waveStarts && reward >= 0) AddNotice(notice.Substring(reward + 3));
+                    }
+                    else AddNotice(notice);
                     break;
                 case "kill":
                     var body = evt["body"];
@@ -512,7 +585,23 @@ namespace Trias.Native
                     }
                     break;
             }
-            if (local && evt["hits"].Count > 0) hit = 1;
+            int feedback = -1;
+            if (evt["hits"].Items != null) foreach (var strike in evt["hits"].Items)
+            {
+                if (local)
+                    feedback = Mathf.Max(feedback, strike["eliminated"].Bool ? 2 : strike["absorbed"].Int > 0 ? 1 : 0);
+                if (strike["id"].Text == identity && evt["from"].Count == 3)
+                {
+                    impactSource = At(evt["from"]);
+                    impactTime = now;
+                }
+            }
+            if (feedback >= 0)
+            {
+                if (hit < .62f || feedback > confirmStyle || feedback == 2) effects.Confirm(feedback == 1, feedback == 2);
+                confirmStyle = Mathf.Max(hit > .65f ? confirmStyle : 0, feedback);
+                hit = 1;
+            }
         }
 
         void AddNotice(string message) { toast = message; toastUntil = Time.unscaledTime + 3.2f; }
@@ -529,6 +618,7 @@ namespace Trias.Native
 
         void RenderWorld(float now, float dt)
         {
+            UpdateResult(dt);
             world.Animate(now);
             for (int index = fallen.Count - 1; index >= 0; index--)
             {
@@ -550,19 +640,14 @@ namespace Trias.Native
             tension = Mathf.MoveTowards(tension, 0, dt * 6.7f);
             hurt = Mathf.MoveTowards(hurt, 0, dt * 3.2f);
             hit = Mathf.MoveTowards(hit, 0, dt * 5.7f);
+            visor.DamagePulse = hurt;
+            coreFlash = Mathf.MoveTowards(coreFlash, 0, dt * 2.85f);
+            waveFlash = Mathf.MoveTowards(waveFlash, 0, dt * .53f);
             grip.gameObject.SetActive(alive && !driving && !mounted);
             if (alive)
             {
                 display = Vector3.Lerp(display, predicted.Position, 1 - Mathf.Exp(-dt * 39));
-                Quaternion angle = Quaternion.Euler(pitch - tension * 1.5f, yaw, 0);
-                if (driving) Chase(display + Vector3.up * 1.45f, angle * Vector3.forward, 5.5f, 2.1f);
-                else view.transform.SetPositionAndRotation(display + Vector3.up * (predicted.Crouch ? .92f : 1.58f), angle);
-                float speed = predicted.Velocity.magnitude;
-                float reload = (own[2].Int & 64) == 0 ? 0 : Mathf.Sin(Mathf.Clamp01(own[30].Float / 1.55f) * Mathf.PI);
-                grip.localPosition = new Vector3(.37f + Mathf.Sin(now * 10) * Mathf.Min(speed * .002f, .016f),
-                    -.30f - reload * .12f, .60f - tension * .076f);
-                grip.localRotation = Quaternion.Euler(-tension * 8 + reload * 38, -4, reload * 19);
-                view.fieldOfView = Mathf.Lerp(view.fieldOfView, driving ? 68 : speed > 8 ? 72 : 67, 1 - Mathf.Exp(-dt * 6));
+                UpdateFeel(now, dt, driving);
             }
             else if (replay)
             {

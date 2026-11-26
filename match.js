@@ -6,6 +6,7 @@ import { botInput } from './bots.js';
 import { Fleet } from './fleet.js';
 import { Siege } from './siege.js';
 import { Horde } from './horde.js';
+import { Streaks } from './streaks.js';
 import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
 import { NETWORK_VERSION, packSnapshot } from './public/netcode.js';
 
@@ -29,6 +30,7 @@ export class Match {
     this.fleet = new Fleet(this);
     this.siege = mode === 'siege' ? new Siege(this, this.layout.siege) : null;
     this.horde = mode === 'horde' ? new Horde(this) : null;
+    this.streaks = new Streaks(this);
     this.reset(0);
   }
 
@@ -43,6 +45,7 @@ export class Match {
     this.projectiles = [];
     this.siege?.reset();
     this.horde?.reset(now);
+    this.streaks.reset();
     this.fleet.reset(now);
     this.turrets = this.layout.turrets.map(item => ({ ...item, user: null, heat: 0, hot: false, firedAt: -100 }));
 
@@ -69,6 +72,7 @@ export class Match {
       yaw: Math.atan2(start.x - toward.x, start.z - toward.z), pitch: 0, fireAt: now + 0.2,
       safeUntil: now + 1.4, reloadAt: 0, respawnAt: 0, input: EMPTY, inputAt: now, fireRequest: false, reloadRequest: false, jumpRequest: false, dodgeRequest: false, altRequest: false, grenadeRequest: false, useRequest: false, weaponRequest: null,
       spawn: player.spawn + 1, target: null, routeAt: 0, path: [], usedLaunch: false, launchAt: -100, dodgeDecisionAt: 0, stride: 0, sprint: false,
+      chain: 0, perks: 0,
     });
     this.horde?.reward(player, now);
   }
@@ -196,7 +200,7 @@ export class Match {
     return { target, distance };
   }
 
-  damage(attacker, target, value, now, origin, weapon, impact) {
+  damage(attacker, target, value, now, origin, weapon, impact, direct = true) {
     if (target.opened !== undefined) return this.siege.damage(attacker, target, value, now);
     if (target.kind) return this.fleet.damage(attacker, target, value, now, origin, weapon, impact);
     const amount = Math.round(value);
@@ -205,6 +209,7 @@ export class Match {
     const health = Math.min(target.hp, amount - absorbed);
     target.hp -= health;
     if (!target.hp) {
+      this.streaks.kill(attacker, target, direct);
       if (target.hordeType) this.horde.salvage(target);
       attacker.kills++;
       target.deaths++;
@@ -611,6 +616,7 @@ export class Match {
       if (this.mode === 'dom') this.updateDominance(now);
       if (this.mode === 'ctf') this.updateFlags(now);
       this.siege?.step();
+      this.streaks.step(now);
       this.checkEnd(now);
     }
     this.broadcast(now);
@@ -652,6 +658,7 @@ export class Match {
     }));
     const state = {
       type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), horde: this.horde?.snapshot(now), time: Math.max(0, Math.ceil(this.endsAt - now)),
+      streaks: this.streaks.snapshot(now),
       points: this.mode === 'dom' ? this.points : undefined, flags: this.mode === 'ctf' ? this.flags : undefined,
       pickups: this.pickups.map((time, i) => this.horde && !this.horde.available(this.layout.pickups[i]) ? 1 : Math.max(0, Math.ceil(time - now))),
       vehicles: this.fleet.snapshot(now),

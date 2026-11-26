@@ -7,9 +7,11 @@ namespace Trias.Native
     public sealed partial class TriasClient
     {
         Texture2D overlay, portraits;
+        Font displayFont, textFont;
         GUIStyle title, heading, section, caption, center, action, field;
         readonly Color lime = new Color(.78f, 1f, .43f);
-        readonly Color muted = new Color(.62f, .72f, .83f);
+        readonly Color muted = new Color(.66f, .72f, .77f);
+        static readonly Color Amber = new Color(1f, .72f, .38f);
 
         void OnGUI()
         {
@@ -21,35 +23,38 @@ namespace Trias.Native
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
             if (world == null || own == null) Lobby(w, h);
             else MatchHUD(w, h, scale);
+            if (sceneFade > 0) Fill(new Rect(0, 0, w, h), new Color(.025f, .043f, .07f, sceneFade));
             GUI.matrix = saved;
         }
 
         void Styles()
         {
-            title = Label(65, FontStyle.Bold, Color.white);
-            heading = Label(25, FontStyle.Bold, Color.white);
-            section = Label(16, FontStyle.Bold, Color.white);
-            caption = Label(13, FontStyle.Normal, muted);
-            center = Label(17, FontStyle.Bold, Color.white);
+            title = Label(78, displayFont, Chalk);
+            heading = Label(26, displayFont, Chalk);
+            section = Label(17, displayFont, Chalk);
+            caption = Label(15, textFont, muted);
+            center = Label(17, displayFont, Chalk);
             center.alignment = TextAnchor.MiddleCenter;
-            field = new GUIStyle(GUI.skin.textField) { fontSize = 16, padding = new RectOffset(9, 9, 5, 3) };
-            action = new GUIStyle(GUI.skin.button) { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            field = new GUIStyle(GUI.skin.textField) { font = textFont, fontSize = 18, padding = new RectOffset(9, 9, 5, 3) };
+            action = new GUIStyle(GUI.skin.button) { font = displayFont, fontSize = 16, alignment = TextAnchor.MiddleCenter };
         }
 
-        static GUIStyle Label(int size, FontStyle weight, Color color)
+        static GUIStyle Label(int size, Font font, Color color)
         {
-            return new GUIStyle(GUI.skin.label) { fontSize = size, fontStyle = weight, clipping = TextClipping.Clip, normal = { textColor = color } };
+            return new GUIStyle(GUI.skin.label) { font = font, fontSize = size, clipping = TextClipping.Clip, normal = { textColor = color } };
         }
 
         void Lobby(float w, float h)
         {
             if (overlay != null) GUI.DrawTexture(new Rect(0, 0, w, h), overlay, ScaleMode.ScaleAndCrop);
-            Fill(new Rect(0, 0, w, h), new Color(.021f, .037f, .069f, .70f));
+            Fill(new Rect(0, 0, w, h), new Color(.014f, .023f, .040f, .25f));
             float x = w / 2 - 552;
             float y = h / 2 - 344;
-            Fill(new Rect(x, y + 7, 1104, 2), lime);
-            GUI.Label(new Rect(x, y + 20, 870, 88), "TRIAS", title);
-            Panel(new Rect(x, y + 157, 680, 490));
+            DrawInsignia(new Vector2(x + 33, y + 70), 37, Amber);
+            GUI.Label(new Rect(x + 81, y + 22, 400, 104), "TRIAS", title);
+            Fill(new Rect(x + 1, y + 130, 306, 1), Subtle);
+            Fill(new Rect(x + 1, y + 130, 73, 2), Amber);
+            CornerPanel(new Rect(x, y + 157, 680, 490), Amber);
             GUI.Label(new Rect(x + 16, y + 168, 430, 32), "Mapa", heading);
             for (int i = 0; i < catalog.maps.Length; i++)
             {
@@ -65,7 +70,8 @@ namespace Trias.Native
             for (int i = 0; i < catalog.modes.Length; i++)
             {
                 var game = catalog.modes[i];
-                if (Preset(new Rect(x + 16 + i * 108, y + 374, 102, 55), game.@short, game.id == "tdm" ? null : game.label, game.id == selectedMode))
+                string modeLabel = game.id == "ctf" ? "Vlajky" : game.id == "tdm" ? "Týmový boj" : game.label;
+                if (Preset(new Rect(x + 16 + i * 108, y + 374, 102, 55), game.@short, modeLabel, game.id == selectedMode))
                 {
                     selectedMode = game.id;
                     if (game.id == "siege") selectedMap = "basin";
@@ -78,13 +84,17 @@ namespace Trias.Native
                 var pilot = catalog.pilots[i];
                 var button = new Rect(x + 16 + i * 164, y + 491, 155, 136);
                 if (Preset(button, null, null, pilot.id == selectedPilot)) selectedPilot = pilot.id;
-                if (portraits != null) GUI.DrawTextureWithTexCoords(new Rect(button.x + 43, button.y + 3, 70, 70), portraits, new Rect(i * .25f, 0, .25f, 1));
+                if (portraits != null)
+                {
+                    var crop = portraits.name == "visor-pilots" ? new Rect(i * .25f + .03375f, .105f, .1825f, .755f) : new Rect(i * .25f, 0, .25f, 1);
+                    GUI.DrawTextureWithTexCoords(new Rect(button.x + 30, button.y + 4, 95, 72), portraits, crop);
+                }
                 GUI.Label(new Rect(button.x + 13, button.y + 77, 131, 26), pilot.label, section);
                 GUI.Label(new Rect(button.x + 13, button.y + 104, 131, 22), Catalog.Find(catalog.weapons, pilot.weapon)?.label, caption);
             }
 
             float right = x + 696;
-            Panel(new Rect(right, y + 157, 408, 490));
+            CornerPanel(new Rect(right, y + 157, 408, 490), Amber);
             GUI.Label(new Rect(right + 17, y + 168, 374, 36), "Místnost", heading);
             GUI.Label(new Rect(right + 17, y + 218, 365, 23), "Adresa serveru", caption);
             serverAddress = GUI.TextField(new Rect(right + 17, y + 242, 374, 34), serverAddress, 160, field);
@@ -98,40 +108,55 @@ namespace Trias.Native
                 Join(serverAddress, roomCode, nickname, selectedMap, selectedMode, selectedPilot, fillBots);
             if (status != null) GUI.Label(new Rect(right + 17, y + 479, 375, 34), status, section);
             if (socket != null && GUI.Button(new Rect(right + 17, y + 519, 174, 36), "Zrušit připojení", action)) Disconnect(null);
-            if (socket == null && GUI.Button(new Rect(right + 17, y + 568, 374, 43), "Trénink offline · Relay Station", action))
+            if (socket == null && Preset(new Rect(right + 17, y + 568, 374, 43), "Trénink offline · Relay Station", null, false))
                 SceneManager.LoadScene("Relay Station");
         }
 
         bool Preset(Rect box, string text, string sub, bool selected)
         {
-            Fill(box, selected ? new Color(.20f, .28f, .17f, .96f) : new Color(.048f, .09f, .149f, .98f));
-            Fill(new Rect(box.x, box.y, box.width, selected ? 2 : 1), selected ? lime : new Color(.27f, .35f, .45f));
+            bool hovered = box.Contains(Event.current.mousePosition);
+            Fill(box, selected ? new Color(.24f, .15f, .072f, .96f) : hovered ? new Color(.061f, .11f, .15f, 1f) : new Color(.041f, .071f, .105f, .98f));
+            Fill(new Rect(box.x, box.y, box.width, selected ? 2 : 1), selected ? Amber : Subtle);
+            if (selected && text != null)
+                CornerNotch(new Vector2(box.xMax - 5, box.yMax - 6), Amber);
             bool pressed = GUI.Button(box, GUIContent.none, GUIStyle.none);
+            if (pressed) effects.InterfaceClick();
             if (text != null) GUI.Label(new Rect(box.x + 8, box.y + (sub == null ? 12 : 5), box.width - 14, 24), text, section);
             if (sub != null) GUI.Label(new Rect(box.x + 8, box.y + 30, box.width - 14, 20), sub, caption);
             return pressed;
         }
 
+        static void CornerNotch(Vector2 at, Color tint)
+        {
+            Stroke(at + new Vector2(-10, 0), at, 1.4f, tint);
+            Stroke(at, at + new Vector2(0, -8), 1.4f, tint);
+        }
+
+        static void DrawInsignia(Vector2 position, float radius, Color tint)
+        {
+            for (int blade = 0; blade < 3; blade++)
+            {
+                float direction = blade * 120f;
+                Vector2 outward = Polar(direction);
+                Vector2 fold = Polar(direction + 47);
+                var tip = position + outward * radius;
+                var shoulder = position + outward * (radius * .55f) + fold * (radius * .25f);
+                Stroke(tip, shoulder, radius * .075f, tint);
+                Stroke(shoulder, position + fold * (radius * .31f), radius * .075f, tint);
+                Stroke(tip, position + Polar(direction - 52) * (radius * .21f), radius * .033f, tint);
+            }
+        }
+
         void MatchHUD(float w, float h, float scale)
         {
-            Panel(new Rect(22, 21, 226, 60));
-            GUI.Label(new Rect(34, 25, 203, 28), world.Spec.label, section);
-            GUI.Label(new Rect(34, 53, 203, 21), room + "  ·  " + latency + " ms", caption);
+            CornerPanel(new Rect(26, 21, 214, 58), teamTint);
+            DrawInsignia(new Vector2(47, 49), 12, Amber);
+            GUI.Label(new Rect(67, 25, 165, 28), world.Spec.label, section);
+            GUI.Label(new Rect(67, 51, 165, 21), room + "  ·  " + latency + " ms", caption);
             float cx = w * .5f;
-            Panel(new Rect(cx - 220, 21, 440, 55));
+            if (mode != "horde") CornerPanel(new Rect(cx - 220, 21, 440, 55), teamTint);
             int time = state["time"].Int;
-            if (mode == "horde")
-            {
-                var defense = state["horde"];
-                var core = defense["core"];
-                GUI.Label(new Rect(cx - 213, 24, 426, 28), defense["countdown"].Int > 0
-                    ? "DALŠÍ VLNA ZA " + defense["countdown"].Int + " s"
-                    : "VLNA " + defense["wave"].Int + "/" + defense["waves"].Int + "    ·    ZBÝVÁ " + defense["enemies"].Int, center);
-                Fill(new Rect(cx - 192, 63, 384, 4), new Color(.13f,.21f,.30f));
-                float strength = core["hp"].Float / Mathf.Max(1, core["maxHp"].Float);
-                Fill(new Rect(cx - 192, 63, 384 * strength, 4), Color.Lerp(new Color(1f, .29f, .23f), teamTint, strength));
-                GUI.Label(new Rect(cx - 183, 45, 367, 21), "JÁDRO " + core["hp"].Int + " HP", center);
-            }
+            if (mode == "horde") PaintHordeGauge(cx);
             else if (mode == "ffa")
             {
                 int leading = 0;
@@ -159,44 +184,19 @@ namespace Trias.Native
             bool alive = own[6].Int > 0;
             PaintObjectiveHints(h, scale);
             PaintConstruction(w, h, scale);
-            if (alive) Minimap();
-            if (hurt > 0)
-            {
-                var flash = new Color(1, .27f, .26f, hurt * .76f);
-                Fill(new Rect(0, 0, w, 5), flash); Fill(new Rect(0, h - 5, w, 5), flash);
-                Fill(new Rect(0, 0, 5, h), flash); Fill(new Rect(w - 5, 0, 5, h), flash);
-            }
+            PaintPerks(w);
+            if (alive && captured && !scoreboard) PaintRadar();
+            PaintWaveBanner(cx, h);
             if (alive && state["winner"]["label"].Text == null)
             {
-                Color cross = hit > 0 ? lime : Color.white;
-                Fill(new Rect(cx - 9, h / 2 - 1, 6, 2), cross); Fill(new Rect(cx + 3, h / 2 - 1, 6, 2), cross);
-                Fill(new Rect(cx - 1, h / 2 - 9, 2, 6), cross); Fill(new Rect(cx - 1, h / 2 + 3, 2, 6), cross);
-                Panel(new Rect(22, h - 87, 153, 64));
-                GUI.Label(new Rect(34, h - 84, 120, 20), catalog.teams[own[3].Int].name, caption);
-                GUI.Label(new Rect(33, h - 62, 95, 32), own[6].Int + " HP", heading);
-                Fill(new Rect(34, h - 30, 126 * own[6].Float / 150, 3), teamTint);
-                if (own[7].Int > 0) GUI.Label(new Rect(116, h - 57, 55, 25), "+" + own[7].Int, caption);
-                var hull = state["vehicles"][own[16].Int];
-                var gun = Catalog.Find(catalog.weapons, weaponName);
-                int i = Array.IndexOf(Arsenal, weaponName);
-                var mags = own[10][i];
-                Panel(new Rect(w - 203, h - 87, 181, 64));
-                GUI.Label(new Rect(w - 191, h - 84, 162, 22), own[16].Int >= 0 ? (hull[2].Text == "bastion" ? "BASTION" : "SKIMMER")
-                    : own[15].Int >= 0 ? "HNÍZDO" : gun?.label.ToUpperInvariant(), section);
-                string ammo = own[16].Int >= 0 ? hull[5].Int + " HP" : own[15].Int >= 0 ?
-                    Mathf.RoundToInt(state["turrets"][own[15].Int]["heat"].Float * 100) + " %" :
-                    mags[0].Int + " / " + (mags[1].Int < 0 ? "∞" : mags[1].Int.ToString());
-                GUI.Label(new Rect(w - 192, h - 61, 164, 37), ammo, heading);
+                PaintReticle(w, h);
+                PaintVitals(w, h);
                 string stateLabel = Prompt();
                 if (stateLabel != null) GUI.Label(new Rect(cx - 240, h - 88, 480, 27), stateLabel, center);
-                GUI.Label(new Rect(cx - 240, h - 56, 480, 27), "G  GRANÁT " + own[17].Int + "     ·     Q  ÚHYB     ·     1–5  ZBRANĚ", center);
+                CornerPanel(new Rect(cx - 95, h - 55, 190, 28), own[17].Int > 0 ? teamTint : Subtle);
+                GUI.Label(new Rect(cx - 93, h - 55, 186, 28), "G   GRANÁT   " + own[17].Int, center);
             }
-            else if (state["winner"]["label"].Text != null)
-            {
-                Panel(new Rect(cx - 206, h - 136, 412, 92));
-                GUI.Label(new Rect(cx - 202, h - 128, 404, 38), "Výsledek · " + state["winner"]["label"].Text, center);
-                GUI.Label(new Rect(cx - 202, h - 87, 404, 28), "Další kolo za " + state["restart"].Int + " s", center);
-            }
+            else if (state["winner"]["label"].Text != null) PaintResult(cx, h);
             else
             {
                 bool replay = Time.unscaledTime < replayUntil;
@@ -221,16 +221,7 @@ namespace Trias.Native
                     j++;
                 }
             }
-            if (!captured)
-            {
-                Fill(new Rect(0,0,w,h),new Color(.02f,.035f,.06f,.70f));
-                Panel(new Rect(cx-240,h/2-116,480,232));
-                GUI.Label(new Rect(cx-219,h/2-100,435,42),"Ovládání",heading);
-                GUI.Label(new Rect(cx-219,h/2-49,435,25),"WASD  /  myš  /  Shift  /  mezerník  /  Q  /  C",section);
-                GUI.Label(new Rect(cx-219,h/2-21,435,25),"E nastoupit   ·   R přebít   ·   F mód Scatteru",caption);
-                if (GUI.Button(new Rect(cx-219,h/2+17,435,35),"Hrát",action)) Capture(true);
-                if (GUI.Button(new Rect(cx-219,h/2+63,435,35),"Opustit místnost",action)) Disconnect(null);
-            }
+            if (!captured) PaintPause(w, h);
         }
 
         string Prompt()
@@ -283,35 +274,7 @@ namespace Trias.Native
             GUI.Label(box,name,center);
         }
 
-        void Minimap()
-        {
-            var rect = new Rect(22,92,156,156);
-            Fill(rect,new Color(.025f,.063f,.106f,.85f));
-            if (Event.current.type != EventType.Repaint) return;
-            float factor = 70 / world.Spec.length;
-            Vector2 Mark(float x, float z) => new Vector2(rect.center.x + x * factor, rect.center.y + z * factor);
-            foreach (var cover in world.Spec.cover)
-            {
-                var p=Mark(cover.x,cover.z);
-                Fill(new Rect(p.x-cover.w*factor*.5f,p.y-cover.d*factor*.5f,cover.w*factor,cover.d*factor),new Color(.22f,.29f,.37f,.9f));
-            }
-            if (mode != "ffa") foreach (var actor in pilots.Values)
-            {
-                if (actor.Row[6].Int <= 0 || actor.Row[3].Int != own[3].Int) continue;
-                var p = Mark(actor.Position.x,actor.Position.z);
-                Fill(new Rect(p.x-2,p.y-2,4,4),teamTint);
-            }
-            var self=Mark(display.x,display.z);
-            Fill(new Rect(self.x-3,self.y-3,6,6),Color.white);
-            if (world.DefendedCore != null && world.DefendedCore.gameObject.activeSelf)
-            {
-                var at = world.DefendedCore.position;
-                var mark = Mark(at.x, at.z);
-                Fill(new Rect(mark.x - 4, mark.y - 4, 8, 8), teamTint);
-            }
-        }
-
-        static void Panel(Rect rect) => Fill(rect,new Color(.029f,.060f,.103f,.93f));
+        static void Panel(Rect rect) => CornerPanel(rect, Amber);
         static void Fill(Rect rect, Color color)
         {
             if (Event.current.type != EventType.Repaint) return;
