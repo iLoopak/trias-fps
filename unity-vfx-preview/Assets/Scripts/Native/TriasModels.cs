@@ -5,16 +5,6 @@ namespace Trias.Native
 {
     internal static class TriasModels
     {
-        internal static Transform ViewMechanism(TriasWorld world, Transform root, string key, Material accent)
-        {
-            var action = TriasWorld.Group(root, "Viewmodel action");
-            float z = key == "lance" ? .17f : key == "rift" ? .13f : .09f;
-            float width = key == "scatter" || key == "rift" ? .14f : .075f;
-            TriasWorld.Part(action, world.Steel, new Vector3(-.046f,.077f,z), new Vector3(width,.028f,.12f));
-            TriasWorld.Part(action, accent, new Vector3(-.089f,.081f,z), new Vector3(.016f,.017f,key == "lance" ? .17f : .071f));
-            return action;
-        }
-
         internal static void Gun(TriasWorld w, Transform root, string weapon, Material accent)
         {
             if (w.Kit.Gun(root, weapon, accent)) return;
@@ -79,9 +69,17 @@ namespace Trias.Native
         internal readonly Transform Root;
         readonly Transform body, head, left, right, weapon;
         readonly Animation locomotion;
+        readonly AnimationState runCycle;
+        readonly PilotArm leftArm, rightArm;
+        readonly Transform hips, spine;
+        Quaternion hipsPose, spinePose;
+        bool pelvisPosed;
         string currentMotion;
         float weaponKick, flinch, stance = 1, yLean, zLean, previousTick;
+        float gait, paceShown, reloadPose, reloadSpan, impactPose, turnPose, gaitYaw, frameSpan = .043f;
+        WeaponHandling.Pose handlingPose;
         readonly Dictionary<string, Transform> guns = new Dictionary<string, Transform>();
+        readonly Dictionary<string, WeaponHandling> actions = new Dictionary<string, WeaponHandling>();
         readonly TriasWorld world;
         readonly Material accent;
         internal WireValue Row;
@@ -103,6 +101,14 @@ namespace Trias.Native
             weapon.localScale = Vector3.one * .62f;
             if (pilot != null)
             {
+                var rig = pilot.GetComponentsInChildren<Transform>();
+                Transform Joint(string name) => System.Array.Find(rig, joint => joint.name == name);
+                leftArm = new PilotArm(Joint("LeftArm"), Joint("LeftForeArm"), Joint("LeftHand"));
+                rightArm = new PilotArm(Joint("RightArm"), Joint("RightForeArm"), Joint("RightHand"));
+                hips = Joint("Hips");
+                spine = Joint("Spine");
+                runCycle = locomotion["run"];
+                if (runCycle != null) runCycle.speed = 0;
                 BuildSuit(w, shell, kit, width);
                 return;
             }
@@ -191,11 +197,24 @@ namespace Trias.Native
             {
                 Position = pos; Yaw = yaw;
                 Spawn = player[13].Int;
+                impactPose = reloadPose = gait = paceShown = yLean = zLean = turnPose = gaitYaw = weaponKick = flinch = 0;
+                currentMotion = null;
+                stance = (player[2].Int & 16) != 0 ? .65f : 1;
+            }
+            else if (Row != null)
+            {
+                if ((Row[2].Int & 2) == 0 && (player[2].Int & 2) != 0 && Row[22].Float < -4)
+                    impactPose = Mathf.Clamp01(-Row[22].Float / 13);
+                float packetSpan = Mathf.Clamp(now - Got, .025f, .067f);
+                frameSpan = Mathf.Lerp(frameSpan, packetSpan + .007f, .22f);
+                turnPose = Mathf.Lerp(turnPose, Mathf.Clamp(Mathf.DeltaAngle(DesiredYaw, yaw) * .32f, -12, 12), .45f);
             }
             From = Position; FromYaw = Yaw;
             Previous = Desired;
             Desired = pos; DesiredYaw = yaw;
             Got = now;
+            if ((player[2].Int & 64) != 0 && (Row == null || (Row[2].Int & 64) == 0))
+                reloadSpan = Mathf.Max(.1f, player[30].Float);
             Row = player;
             string key = player[9].Text ?? "pulse";
             if (key != Weapon)
@@ -205,6 +224,7 @@ namespace Trias.Native
                 {
                     art = TriasWorld.Group(weapon, key);
                     TriasModels.Gun(world, art, key, accent);
+                    actions[key] = new WeaponHandling(world, art, key, accent, false);
                     guns.Add(key, art);
                 }
                 art.gameObject.SetActive(true);
@@ -214,46 +234,90 @@ namespace Trias.Native
 
         internal void Tick(float now)
         {
+            leftArm?.Restore();
+            rightArm?.Restore();
+            if (pelvisPosed)
+            {
+                hips.localRotation = hipsPose;
+                spine.localRotation = spinePose;
+                pelvisPosed = false;
+            }
             var row = Row;
             float dt = Mathf.Clamp(now - previousTick, 0, .05f);
             previousTick = now;
-            float t = Mathf.Clamp01((now - Got) / .043f);
+            float t = Mathf.Clamp01((now - Got) / frameSpan);
+            Vector3 old = Position;
             Position = Vector3.Lerp(From, Desired, t);
             Yaw = Mathf.LerpAngle(FromYaw, DesiredYaw, t);
             Root.SetPositionAndRotation(Position, Quaternion.Euler(0, Yaw, 0));
             int bits = row[2].Int;
             float blend = 1 - Mathf.Exp(-dt * 16);
             stance = Mathf.Lerp(stance, (bits & 16) != 0 ? .65f : 1, blend);
-            body.localScale = new Vector3(1, stance, 1);
+            impactPose *= Mathf.Exp(-dt * 13);
+            body.localScale = new Vector3(1 + .028f * impactPose, stance - .069f * impactPose, 1);
             Vector3 lateral = Root.InverseTransformDirection(new Vector3(row[21].Float, 0, row[23].Float));
             bool dodge = row[27].Float > .02f;
             zLean = Mathf.Lerp(zLean, Mathf.Clamp(-lateral.x * (dodge ? 1.6f : .62f), -18, 18), blend);
             yLean = Mathf.Lerp(yLean, Mathf.Clamp(lateral.z * .6f - row[22].Float * .43f, -11, 11), blend);
             flinch *= Mathf.Exp(-dt * 21);
-            body.localRotation = Quaternion.Euler(yLean - flinch, 0, zLean);
+            turnPose *= Mathf.Exp(-dt * 9);
+            body.localRotation = Quaternion.Euler(yLean - flinch + 8 * impactPose, turnPose, zLean);
             float pace = new Vector2(row[21].Float,row[23].Float).magnitude;
+            paceShown = Mathf.Lerp(paceShown, pace, 1 - Mathf.Exp(-dt * 20));
+            bool running = paceShown > (currentMotion == "run" ? .40f : .68f);
+            bool grounded = (bits & 2) != 0;
+            bool backward = lateral.z < -pace * .25f;
+            float direction = Mathf.Atan2(lateral.x, lateral.z) * Mathf.Rad2Deg;
+            if (backward) direction = Mathf.DeltaAngle(180, direction);
+            gaitYaw = Mathf.Lerp(gaitYaw, grounded && running && !dodge ? Mathf.Clamp(direction, -52, 52) : 0, blend);
+            if (grounded && running && !dodge)
+            {
+                float distance = new Vector2(Position.x - old.x, Position.z - old.z).magnitude;
+                gait = Mathf.Repeat(gait + Mathf.Min(distance, 10.6f * dt) / (stance < .8f ? 1.8f : 3.2f) * (backward ? -1 : 1), 1);
+            }
             if (locomotion != null)
             {
-                string next = (bits & 2) == 0 ? "jump" : pace > .55f ? "run" : "idle";
+                string next = !grounded ? "jump" : running ? "run" : "idle";
                 if (currentMotion != next && locomotion[next] != null)
                 {
-                    locomotion.CrossFade(next, .14f);
+                    locomotion.CrossFade(next, next == "jump" ? .07f : .13f);
                     currentMotion = next;
                 }
-                if (next == "run" && locomotion["run"] != null)
-                    locomotion["run"].speed = Mathf.Clamp(pace / 6.65f, .36f, 1.55f);
+                if (runCycle != null) runCycle.normalizedTime = gait;
             }
             else
             {
                 head.localRotation = Quaternion.Euler(-row[25].Float * 27f,0,0);
-                float cycle = Mathf.Sin(now * (pace > 8 ? 13 : 10) + row[4].Float * 1.53f);
-                float angle = (bits & 2) == 0 ? 18 : cycle * Mathf.Min(35, pace * 5.3f);
+                float cycle = Mathf.Sin(gait * 2 * Mathf.PI + row[4].Float * 1.53f);
+                float angle = !grounded ? 18 : cycle * Mathf.Min(35, paceShown * 5.3f);
                 left.localRotation = Quaternion.Euler(angle,0,0);
                 right.localRotation = Quaternion.Euler(-angle,0,0);
             }
             weaponKick *= Mathf.Exp(-dt * 19);
-            weapon.localPosition = new Vector3(.18f, 1.14f, .36f - weaponKick * .007f);
-            weapon.localRotation = Quaternion.Euler(-row[25].Float * 43 - weaponKick, 0, (bits & 64) != 0 ? 24 : 0);
+            float reloading = (bits & 64) != 0
+                ? 1 - Mathf.Max(0, row[30].Float - (now - Got)) / Mathf.Max(.1f, reloadSpan) : 0;
+            reloadPose = (bits & 64) != 0 ? Mathf.Max(reloadPose, reloading) : 0;
+            handlingPose = WeaponHandling.At(Weapon, reloadPose);
+            Vector3 geometry = handlingPose.GunRotation * .72f;
+            weapon.localPosition = new Vector3(.095f, 1.13f - handlingPose.Dip * .75f, .30f - weaponKick * .004f);
+            weapon.localRotation = Quaternion.Euler(geometry + new Vector3(-row[25].Float * 43 - weaponKick, 0, 0));
+            if (actions.TryGetValue(Weapon, out var mechanism)) mechanism.Update(handlingPose, weaponKick * .007f);
+        }
+
+        internal void PlaceHands()
+        {
+            if (leftArm == null || Weapon == null || !guns.TryGetValue(Weapon, out var gun)) return;
+            if (hips != null && spine != null && Mathf.Abs(gaitYaw) > .05f)
+            {
+                hipsPose = hips.localRotation;
+                spinePose = spine.localRotation;
+                pelvisPosed = true;
+                Quaternion yaw = Quaternion.AngleAxis(gaitYaw, Root.up);
+                hips.rotation = yaw * hips.rotation;
+                spine.rotation = Quaternion.Inverse(yaw) * spine.rotation;
+            }
+            rightArm.Reach(gun.TransformPoint(WeaponHandling.TriggerGrip), body.TransformPoint(.46f,.92f,-.15f));
+            leftArm.Reach(gun.TransformPoint(actions[Weapon].SupportGrip(handlingPose)), body.TransformPoint(-.46f, .94f, -.06f));
         }
 
         internal void Fire(string key) => weaponKick = key == "rift" || key == "scatter" ? 11 : key == "arc" ? 4 : 7;

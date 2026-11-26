@@ -16,6 +16,7 @@ namespace Trias.Native
             internal Material Material;
             internal Vector3 Position;
             internal Color Tint;
+            internal int Team;
         }
 
         static readonly string[] FlowTiers = { "MOMENTUM", "KINETIC", "SURGE", "OVERDRIVE", "FLOW STATE" };
@@ -109,6 +110,7 @@ namespace Trias.Native
             var avatar = new Avatar(world, "echo", row, world.TeamLight[team]);
             avatar.Accept(row, Time.unscaledTime);
             avatar.Tick(Time.unscaledTime);
+            avatar.PlaceHands();
             foreach (var animation in avatar.Root.GetComponentsInChildren<Animation>())
                 animation.enabled = false;
             var material = new Material(shader);
@@ -121,7 +123,7 @@ namespace Trias.Native
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderer.receiveShadows = false;
             }
-            var art = new EchoArt { Root = avatar.Root, Material = material, Position = avatar.Position, Tint = tint };
+            var art = new EchoArt { Root = avatar.Root, Material = material, Position = avatar.Position, Tint = tint, Team = team };
             echoes.Add(echo[1].Int, art);
             return art;
         }
@@ -133,6 +135,15 @@ namespace Trias.Native
                 if (!echoes.Remove(id, out var art)) continue;
                 Destroy(art.Root.gameObject);
                 Destroy(art.Material);
+            }
+        }
+
+        void ShowEchoes(bool alive, bool replay)
+        {
+            foreach (var art in echoes.Values)
+            {
+                bool visible = alive || mode != "ffa" && (!replay || art.Team == own[3].Int);
+                if (art.Root.gameObject.activeSelf != visible) art.Root.gameObject.SetActive(visible);
             }
         }
 

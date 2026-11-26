@@ -43,6 +43,25 @@ namespace Trias.Preview
             return Clip(name, data, 1);
         }
 
+        internal static AudioClip NearMiss()
+        {
+            const float duration = .105f;
+            var samples = new float[Mathf.CeilToInt(Rate * duration)];
+            var random = new System.Random(509);
+            float pressure = 0, phase = 0;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float t = (float)i / (samples.Length - 1);
+                float noise = (float)random.NextDouble() * 2 - 1;
+                pressure = Mathf.Lerp(pressure, noise, .28f);
+                float pass = Mathf.SmoothStep(0, 1, (t - .1f) / .55f);
+                phase += Cycle * Mathf.Lerp(2850, 950, pass) / Rate;
+                float envelope = Mathf.Clamp01(t * 21) * (1 - t) * (1 - t);
+                samples[i] = envelope * (.36f * Mathf.Sin(phase) + .43f * (noise - pressure));
+            }
+            return Clip("Close pass", samples, 1);
+        }
+
         internal static AudioClip Wave(string name, bool incoming)
         {
             float[] notes = incoming ? new[] { 123.5f, 123.5f, 82.4f } : new[] { 330f, 494f, 660f };

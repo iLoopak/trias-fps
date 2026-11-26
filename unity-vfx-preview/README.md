@@ -20,6 +20,8 @@ V nabídce **Esc** můžeš upravit zorné pole, citlivost myši, pohyb kamery, 
 
 Na aktuálním serveru reagují pěchotní zbraně okamžitě lokálním výšlehem, zvukem a pohybem zbraně. Server potvrzuje munici, trajektorii, zásah a poškození. **Pulse** a **Arc** střílí držením tlačítka, **Scatter**, **Lance** a **Rift** po jednotlivých stiscích. Stisk **F** spustí soustředěnou střelu Scatteru, pokud zbývají aspoň dva náboje.
 
+Přebití animuje obě ruce a mechanismus zbraně. Pulse mění zásobník, Scatter otevírá komoru, Lance zatahuje závěr, Arc vysune článek a Rift odklopí uzávěr energetického jádra. Křivky a kontaktní body lze ladit v `WeaponHandling.cs`. Pohyb kostí je vizuální a nezasahuje do serverových hitboxů ani délky přebití.
+
 Úspěšný **Q** úskok za sebou na 2,5 s nechá ozvěnu. **X** vystřelí aktuální pěchotní zbraní z její pozice, **Shift+X** použije soustředěný Scatter. Platí běžná munice, kadence a kolize. Protivník může ozvěnu zničit. **Momentum Chain** boduje platné pohybové akce a potvrzené zásahy a vyřazení. Má vlastní výsledky v souhrnu kola a jeho intenzitu najdeš v nastavení. Klávesu ozvěny lze změnit na objektu **TRIAS client**. Serverové hodnoty a tabulka akcí jsou v `signature.js`. Volby `TRIAS_COMBAT_ECHO=0` a `TRIAS_MOMENTUM=0` vypínají systémy nezávisle.
 
 Světelné efekty ovládají přízemní mlhu, bloom a paprsky rozptýleného světla. Využívají hloubku obrazu a mají vlastní barvy a intenzitu pro každou arénu. Vantu rámují tavicí komora a vysoké výduchy, Meridian Basin pohyblivé těžební stroje a Mechový ostrov má chladný opar v nížinách.

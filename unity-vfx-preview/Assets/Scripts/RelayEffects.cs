@@ -33,7 +33,7 @@ namespace Trias.Preview
         AudioSource atmosphere;
         AudioClip pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue, menuClick, landing;
         AudioClip focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad;
-        AudioClip phaseForm, phaseFire, phaseFade, phaseRupture;
+        AudioClip phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue;
         readonly AudioSource[] voices = new AudioSource[20];
         readonly AudioLowPassFilter[] filters = new AudioLowPassFilter[20];
         readonly float[] voicePriority = new float[20];
@@ -111,6 +111,7 @@ namespace Trias.Preview
             phaseFire = MatchSound.Discharge("Echo activation", .20f, 135, 940, .37f);
             phaseFade = EffectPreview.Cue("Echo decay", 540, 160, .13f, 119);
             phaseRupture = MatchSound.Discharge("Echo rupture", .24f, 220, 2700, .54f);
+            nearMissCue = MatchSound.NearMiss();
             for (int i = 0; i < traces.Length; i++)
             {
                 var trace = new GameObject("Pulse trace", typeof(LineRenderer)).GetComponent<LineRenderer>();
@@ -230,6 +231,9 @@ namespace Trias.Preview
             voice.Play();
         }
 
+        internal void NearMiss(Vector3 position, float proximity) =>
+            Play(nearMissCue, position, Mathf.Lerp(.11f, .22f, proximity));
+
         public void Detonation(Vector3 position)
         {
             Emit(rift, position, Rift, 62);
@@ -289,6 +293,11 @@ namespace Trias.Preview
         {
             var cue = weapon == "rift" || weapon == "arc" ? (close ? airJump : equipCue) : (close ? equipCue : reloadCue);
             Play(cue, position, close ? .24f : .21f, true);
+        }
+        public void ReloadSeat(string weapon)
+        {
+            var cue = weapon == "rift" || weapon == "arc" ? airJump : weapon == "scatter" ? reloadCue : equipCue;
+            Play(cue, Vector3.zero, .16f, true);
         }
         public void Equip(string weapon) => Play(weapon == "rift" ? airJump : equipCue, Vector3.zero, .22f, true);
         public void DryFire() => Play(dryClick, Vector3.zero, .27f, true);
@@ -466,7 +475,7 @@ namespace Trias.Preview
             foreach (var bed in beds.Values) Destroy(bed);
             foreach (var cue in new[] { pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue,
                 menuClick, landing, focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad,
-                phaseForm, phaseFire, phaseFade, phaseRupture })
+                phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue })
                 if (cue != null) Destroy(cue);
         }
     }

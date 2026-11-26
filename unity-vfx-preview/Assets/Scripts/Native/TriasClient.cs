@@ -30,7 +30,7 @@ namespace Trias.Native
         readonly List<Command> commands = new List<Command>(30);
         readonly List<FallenPilot> fallen = new List<FallenPilot>();
         readonly Dictionary<string, Transform> weapons = new Dictionary<string, Transform>();
-        readonly Dictionary<string, Transform> weaponActions = new Dictionary<string, Transform>();
+        readonly Dictionary<string, WeaponHandling> weaponActions = new Dictionary<string, WeaponHandling>();
         Catalog catalog;
         TriasWorld world;
         TriasSocket socket;
@@ -88,6 +88,12 @@ namespace Trias.Native
         void OnApplicationFocus(bool focus)
         {
             if (!focus) Capture(false);
+        }
+
+        void LateUpdate()
+        {
+            foreach (var actor in pilots.Values)
+                if (actor.Root.gameObject.activeSelf) actor.PlaceHands();
         }
 
         public void Join(string address, string code, string player, string map, string game, string kit, bool bots, bool remember = true)
@@ -407,7 +413,11 @@ namespace Trias.Native
                 if (spawn)
                 {
                     teamTint = PlayerTint(own);
-                    if (previous != null) effects.Reentry(display, teamTint, true);
+                    if (previous != null)
+                    {
+                        effects.Reentry(display, teamTint, true);
+                        sceneFade = Mathf.Max(sceneFade, .22f * visualEffects);
+                    }
                     spectator = killer = null; replayUntil = 0;
                 }
             }
@@ -433,7 +443,10 @@ namespace Trias.Native
                 if ((own[2].Int & 64) != (previous[2].Int & 64) && !spawn && own[6].Int > 0)
                 {
                     bool completed = (own[2].Int & 64) == 0;
-                    if (completed || now >= reloadPreviewUntil) effects.Reload(display, completed, own[9].Text);
+                    string key = own[9].Text;
+                    int slot = Array.IndexOf(Arsenal, key);
+                    bool loaded = completed && key == previous[9].Text && own[10][slot][0].Int > previous[10][slot][0].Int;
+                    if (loaded || (!completed && now >= reloadPreviewUntil)) effects.Reload(display, completed, key);
                     reloadPreviewUntil = 0;
                     if ((own[2].Int & 64) != 0) reloadPeriod = Mathf.Max(.10f, own[30].Float);
                 }
@@ -457,12 +470,13 @@ namespace Trias.Native
             }
             equipMotion = 1;
             switchPreviewUntil = 0;
+            reloadProgressShown = reloadCueProgress = 0;
             if (!weapons.TryGetValue(key, out var art))
             {
                 art = TriasWorld.Group(grip, key);
                 var accent = world.MaterialAt(Catalog.Find(catalog.weapons, key)?.color ?? "#b9fff1", true);
                 TriasModels.Gun(world, art, key, accent);
-                weaponActions[key] = TriasModels.ViewMechanism(world, art, key, accent);
+                weaponActions[key] = new WeaponHandling(world, art, key, accent, true);
                 weapons[key] = art;
             }
             art.gameObject.SetActive(true);
@@ -643,6 +657,7 @@ namespace Trias.Native
                         effects.DistantMuzzle(source + firingPilot.Root.forward * .53f, tint, visualEffects);
                     }
                     if (echoShot) effects.DistantMuzzle(source, tint, visualEffects);
+                    if (!local) PlayNearMiss(evt, source, now);
                     for (int i = 0; i < evt["ends"].Count; i++)
                     {
                         var end = evt["ends"][i];
@@ -736,7 +751,7 @@ namespace Trias.Native
             if (mode == "ffa") return null;
             var options = new List<Avatar>();
             foreach (var actor in pilots.Values)
-                if (actor.Row[3].Int == own[3].Int && actor.Row[6].Int > 0) options.Add(actor);
+                if (actor.Row[3].Int == own[3].Int && actor.Row[6].Int > 0 && actor.Row[31].Text == null) options.Add(actor);
             options.Sort((a, b) => a.Row[4].Int.CompareTo(b.Row[4].Int));
             return options.Count == 0 ? null : options[(options.FindIndex(a => a.Id == previous) + 1) % options.Count].Id;
         }
@@ -761,6 +776,7 @@ namespace Trias.Native
             }
             bool alive = own[6].Int > 0, driving = own[16].Int >= 0, mounted = own[15].Int >= 0;
             bool replay = !alive && now < replayUntil;
+            ShowEchoes(alive, replay);
             foreach (var actor in pilots.Values)
             {
                 actor.Tick(now);
@@ -778,11 +794,13 @@ namespace Trias.Native
             grip.gameObject.SetActive(alive && !driving && !mounted);
             if (alive)
             {
+                followedPilot = null;
                 display = Vector3.Lerp(display, predicted.Position, 1 - Mathf.Exp(-dt * 39));
                 UpdateFeel(now, dt, driving);
             }
             else if (replay)
             {
+                followedPilot = null;
                 Vector3 direction = Vector3.ProjectOnPlane(replayOrigin - replayPoint, Vector3.up).normalized;
                 if (direction.sqrMagnitude < .001f) direction = Vector3.forward;
                 var angle = Quaternion.Euler(0, 29 + (replayUntil - now) * 20, 0);
@@ -793,18 +811,26 @@ namespace Trias.Native
             {
                 if (spectator == null || !pilots.TryGetValue(spectator, out var watched) || watched.Row[6].Int <= 0) spectator = NextAlly(null);
                 if (spectator != null && pilots.TryGetValue(spectator, out watched))
-                    Chase(watched.Position + Vector3.up * 1.26f, watched.Root.forward, 3.65f, .99f);
-                else Chase(display + Vector3.up * 1.11f, Quaternion.Euler(0, yaw, 0) * Vector3.forward, 2.1f, .87f);
+                    FollowSpectator(watched, dt);
+                else
+                {
+                    if (followedPilot != null) chaseArm = 0;
+                    followedPilot = null;
+                    Chase(display + Vector3.up * 1.11f, Quaternion.Euler(0, yaw, 0) * Vector3.forward, 2.1f, .87f);
+                }
             }
         }
 
-        void Chase(Vector3 focus, Vector3 direction, float depth, float rise, bool smooth = true)
+        void Chase(Vector3 focus, Vector3 direction, float depth, float rise, bool smooth = true, bool clearCorners = false)
         {
             Vector3 arm = -direction * depth + Vector3.up * rise;
             float distance = arm.magnitude;
             if (Physics.Raycast(focus, arm.normalized, out var hit, arm.magnitude, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
-                distance = Mathf.Max(.16f, hit.distance - .17f);
-            if (!smooth || chaseArm <= 0 || distance < chaseArm || cameraMotion < .01f) chaseArm = distance;
+                distance = Mathf.Max(clearCorners ? 0 : .16f, hit.distance - .17f);
+            if (clearCorners && Physics.SphereCast(focus, .26f, arm.normalized, out var edge, distance,
+                    TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
+                distance = Mathf.Max(0, edge.distance - .04f);
+            if (!smooth || (!clearCorners && chaseArm <= 0) || distance < chaseArm || cameraMotion < .01f) chaseArm = distance;
             else chaseArm = Mathf.Lerp(chaseArm, distance, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 14 / cameraMotion));
             view.transform.position = focus + arm.normalized * chaseArm;
             view.transform.LookAt(focus + direction * 2.4f);
