@@ -84,6 +84,8 @@ Pro ladění plné hry spusť v kořenu repozitáře `npm run lab:feel` a v Unit
 
 **F5** porovná lokální a serverovou odezvu výstřelu, **F6** přepne simulovaných 160 ms RTT a **F7** doplní terče a munici. **F8** přepne Combat Echo a **F9** Momentum Chain. Panel ukazuje dobu snímku, RTT, polohovou korekci a časy lokálního spuštění efektu a serverového potvrzení. Lokální čas měří práci v klientu po zpracování vstupu. V Inspectoru objektu **TRIAS client** lze za běhu ladit sílu a zotavení zpětného rázu, setrvačnost zbraně a amplitudu kroku. Nové zvuky i shader ozvěny jsou původní procedurální tvorba.
 
+Nastavení systémových interakcí W6 a cvičení se sestřelováním granátů popisuje [návod k W6](W6-INTERACTIONS.md).
+
 Samostatná srovnávací scéna pro Unity 6.3 LTS. Obsahuje výstřel Pulse, nárazové jiskry, explozi Riftu a návrat pilota. Účelem je porovnat vizuální a zvukovou odezvu s webovou verzí TRIAS.
 
 Otevři tuto složku v Unity 6.3 LTS. V nabídce vyber **TRIAS → Open VFX Lab**. Při prvním otevření se vytvoří scéna v `Assets/Scenes/Trias VFX Lab.unity`. V režimu Play spustíš klávesou **1** Pulse, **2** Rift, **3** návrat a **mezerníkem** výstřel s následným návratem.

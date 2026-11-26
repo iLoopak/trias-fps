@@ -12,6 +12,7 @@ import { Streaks } from './streaks.js';
 import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
 import { NETWORK_VERSION, packSnapshot } from './public/netcode.js';
 import { Signature } from './signature.js';
+import { explosionImpulse, grenadeOnRay } from './interactions.js';
 
 const EMPTY = { x: 0, z: 0, sprint: false, fire: false, reload: false, jump: false, dodge: false, crouch: false };
 const BOT_CHARACTERS = Object.keys(CHARACTERS);
@@ -32,6 +33,8 @@ export class Match {
     this.botDifficulty = normalizeDifficulty(signature.botDifficulty);
     this.botDebug = signature.botDebug === true;
     this.hordeSupport = signature.hordeSupport === true;
+    const { intercept = false, recall = false, brace = false, traversal = false } = signature.interactions ?? {};
+    this.interactions = { intercept, recall, brace, traversal };
     this.players = new Map();
     this.humans = new Set();
     this.events = [];
@@ -328,9 +331,17 @@ export class Match {
       return;
     }
     const damage = new Map();
+    const intercepts = this.interactions.intercept && !mounted && !vehicle && !trigger?.echo ? new Set() : null;
     for (const [index, offset] of weapon.pattern.entries()) {
       const direction = mountedAim?.direction ?? aimVector(shotYaw + offset, shotPitch + (index % 2 ? offset * 0.7 : -offset * 0.7));
       const { target, distance } = this.trace(player, origin, direction, weapon.range);
+      const cut = intercepts && grenadeOnRay(this,player,origin,direction,distance,now);
+      if (cut) {
+        intercepts.add(cut.grenade);
+        ends.push([origin.x + direction.x * cut.distance, origin.y + direction.y * cut.distance,
+          origin.z + direction.z * cut.distance, 'grenade']);
+        continue;
+      }
       if (target && (target.isEcho || target.opened !== undefined || target.kind || target.safeUntil <= now)) {
         const hit = damage.get(target);
         if (hit) hit.damage += weapon.damage * power;
@@ -354,6 +365,16 @@ export class Match {
         hits.push(hit);
         this.signature.combat(player, hit, now, Boolean(trigger?.echo));
       }
+    }
+    for (const grenade of intercepts ?? []) {
+      const index = this.projectiles.indexOf(grenade);
+      if (index < 0) continue;
+      this.projectiles.splice(index,1);
+      const position = grenade.position;
+      this.events.push({ type: 'intercept', id: player.id, position: [position.x,position.y,position.z] });
+      if ((!player.grounded || now - player.lastDodge < 1.12) && distanceSquared(player,position) < 12 ** 2)
+        this.signature.action(player,'intercept',now,grenade.owner.id);
+      this.explode(grenade,null,now);
     }
   }
 
@@ -422,17 +443,14 @@ export class Match {
         this.signature.damage(other, amount * power);
         continue;
       }
+      const shielded = !vehicle && !core && other.armor > 0;
       const hit = this.damage(owner, other, amount * power * (vehicle ? 1.32 : 1), now, origin, weapon);
       if (!hit) continue;
       hits.push(hit);
       this.signature.combat(owner, hit, now, Boolean(projectile.echo));
       if (!hit.eliminated && !vehicle && !core) {
-        const horizontal = Math.hypot(x, z) || 1;
-        const impulse = (direction ? 4.8 : 7.3) * strength;
-        other.vx += x / horizontal * impulse;
-        other.vz += z / horizontal * impulse;
-        other.vy = Math.max(other.vy, 2.8 * strength);
-        other.grounded = false;
+        explosionImpulse(other,{ x,z },strength,projectile,shielded,this.interactions.brace);
+        if (shielded && this.interactions.brace) hit.braced = true;
       }
     }
   }
@@ -714,7 +732,7 @@ export class Match {
             this.shoot(player, now, predicted.alt, false, null, predicted);
             player.predictedTrigger = null;
           }
-        } else if (!player.reloadAt && now >= player.fireAt) {
+        } else if (!echoFired && !player.reloadAt && now >= player.fireAt) {
           const alt = player.altRequest && spec.alt && active.ammo >= spec.alt.cost;
           if (alt || ((input.fire || player.fireRequest) && active.ammo > 0)) this.shoot(player, now, Boolean(alt));
         }
@@ -769,6 +787,7 @@ export class Match {
     const state = {
       type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), horde: this.horde?.snapshot(now), time: Math.max(0, Math.ceil(this.endsAt - now)),
       signature: this.signature.snapshot(now),
+      interactions: Object.values(this.interactions).some(Boolean) ? this.interactions : undefined,
       streaks: this.streaks.snapshot(now),
       points: this.mode === 'dom' ? this.points : undefined, flags: this.mode === 'ctf' ? this.flags : undefined,
       pickups: this.pickups.map((time, i) => this.horde && !this.horde.available(this.layout.pickups[i]) ? 1 : Math.max(0, Math.ceil(time - now))),

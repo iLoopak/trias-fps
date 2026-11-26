@@ -5,6 +5,7 @@ import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
 import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
 import { fireProfileData, Match } from './match.js';
+import { interactionFlags } from './interactions.js';
 import { NETWORK_VERSION, unpackInput } from './public/netcode.js';
 
 const files = new Map([
@@ -107,7 +108,7 @@ wss.on('connection', (socket, request) => {
         if (input) socket.room.input(socket.player, input, time);
       }
       if (socket.protocolVersion === NETWORK_VERSION && message.type === 'trigger') socket.room.trigger(socket.player, message, time);
-      if (socket.protocolVersion === NETWORK_VERSION && message.type === 'echo-fire') socket.room.signature.request(socket.player, message);
+      if (socket.protocolVersion === NETWORK_VERSION && (message.type === 'echo-fire' || message.type === 'echo-swap')) socket.room.signature.request(socket.player, message);
       if (socket.protocolVersion === NETWORK_VERSION && message.type === 'perk' && !request.headers.origin) {
         const error = socket.room.streaks.activate(socket.player, message, time);
         if (error) socket.send(JSON.stringify({ type: 'perk-error', message: error }));
@@ -138,6 +139,7 @@ wss.on('connection', (socket, request) => {
       room = new Match(code, mode, message.bots !== false, ARENAS[arena], {
         echo: process.env.TRIAS_COMBAT_ECHO !== '0', momentum: process.env.TRIAS_MOMENTUM !== '0',
         botDifficulty: process.env.TRIAS_BOT_DIFFICULTY, botDebug: process.env.TRIAS_BOT_DEBUG === '1',
+        interactions: interactionFlags(process.env),
         hordeSupport: mode === 'horde' && (message.hordeBots === true || process.env.TRIAS_HORDE_BOTS === '1'),
       });
       room.reset(time);

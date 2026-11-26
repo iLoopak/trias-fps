@@ -409,6 +409,26 @@ namespace Trias.Preview
             Play(cue, at + Vector3.up * .8f, rupture ? .35f : firing ? .24f : .18f, local);
         }
 
+        internal void EchoRecall(Vector3 from, Vector3 to, Color tint, bool local, float intensity)
+        {
+            if (intensity > .01f)
+            {
+                Emit(impact, from + Vector3.up * .65f, tint, Mathf.CeilToInt(11 * intensity), .7f);
+                Emit(impact, to + Vector3.up * .46f, tint, Mathf.CeilToInt(17 * intensity), .83f);
+                Ring(from + Vector3.up * .06f, tint, Quaternion.identity, .26f, 1.24f);
+                Ring(to + Vector3.up * .06f, tint, Quaternion.identity, .42f, 1.76f);
+            }
+            Play(phaseForm, to + Vector3.up * .55f, local ? .3f : .22f, local);
+        }
+
+        internal void SurfacePulse(Vector3 at, Color tint, bool pad, float intensity, bool explosive)
+        {
+            if (intensity <= .01f) return;
+            tint.a = intensity;
+            Ring(at, tint, Quaternion.identity, pad ? .41f : .55f, pad ? 2.25f : explosive ? 1.85f : .92f);
+            if (pad || explosive) Emit(impact, at, tint, Mathf.CeilToInt(7 * intensity), .48f);
+        }
+
         public void Flow(int tier, float intensity)
         {
             if (tier < 2) return;

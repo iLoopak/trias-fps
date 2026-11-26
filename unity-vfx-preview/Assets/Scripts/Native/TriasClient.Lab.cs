@@ -46,6 +46,8 @@ namespace Trias.Native
                 socket.Send(labDelay ? "{\"type\":\"lab-delay\",\"active\":true}" : "{\"type\":\"lab-delay\",\"active\":false}");
             }
             if (Input.GetKeyDown(KeyCode.F7)) socket.Send("{\"type\":\"lab-reset\"}");
+            if (state["interactions"]["intercept"].Bool && Input.GetKeyDown(KeyCode.F10))
+                socket.Send("{\"type\":\"lab-grenade\"}");
             bool toggleEcho = Input.GetKeyDown(KeyCode.F8), toggleMomentum = Input.GetKeyDown(KeyCode.F9);
             if (toggleEcho) labEcho = !labEcho;
             if (toggleMomentum) labMomentum = !labMomentum;
@@ -55,7 +57,8 @@ namespace Trias.Native
 
         void PaintLab(float width)
         {
-            var panel = new Rect((width - 486) * .5f, 90, 486, 113);
+            bool intercept = state["interactions"]["intercept"].Bool;
+            var panel = new Rect((width - 486) * .5f, 90, 486, intercept ? 135 : 113);
             CornerPanel(panel, Shield);
             float milliseconds = labFrameTime * 1000;
             float fps = labFrameTime > 0 ? 1 / labFrameTime : 0;
@@ -65,6 +68,8 @@ namespace Trias.Native
             GUI.Label(new Rect(panel.x + 11, 159, 467, 21), "F5 srovnání · F6 přidat 160 ms · F7 doplnit terče a munici", caption);
             GUI.Label(new Rect(panel.x + 11, 180, 467, 21),
                 $"F8 Ozvěna {(labEcho ? "zapnuta" : "vypnuta")} · F9 Momentum {(labMomentum ? "zapnuto" : "vypnuto")}", caption);
+            if (intercept)
+                GUI.Label(new Rect(panel.x + 11, 202, 467, 21), "F10 tréninkový granát · namiř do volného prostoru", caption);
         }
 #endif
     }

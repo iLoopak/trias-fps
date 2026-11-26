@@ -1,7 +1,8 @@
 import { performance } from 'node:perf_hooks';
 import { WebSocketServer } from 'ws';
 import { fireProfileData, Match } from '../match.js';
-import { ARMORY, TICK, WEAPONS } from '../public/rules.js';
+import { interactionFlags } from '../interactions.js';
+import { aimVector, ARMORY, eyeHeight, TICK, wallDistance, WEAPONS } from '../public/rules.js';
 import { NETWORK_VERSION, unpackInput } from '../public/netcode.js';
 
 const port = 3035;
@@ -26,7 +27,7 @@ function drill(room, player, targets, start) {
 server.on('connection', (socket, request) => {
   if (request.headers.origin) { socket.close(1008); return; }
   const start = now();
-  const match = new Match('FEEL LAB', 'tdm', false);
+  const match = new Match('FEEL LAB', 'tdm', false, undefined, { interactions: interactionFlags(process.env) });
   const targets = [];
   const send = socket.send.bind(socket);
   let lag = 0;
@@ -74,11 +75,26 @@ server.on('connection', (socket, request) => {
         const input = unpackInput(message.data);
         if (input) match.input(socket.player, input, at);
       } else if (message.type === 'trigger') match.trigger(socket.player, message, at);
-      else if (message.type === 'echo-fire') match.signature.request(socket.player, message);
+      else if (message.type === 'echo-fire' || message.type === 'echo-swap') match.signature.request(socket.player, message);
+      else if (message.type === 'lab-grenade' && match.interactions.intercept) practiceGrenade(socket.player, at);
       else if (message.type === 'ping') socket.send(JSON.stringify({ type: 'pong', id: message.id }));
     });
   });
   socket.on('close', () => sessions.delete(tick));
+
+  function practiceGrenade(player, at) {
+    const target = targets[0];
+    if (!player.hp || match.projectiles.some(projectile => projectile.weapon === 'grenade')) return;
+    const direction = aimVector(player.yaw, player.pitch);
+    const eye = { x: player.x, y: player.y + eyeHeight(player), z: player.z };
+    if (wallDistance(eye, direction, 7, match.combatLayout) < 6.99) return;
+    target.grenades = Math.max(1, target.grenades);
+    match.throwGrenade(target, at);
+    const grenade = match.projectiles.at(-1);
+    Object.assign(grenade.position, { x: eye.x + direction.x * 6.6, y: eye.y + direction.y * 6.6, z: eye.z + direction.z * 6.6 });
+    Object.assign(grenade.velocity, { x: -direction.x * 1.65, y: 3.2, z: -direction.z * 1.65 });
+    match.events.at(-1).from = [grenade.position.x, grenade.position.y, grenade.position.z];
+  }
 
   function tick(at) {
     match.endsAt = at + 360;

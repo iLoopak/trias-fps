@@ -163,6 +163,8 @@ namespace Trias.Native
             killFeedCount = 0;
             waveFlash = coreFlash = hit = hurt = 0;
             toast = null; toastUntil = 0;
+            nextSurfacePulse = nextBracedNotice = 0;
+            sawInterceptHint = false;
             radioCaption = null; radioUntil = 0;
             if (grip != null) Destroy(grip.gameObject);
             grip = null;
@@ -571,6 +573,7 @@ namespace Trias.Native
                 int id = item[0].Int;
                 bool pulse = item[1].Text == "rift";
                 Vector3 target = new Vector3(item[2].Float, item[3].Float, item[4].Float);
+                if (item[1].Text == "grenade") HintAtGrenade(target);
                 if (!projectiles.TryGetValue(id, out var art))
                 {
                     art = AcquireProjectile(pulse, target);
@@ -625,10 +628,16 @@ namespace Trias.Native
             string key = evt["weapon"].Text ?? "pulse";
             string actorId = evt["id"].Text;
             bool local = actorId == identity;
-            if (own[6].Int <= 0 && !local && (type is "shot" or "tower-shot" or "burst" or "movement" or "pickup") &&
+            if (own[6].Int <= 0 && !local && (type is "shot" or "tower-shot" or "burst" or "movement" or "pickup" or "echo-recall" or "intercept") &&
                 (actorId == null || !pilots.TryGetValue(actorId,out var sourcePilot) || !SpectatorAlly(sourcePilot))) return;
             switch (type)
             {
+                case "echo-recall":
+                    PresentRecall(evt, actorId, local, now);
+                    break;
+                case "intercept":
+                    if (local) AddNotice("Granát sestřelen");
+                    break;
                 case "echo-end":
                     OnEchoEnd(evt, local);
                     break;
@@ -636,7 +645,15 @@ namespace Trias.Native
                     if (local)
                     {
                         echoAwaitUntil = 0;
-                        EchoRejected(evt["reason"].Text == "blocked" ? "OZVĚNA JE BLOKOVANÁ" : "OZVĚNA NENÍ PŘIPRAVENÁ", now);
+                        EchoRejected(evt["reason"].Text switch
+                        {
+                            "blocked" => "TRASA JE BLOKOVANÁ",
+                            "ground" => "NÁVRAT JEN NA ZEMI",
+                            "objective" => "NÁVRAT MIMO CÍL",
+                            "range" => "MIMO DOSAH NÁVRATU",
+                            "occupied" => "MÍSTO JE OBSAZENÉ",
+                            _ => "OZVĚNA NENÍ PŘIPRAVENÁ",
+                        }, now);
                     }
                     break;
                 case "trigger-rejected":
@@ -690,11 +707,14 @@ namespace Trias.Native
                         string kind = end[3].Text;
                         if (kind == "wall" && world.Spec.id == "island" && at.y <= world.Height(at.x, at.z) + .11f)
                             kind = Motor.Shallow(at) ? "water" : "soil";
-                        effects.Shot(source, at, kind != null, local, tint, key, false, kind, visualEffects, i == 0);
+                        effects.Shot(source, at, kind != null, local, kind == "grenade" ? Amber : tint, key, false, kind, visualEffects, i == 0);
+                        if (kind is "water" or "wall") ReactToSurface(at, now, false);
                     }
                     break;
                 case "burst":
-                    effects.Blast(At(evt["from"]), key == "grenade", visualEffects);
+                    Vector3 blastAt = At(evt["from"]);
+                    effects.Blast(blastAt, key == "grenade", visualEffects);
+                    ReactToSurface(blastAt, now, true);
                     break;
                 case "core-hit":
                     effects.Shot(At(evt["from"]), At(evt["position"]), false, false, Catalog.Tint("#ff7a5e"), key);
@@ -769,7 +789,13 @@ namespace Trias.Native
                 {
                     bool explosive = type == "burst" || type == "orbital-impact";
                     bool broken = strike["shieldBreak"].Bool;
-                    damageTint = explosive ? Amber : broken || strike["health"].Int == 0 ? Shield : Fault;
+                    bool braced = strike["braced"].Bool;
+                    if (braced && now >= nextBracedNotice)
+                    {
+                        nextBracedNotice = now + 2;
+                        AddNotice("Štít ztlumil odhoz");
+                    }
+                    damageTint = braced ? Shield : explosive ? Amber : broken || strike["health"].Int == 0 ? Shield : Fault;
                     RecordIncoming(At(evt["from"]), damageTint, explosive || broken, now);
                 }
                 if (strike["id"].Text != null && pilots.TryGetValue(strike["id"].Text, out var struck))

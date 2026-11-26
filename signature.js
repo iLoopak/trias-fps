@@ -1,4 +1,5 @@
 import { aimVector, blocked, eyeHeight, floorBelow, hitHeight, rayBox, wallDistance, WEAPONS } from './public/rules.js';
+import { recallBlocker } from './interactions.js';
 
 export const SIGNATURE = {
   echoLifetime: 2.5,
@@ -7,7 +8,7 @@ export const SIGNATURE = {
   thresholds: [18, 45, 80, 125],
   actions: {
     sprint: 7, dodge: 10, airDodge: 16, double: 13, launch: 12, land: 9, turn: 8,
-    airHit: 13, airKill: 26, dodgeKill: 25, moveKill: 18, echo: 11, echoHit: 22, echoKill: 39,
+    airHit: 13, airKill: 26, dodgeKill: 25, moveKill: 18, echo: 11, echoHit: 22, echoKill: 39, intercept: 19, launchHit: 17,
   },
 };
 
@@ -48,6 +49,7 @@ export class Signature {
     player.echoRequest = null;
     player.styleSprint = false;
     player.lastDodge = -Infinity;
+    player.launchComboUntil = 0;
     player.lastTurn = -Infinity;
     player.styleHeading = null;
     const chain = this.chains.get(player.id);
@@ -95,18 +97,20 @@ export class Signature {
   }
 
   request(player, message) {
-    if (!this.echoEnabled || !this.enabled(player) || !Number.isSafeInteger(message.echo) ||
+    const swap = message.type === 'echo-swap';
+    if (!this.echoEnabled || !this.enabled(player) || swap && !this.match.interactions.recall || !Number.isSafeInteger(message.echo) ||
       !Number.isSafeInteger(message.action) || message.action <= (player.lastEchoAction ?? 0) ||
-      !Number.isFinite(message.yaw) || !Number.isFinite(message.pitch)) return;
+      !swap && (!Number.isFinite(message.yaw) || !Number.isFinite(message.pitch))) return;
     player.lastEchoAction = message.action;
     if (player.echoRequest) return;
-    player.echoRequest = { echo: message.echo, yaw: message.yaw % (Math.PI * 2),
+    player.echoRequest = swap ? { echo: message.echo, swap: true } : { echo: message.echo, yaw: message.yaw % (Math.PI * 2),
       pitch: Math.max(-1.48, Math.min(1.48, message.pitch)), alt: message.alt === true };
   }
 
   fire(player, request, now) {
     if (!request || !this.echoEnabled) return false;
     const echo = this.echoes.get(player.id);
+    if (request.swap) return this.recall(player,echo,request,now);
     const weapon = WEAPONS[player.weapon];
     const spec = request.alt ? weapon.alt : weapon;
     const inventory = player.loadout[player.weapon];
@@ -139,6 +143,23 @@ export class Signature {
     return true;
   }
 
+  recall(player, echo, request, now) {
+    if (!this.match.interactions.recall || !this.enabled(player)) return false;
+    const reason = !echo || echo.serial !== request.echo || echo.expires <= now ? 'unavailable'
+      : player.hp <= 0 || this.match.restartAt ? 'unavailable'
+        : recallBlocker(this.match,player,echo);
+    if (reason) {
+      this.match.events.push({ type: 'echo-reject', id: player.id, reason });
+      return false;
+    }
+    const from = [player.x,player.y,player.z];
+    Object.assign(player,{ x:echo.x,y:echo.y,z:echo.z,vx:0,vy:0,vz:0,grounded:true,stride:0,
+      fireAt:Math.max(player.fireAt,now+.20), safeUntil:now });
+    this.clearEcho(player,'recall');
+    this.match.events.push({ type: 'echo-recall',id: player.id,team: player.team,from,to:[player.x,player.y,player.z] });
+    return true;
+  }
+
   movement(player, pose, signal, now) {
     if (signal === 'dodge') {
       player.lastDodge = now;
@@ -152,8 +173,14 @@ export class Signature {
     player.styleSprint = sprinting;
     if (signal === 'dodge' && distance >= .26) this.action(player, pose.grounded ? 'dodge' : 'airDodge', now);
     if (signal === 'double' && speed > 4.5) this.action(player, 'double', now);
-    if (signal === 'launch') this.action(player, 'launch', now);
-    if (signal === 'land' && pose.vy < -7.5 && speed > 5.5) this.action(player, 'land', now);
+    if (signal === 'launch') {
+      this.action(player, 'launch', now);
+      if (this.match.interactions.traversal) player.launchComboUntil = now + 1.55;
+    }
+    if (signal === 'land') {
+      player.launchComboUntil = 0;
+      if (pose.vy < -7.5 && speed > 5.5) this.action(player, 'land', now);
+    }
     if (speed < 7 || distance < .20) return;
     const heading = Math.atan2(player.vx, player.vz);
     if (player.styleHeading == null) player.styleHeading = heading;
@@ -167,6 +194,12 @@ export class Signature {
 
   combat(player, hit, now, echo = false) {
     if (!hit || (!hit.health && !hit.absorbed) || !this.match.players.has(hit.id) || player.id === hit.id || !player.hp) return;
+    if (!echo && !player.grounded && now <= player.launchComboUntil &&
+        Math.hypot(player.vx,player.vz) >= 5) {
+      player.launchComboUntil = 0;
+      this.action(player,'launchHit',now,hit.id);
+      return;
+    }
     const moved = now - player.lastDodge < 1.65;
     const action = echo ? (hit.eliminated ? 'echoKill' : 'echoHit')
       : hit.eliminated ? (!player.grounded ? 'airKill' : moved ? 'dodgeKill'
