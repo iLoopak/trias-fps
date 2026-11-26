@@ -21,6 +21,8 @@ namespace Trias.Preview
         readonly float[] haloTimes = new float[16];
         readonly float[] haloDuration = new float[16];
         readonly float[] haloExtent = new float[16];
+        readonly bool[] haloConverges = new bool[16];
+        Mesh ceramicFragments;
         readonly MeshFilter[] haloFilters = new MeshFilter[16];
         readonly Mesh[] factionGlyphs = new Mesh[3];
         readonly Renderer[] haloRenderers = new Renderer[16];
@@ -56,6 +58,22 @@ namespace Trias.Preview
         void Awake()
         {
             haloColor = new MaterialPropertyBlock();
+            ceramicFragments = new Mesh { name = "Six detached phase plates" };
+            var points = new Vector3[24];
+            var indices = new int[36];
+            for (int i = 0; i < 6; i++)
+            {
+                var a = Quaternion.Euler(0, i * 60, 0);
+                points[i*4] = a * new Vector3(-.26f,0,.98f);
+                points[i*4+1] = a * new Vector3(.30f,.04f,1.04f);
+                points[i*4+2] = a * new Vector3(.24f,.07f,.88f);
+                points[i*4+3] = a * new Vector3(-.20f,.02f,.82f);
+                indices[i*6] = i*4; indices[i*6+1] = i*4+1; indices[i*6+2] = i*4+2;
+                indices[i*6+3] = i*4; indices[i*6+4] = i*4+2; indices[i*6+5] = i*4+3;
+            }
+            ceramicFragments.vertices = points;
+            ceramicFragments.triangles = indices;
+            ceramicFragments.RecalculateBounds();
             speaker = gameObject.AddComponent<AudioSource>();
             speaker.playOnAwake = false;
             boots = gameObject.AddComponent<AudioSource>();
@@ -195,7 +213,8 @@ namespace Trias.Preview
                 if (!haloRenderers[i].enabled) continue;
                 float progress = Mathf.Clamp01(1f - (haloTimes[i] - time) / haloDuration[i]);
                 haloRenderers[i].enabled = progress < 1;
-                halos[i].localScale = Vector3.one * haloExtent[i] * Mathf.Lerp(0.24f, 1, progress);
+                float travel = haloConverges[i] ? 1f - progress : progress;
+                halos[i].localScale = Vector3.one * haloExtent[i] * Mathf.Lerp(.24f, 1, travel);
             }
             flash.intensity = pulseLevel * Mathf.Exp(-9f * Mathf.Max(0f, time - flashAt));
         }
@@ -238,7 +257,7 @@ namespace Trias.Preview
                 impactRemaining -= shown;
                 if (shown > 0) Emit(impact, end + outgoing * .035f, impactColor, shown, landscape ? 1.15f : .7f);
                 if (armor && mainPellet && intensity > .5f && (local || listener != null && (listener.position - end).sqrMagnitude < 225))
-                    Ring(end + outgoing * .075f, impactColor, Quaternion.FromToRotation(Vector3.up, outgoing), .20f, .64f);
+                    Ring(end + outgoing * .075f, impactColor, Quaternion.FromToRotation(Vector3.up, outgoing), .20f, .52f, ceramicFragments);
             }
         }
 
@@ -318,10 +337,14 @@ namespace Trias.Preview
         {
             if (intensity > .01f)
             {
-                Emit(arrival, position, tint, Mathf.CeilToInt(32 * intensity));
+                Emit(arrival, position, tint, Mathf.CeilToInt(12 * intensity));
+                if (!local && intensity > .5f)
+                    for (int lift = 0; lift < 3; lift++)
+                        Ring(position + Vector3.up*(.27f + lift*.54f), Color.Lerp(tint,Matter,.32f),
+                            Quaternion.Euler(0,lift*20,0), .32f + lift*.075f, .59f - lift*.034f, ceramicFragments, true);
                 if (faction < 0) Ring(position, tint);
                 else ProjectFaction(position, tint, faction, .56f, 1.38f);
-                if (local) Illuminate(position + Vector3.up, tint, 3.6f * intensity);
+                if (local) Illuminate(position + Vector3.up, tint, 1.65f * intensity);
             }
             var audible = faction >= 0 && faction < factionEntry.Length ? factionEntry[faction] : arrivalCue;
             Play(audible, position, local ? .48f : .30f, local);
@@ -412,9 +435,15 @@ namespace Trias.Preview
             bool rupture = action == "rupture", firing = action == "fire";
             if (intensity > .01f)
             {
-                int count = rupture ? 22 : firing ? 17 : action == "form" ? 11 : 5;
+                bool forming = action == "form";
+                int count = rupture ? 16 : firing ? 10 : forming ? 8 : 4;
                 Emit(impact, at + Vector3.up * .86f, tint, Mathf.CeilToInt(count * intensity), rupture ? .95f : .60f);
-                if ((rupture || firing) && intensity > .5f) Ring(at, tint);
+                if (intensity > .5f)
+                {
+                    float height = rupture ? .97f : firing ? 1.16f : .63f;
+                    Ring(at + Vector3.up*height, tint, Quaternion.Euler(rupture ? 32 : 0,firing ? 30 : 0,0),
+                        rupture ? .39f : firing ? .17f : .29f, rupture ? 1.05f : firing ? .56f : .72f, ceramicFragments, forming);
+                }
             }
             var cue = rupture ? phaseRupture : firing ? phaseFire : action == "form" ? phaseForm : phaseFade;
             Play(cue, at + Vector3.up * .8f, rupture ? .35f : firing ? .24f : .18f, local);
@@ -509,10 +538,12 @@ namespace Trias.Preview
             pulseLevel = 0;
         }
 
-        public void Elimination(Vector3 position, Color tint)
+        public void Elimination(Vector3 position, Color tint, float intensity = 1)
         {
-            Emit(impact, position + Vector3.up * 0.86f, tint, 26);
-            Ring(position, tint);
+            if (intensity <= .01f) return;
+            Emit(impact, position + Vector3.up*.39f, Color.Lerp(Matter, tint, .28f), Mathf.CeilToInt(14*intensity));
+            Ring(position + Vector3.up*.18f, Color.Lerp(Matter,tint,.34f),
+                Quaternion.Euler(-8,23,10), .31f, .94f*intensity, ceramicFragments);
         }
 
         void Ring(Vector3 position, Color tint)
@@ -521,12 +552,13 @@ namespace Trias.Preview
         void ProjectFaction(Vector3 position, Color tint, int faction, float life, float extent)
             => Ring(position + Vector3.up*.067f,tint,Quaternion.Euler(-90,0,0),life,extent,factionGlyphs[faction]);
 
-        void Ring(Vector3 position, Color tint, Quaternion rotation, float lifetime, float extent, Mesh shape = null)
+        void Ring(Vector3 position, Color tint, Quaternion rotation, float lifetime, float extent, Mesh shape = null, bool converge = false)
         {
             int i = ringIndex++ % halos.Length;
             haloFilters[i].sharedMesh = shape == null ? haloMesh : shape;
             halos[i].SetPositionAndRotation(position, rotation);
-            halos[i].localScale = Vector3.one * extent * .24f;
+            haloConverges[i] = converge;
+            halos[i].localScale = Vector3.one * extent * (converge ? 1f : .24f);
             haloColor.SetColor("_Color", tint);
             haloRenderers[i].SetPropertyBlock(haloColor);
             haloRenderers[i].enabled = true;
@@ -584,6 +616,7 @@ namespace Trias.Preview
         void OnDestroy()
         {
             foreach (var bed in beds.Values) Destroy(bed);
+            if (ceramicFragments != null) Destroy(ceramicFragments);
             foreach (var mesh in factionGlyphs) if (mesh != null) Destroy(mesh);
             foreach (var cue in factionEntry) if (cue != null) Destroy(cue);
             foreach (var cue in new[] { pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue,

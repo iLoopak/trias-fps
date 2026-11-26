@@ -66,8 +66,15 @@ namespace Trias.Native
                 var board = Group(Root, "Station wayfinding", rotation * new Vector3(0,3.48f,Spec.length-.16f));
                 board.localRotation = rotation;
                 Armor(board, backing, Vector3.zero, new Vector3(9.2f,1.38f,.25f), false);
-                Armor(board, ink, new Vector3(0,-.485f,-.127f), new Vector3(8.55f,.046f,.031f), false);
-                Label(board, message, .245f, .149f);
+                Armor(board, ink, new Vector3(0,-.485f,-.127f), new Vector3(IsRelayArt ? 4.45f : 8.55f,.046f,.031f), false);
+                string heading = IsRelayArt ? sector switch
+                {
+                    0 => "PHASE / TRANSFER",
+                    1 => "RELAY / RADIATORS",
+                    2 => "RELAY / SERVICE",
+                    _ => "RELAY / HABITAT"
+                } : message;
+                Label(board, heading, .245f, .149f);
                 Label(board, sector switch { 0 => "01 / NORTH", 1 => "02 / EAST", 2 => "03 / SOUTH", _ => "04 / WEST" }, -.245f, .067f);
             }
 

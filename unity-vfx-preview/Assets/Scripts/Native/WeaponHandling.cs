@@ -17,8 +17,8 @@ namespace Trias.Native
             }
         }
 
-        readonly Transform action, payload, leftHand, rightHand, leftSleeve, rightSleeve;
-        readonly Vector3 actionAt, payloadAt;
+        readonly Transform chamber, action, payload, leftHand, rightHand, leftSleeve, rightSleeve;
+        readonly Vector3 chamberAt, actionAt, payloadAt;
         readonly string key;
 
         internal static float ServiceBeat(string key) => key switch
@@ -58,6 +58,8 @@ namespace Trias.Native
         internal WeaponHandling(TriasWorld world, Transform root, string key, Material accent, bool firstPerson, string kit = null, bool male = false)
         {
             this.key = key;
+            chamber = root.Find(PhaseArmory.Chamber);
+            if (chamber != null) chamberAt = chamber.localPosition;
             action = TriasWorld.Group(root, key == "scatter" ? "Hinged breech" : key == "lance" ? "Bolt carriage"
                 : key == "arc" ? "Cell sled" : key == "rift" ? "Containment gate" : "Charging handle");
             actionAt = new Vector3(-.075f, key == "arc" ? -.018f : .07f, key == "lance" ? .19f : .12f);
@@ -101,9 +103,12 @@ namespace Trias.Native
         static Transform Glove(TriasWorld world, Transform root, Material paint, Material shell, int side, float width, out Transform sleeve)
         {
             var hand = TriasWorld.Group(root, side < 0 ? "Support glove" : "Grip glove");
-            Part(hand, world.Dark, Vector3.zero, new Vector3(.085f,.059f,.096f), PrimitiveType.Sphere);
+            var palm = world.Sculpt(hand, PilotVolume.Glove, world.Dark, Vector3.zero, new Vector3(.085f,.102f,.063f));
+            palm.localRotation = Quaternion.Euler(90,0,0);
+            palm.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             hand.localScale = new Vector3(width,1,1);
-            Part(hand, shell, new Vector3(0,.026f,-.014f), new Vector3(.071f,.020f,.055f));
+            world.Armor(hand, shell, new Vector3(0,.027f,-.013f), new Vector3(.072f,.022f,.066f),false);
+            world.Armor(hand, world.Hardware,new Vector3(0,.028f,.037f),new Vector3(.061f,.016f,.020f),false);
             Part(hand, paint, new Vector3(0,.038f,-.021f), new Vector3(.049f,.006f,.013f));
             for (int i = 0; i < 4; i++)
             {
@@ -111,7 +116,11 @@ namespace Trias.Native
                 finger.localRotation = Quaternion.Euler(28, 0, 0);
             }
             Part(hand, world.Dark, new Vector3(side * -.039f,-.008f,.013f), new Vector3(.031f,.033f,.060f), PrimitiveType.Sphere);
-            sleeve = Part(root, world.Dark, Vector3.zero, Vector3.one, PrimitiveType.Cylinder);
+            sleeve = world.Sculpt(root,PilotVolume.Limb,world.Dark,Vector3.zero,Vector3.one);
+            sleeve.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+            world.Armor(sleeve, shell,new Vector3(0,.16f,.34f),new Vector3(.81f,.46f,.34f),false);
+            world.Armor(sleeve, world.Graphite,new Vector3(0,-.16f,.28f),new Vector3(.79f,.24f,.36f),false);
+            world.Armor(sleeve, paint,new Vector3(.21f,.14f,.54f),new Vector3(.15f,.29f,.07f),false);
             return hand;
         }
 
@@ -126,12 +135,17 @@ namespace Trias.Native
             _ => new Vector3(-.034f,-.115f,.080f),
         };
 
-        internal void Update(Pose pose, float kick)
+        internal void Update(Pose pose, float kick, float phaseCharge = 0)
         {
             action.localPosition = actionAt + pose.MechanismTravel - Vector3.forward * (kick * .38f);
             action.localRotation = Quaternion.Euler(pose.MechanismRotation);
             payload.localPosition = payloadAt + pose.PayloadTravel;
             payload.localRotation = Quaternion.Euler(pose.MechanismRotation * .50f);
+            if (chamber != null)
+            {
+                chamber.localPosition = chamberAt + new Vector3(0, pose.Reach * .019f, pose.Reach * .069f - Mathf.Clamp(kick, 0, .045f) * .46f + phaseCharge*.019f);
+                chamber.localRotation = Quaternion.Euler(-pose.Reach * 6f,0,pose.MechanismRotation.z*.12f);
+            }
             if (leftHand == null) return;
             Vector3 support = SupportGrip(pose);
             leftHand.SetLocalPositionAndRotation(support, Quaternion.Euler(-22 + pose.Reach * 31, 14, 30 - pose.Reach * 42));
@@ -145,7 +159,7 @@ namespace Trias.Native
             Vector3 arm = wrist - elbow;
             sleeve.SetLocalPositionAndRotation((wrist + elbow) * .5f,
                 Quaternion.FromToRotation(Vector3.up, arm));
-            sleeve.localScale = new Vector3(.086f, arm.magnitude * .5f, .080f);
+            sleeve.localScale = new Vector3(.107f, arm.magnitude, .098f);
         }
     }
 

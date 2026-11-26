@@ -17,7 +17,7 @@ Shader "Hidden/TRIAS/VisorComposite"
         float2 _Blur;
         float _Damage;
         float4 _DamageTint;
-        float _Bloom;
+        float _Bloom, _Film;
         float4 _HeightRay, _HeightFog, _FogTint, _ShaftSource, _ShaftTint;
 
         float2 depthUV(float2 uv)
@@ -38,7 +38,9 @@ Shader "Hidden/TRIAS/VisorComposite"
             half3 color = tex2D(_MainTex, input.uv).rgb;
             half peak = max(color.r, max(color.g, color.b));
             half chroma = peak - min(color.r, min(color.g, color.b));
-            return half4(color * saturate((peak - .67) * 2.3 + chroma * .26), 1);
+            half legacy = saturate((peak - .67) * 2.3 + chroma * .26);
+            half energy = smoothstep(.91, 1.39, peak) + chroma * smoothstep(.66, 1.03, peak) * .19;
+            return half4(color * lerp(legacy, energy, _Film), 1);
         }
 
         half4 blur(v2f_img input) : SV_Target
@@ -77,7 +79,13 @@ Shader "Hidden/TRIAS/VisorComposite"
             half rim = smoothstep(.44, 1.58, dot(edge, edge));
             half luma = dot(color, half3(.2126, .7152, .0722));
             color = lerp(luma.xxx, color, _Tone.a) * _Tone.rgb;
-            color = (color + glow * _Bloom) * (1 - rim * .23);
+            color += glow * _Bloom;
+            // Keep midtones and gently roll bright ceramic and the reactor into display range.
+            half peak = max(color.r, max(color.g, color.b));
+            half excess = max(0, peak - .62);
+            half shoulder = .62 + .38 * excess / (excess + .33);
+            color *= lerp(1, min(1, shoulder / max(.001,peak)), _Film);
+            color *= 1 - rim * lerp(.23,.075,_Film);
             color = lerp(color, _DamageTint.rgb * .64, _Damage * rim * .23);
             return half4(color, 1);
         }

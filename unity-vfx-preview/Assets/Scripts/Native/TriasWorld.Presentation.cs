@@ -24,7 +24,7 @@ namespace Trias.Native
                 "foundry" => (1f, "#190f1c", "#4c2b32", "#ff9966", "#9a513e", new Vector4(-.42f, .36f, 1, .235f)),
                 "basin" => (2f, "#14212a", "#4f493e", "#d7c99d", "#7a927e", new Vector4(.39f, .50f, 1, .33f)),
                 "island" => (0f, "#517eab", "#b0d6cf", "#fff2cb", "#385064", Vector4.zero),
-                _ => (0f, "#0b1027", "#293456", "#b6bcff", "#385064", Vector4.zero)
+                _ => (3f, "#142035", "#6a849b", "#fff0d4", "#29739a", new Vector4(.39f,.39f,1,.43f))
             };
             var (scene, zenith, horizon, light, body, planet) = sky;
             orbitalSky.SetFloat("_SkyScene", scene);
@@ -33,9 +33,8 @@ namespace Trias.Native
             orbitalSky.SetColor("_LightColor", Catalog.Tint(light));
             orbitalSky.SetColor("_Body", Catalog.Tint(body));
             orbitalSky.SetVector("_Planet", planet);
-            if (Spec.id == "relay")
-                orbitalSky.SetTexture("_GalaxyTex", Resources.Load<Texture2D>("TRIAS/relay-galaxy"));
             if (island) orbitalSky.SetVector("_SunDirection", IslandSun);
+            if (IsRelayArt) orbitalSky.SetVector("_SunDirection", RelayStar);
             orbitalSky.SetFloat("_Daylight", island ? 1 : 0);
             RenderSettings.skybox = orbitalSky;
             view.clearFlags = CameraClearFlags.Skybox;
@@ -106,7 +105,18 @@ namespace Trias.Native
                 Beam(mast, Dark, new Vector3(-2.7f, 4.5f, edge), new Vector3(2.7f, 4.5f, edge), .52f);
                 var pivot = Group(mast, "Excavator arm", bearing);
                 Beam(pivot, Dark, new Vector3(-7, 0, 0), new Vector3(10.4f, 0, 0), .72f);
-                Part(pivot, rust, new Vector3(8.6f, -.7f, 0), new Vector3(3.1f, 2.05f, 1.73f));
+                var teeth = Group(pivot, "Separated core sampler", new Vector3(8.5f,-1.2f,0));
+                teeth.localRotation = Quaternion.Euler(0,0,-12);
+                for (int section = 0; section < 3; section++)
+                {
+                    var jaw = Group(teeth, "Excavator jaw");
+                    jaw.localRotation = Quaternion.Euler(0, section*120,0);
+                    CeramicArc(jaw, Insulation, Vector3.up*.27f, new Vector3(2.4f,1.14f,2.4f), 91);
+                    CeramicArc(jaw, rust, Vector3.down*.68f, new Vector3(2.15f,.76f,2.15f), 78);
+                }
+                Part(teeth, Graphite, Vector3.up*.28f, new Vector3(1.05f,1.12f,1.05f), PrimitiveType.Cylinder);
+                Armor(pivot, Porcelain, new Vector3(-2.2f,.34f,0),new Vector3(4.5f,.77f,.87f),false);
+                Armor(pivot, SafetyAmber, new Vector3(2.3f,.32f,0),new Vector3(1.1f,.45f,.87f),false);
                 Part(pivot, marker, new Vector3(-6.5f,.18f,0), new Vector3(.31f,.25f,.31f));
                 excavators.Add(pivot);
             }
@@ -122,49 +132,59 @@ namespace Trias.Native
             reactorEnergy = MaterialAt("#ff672d", true);
             reactorRotor = Group(mount, "Molten charge");
             Part(reactorRotor, reactorEnergy, Vector3.zero, new Vector3(2.2f, .98f, 2.2f), PrimitiveType.Sphere);
-            var rim = Ring(mount, Vector3.zero, 3.2f, hot, .15f, 48);
-            rim.transform.localPosition = Vector3.down * .38f;
-            for (int i = 0; i < 8; i++)
+            for (int side = 0; side < 6; side++)
             {
-                var rib = Group(mount, "Refractory collar");
-                rib.localRotation = Quaternion.Euler(0, i * 45, 0);
-                Beam(rib, refractory, new Vector3(-1.27f, -.76f, 3.15f), new Vector3(1.27f, -.76f, 3.15f), .72f);
-                Beam(rib, insulation, new Vector3(-1.34f, -1.48f, 3.31f), new Vector3(1.34f, -1.48f, 3.31f), .51f);
-                Beam(rib, refractory, new Vector3(0, -1.42f, 3.15f), new Vector3(0, -2.4f, 1.62f), .88f);
-                Beam(rib, hot, new Vector3(-.87f, -.55f, 3.54f), new Vector3(.87f, -.55f, 3.54f), .072f);
-                if (i % 2 != 0) continue;
-                Beam(rib, insulation, new Vector3(0, -.9f, 3.48f), new Vector3(0, 3.8f, 7.0f), 1.05f);
-                Beam(rib, refractory, new Vector3(0, 3.8f, 7.0f), new Vector3(0, 4.2f, 13.3f), .68f);
-                Part(rib, hot, new Vector3(0, 3.66f, 7.02f), new Vector3(.32f, .2f, .51f));
+                var rib = Group(mount, "Floating refractory muffle");
+                rib.localRotation = Quaternion.Euler(0, side * 60, 0);
+                CeramicArc(rib, insulation, new Vector3(0,-1.01f,0),new Vector3(4.25f,1.34f,4.25f),51);
+                CeramicArc(rib, Insulation, new Vector3(0,.01f,0),new Vector3(4.64f,.74f,4.64f),49);
+                CeramicArc(rib, refractory, new Vector3(0,.68f,0),new Vector3(4.22f,.55f,4.22f),41);
+                CeramicArc(rib, hot, new Vector3(0,-.46f,0),new Vector3(4.31f,.10f,4.31f),31);
+                if (side % 2 != 0) continue;
+                Beam(rib, insulation, new Vector3(0,-1.4f,4),new Vector3(0,3.8f,7.0f),1.05f);
+                Beam(rib, refractory, new Vector3(0,3.8f,7),new Vector3(0,4.2f,13.3f),.68f);
+                Armor(rib, Insulation, new Vector3(0,3.76f,7.03f),new Vector3(1.65f,.82f,1.61f),false);
             }
             SetReactorLight(mount);
         }
 
         void BuildReactor()
         {
-            var mount = Group(Root, "Orbitální relé", new Vector3(0, 9.4f, 0));
-            reactorTint = Catalog.Tint("#ffab68");
-            reactorEnergy = MaterialAt("#ffab68", true);
-            var shell = MaterialAt("#637988", false, "bulkhead");
-            var pale = MaterialAt("#f4bb7d", true);
-            var baseGlow = MaterialAt("#6abbbd", true);
-            reactorRotor = Group(mount, "Reactor rotor");
-            var crystal = Part(reactorRotor, reactorEnergy, Vector3.zero, new Vector3(1.94f, 2.35f, 1.94f));
-            crystal.localRotation = Quaternion.Euler(36, 43, 28);
+            var mount = Group(Root, "Orbitální relé", new Vector3(0, 10.1f, 0));
+            reactorTint = Catalog.Tint("#ffb566");
+            reactorEnergy = MaterialAt("#ffb566", true);
+            var filament = MaterialAt("#fff2cc", true);
+            reactorRotor = Group(mount, "Axial induction column");
+            Part(mount, reactorEnergy, new Vector3(0,3.05f,0), new Vector3(.67f,5.65f,.67f), PrimitiveType.Cylinder);
+            Part(mount, filament, new Vector3(0,3.05f,0), new Vector3(.25f,5.48f,.25f), PrimitiveType.Cylinder);
+            for (int level = 0; level < 3; level++)
+            {
+                float y = level == 0 ? -3.1f : level == 1 ? 2.45f : 7.8f;
+                var stage = Group(mount, "Floating induction stage", new Vector3(0,y,0));
+                stage.localRotation = level == 0 ? Quaternion.Euler(4,-11,-7)
+                    : Quaternion.Euler(level == 1 ? 24 : -25, 16 + level * 25, level == 1 ? -16 : 12);
+                float radius = level == 0 ? 4.75f : level == 1 ? 7.4f : 9.55f;
+                for (int side = 0; side < 3; side++)
+                {
+                    var shell = Group(stage, "Independently suspended ring section");
+                    shell.localRotation = Quaternion.Euler(0, 120 * side, 0);
+                    CeramicArc(shell, Graphite, new Vector3(0,-.52f,0), new Vector3(radius*.997f,.61f,radius*.997f), 83);
+                    CeramicArc(shell, Porcelain, new Vector3(0,.32f,0), new Vector3(radius,.94f,radius), 91);
+                    CeramicArc(shell, relayStructure, new Vector3(0,-.07f,0), new Vector3(radius*1.008f,.19f,radius*1.008f), 71);
+                    CeramicArc(shell, reactorEnergy, new Vector3(0,-.35f,0), new Vector3(radius*1.001f,.085f,radius*1.001f), 29);
+                }
+            }
             for (int i = 0; i < 3; i++)
             {
-                var arm = Group(mount, "Containment arm");
-                arm.localRotation = Quaternion.Euler(0, i * 120, 0);
-                Beam(arm, shell, new Vector3(0, -3.5f, 4.9f), new Vector3(0, -.65f, 3.15f), .9f);
-                Beam(arm, Dark, new Vector3(0, -.65f, 3.15f), new Vector3(0, 2.3f, 2.45f), 1.12f);
-                Beam(arm, baseGlow, new Vector3(-.54f, -.65f, 3.22f), new Vector3(-.54f, 2.2f, 2.50f), .09f);
-                Beam(arm, shell, new Vector3(0, 2.3f, 2.45f), new Vector3(0, 2.7f, 1.5f), .64f);
-                Part(arm, pale, new Vector3(0, 2.7f, 1.5f), new Vector3(.81f,.17f,.33f));
-                Beam(arm, shell, new Vector3(0, -3.1f, 4.9f), new Vector3(0, 3.9f, 20), .24f);
-                Beam(arm, Dark, new Vector3(.42f, -3.1f, 4.9f), new Vector3(.42f, 4.1f, 20), .13f);
-                Part(arm, pale, new Vector3(0, 3.9f, 20), new Vector3(.47f, .34f, 1.25f));
-                var ring = Ring(reactorRotor, Vector3.zero, 2.12f + i * .17f, i == 0 ? pale : reactorEnergy, .075f, 44);
-                ring.transform.localRotation = Quaternion.Euler(30 + i * 44, i * 40, 23);
+                var foot = Group(mount, "Anchor pedestal");
+                foot.localRotation = Quaternion.Euler(0, i * 120 + 20, 0);
+                Beam(foot, Graphite, new Vector3(0,-7.3f,6.6f),new Vector3(0,-2.8f,3.8f),1.25f);
+                Armor(foot, Porcelain, new Vector3(0,-4.76f,5.75f),new Vector3(1.34f,3.25f,.37f), false).localRotation = Quaternion.Euler(-28,0,0);
+                Armor(foot, SafetyAmber, new Vector3(0,-4.82f,5.98f),new Vector3(.35f,1.22f,.13f), false).localRotation = Quaternion.Euler(-28,0,0);
+                var inner = Group(reactorRotor, "Suspended core shell");
+                inner.localRotation = Quaternion.Euler(0, 120 * i, 0);
+                CeramicArc(inner, Graphite, Vector3.zero, new Vector3(1.8f,1.7f,1.8f), 73);
+                CeramicArc(inner, Porcelain, Vector3.up*.51f, new Vector3(1.86f,.5f,1.86f), 70);
             }
             SetReactorLight(mount);
         }
@@ -174,8 +194,8 @@ namespace Trias.Native
             reactorLight = Group(mount, "Reactor spill", Vector3.down * .85f).gameObject.AddComponent<Light>();
             reactorLight.type = LightType.Point;
             reactorLight.color = reactorTint;
-            reactorLight.range = 17;
-            reactorLight.intensity = 2.05f;
+            reactorLight.range = IsRelayArt ? 13 : 17;
+            reactorLight.intensity = IsRelayArt ? .58f : 2.05f;
         }
 
         static void Beam(Transform root, Material material, Vector3 start, Vector3 end, float width)
@@ -196,7 +216,9 @@ namespace Trias.Native
             float pulse = .5f + .5f * Mathf.Sin(time * 2.3f);
             reactorRotor.localRotation = Quaternion.Euler(12 + Mathf.Sin(time) * 11, time * 31, -19);
             reactorEnergy.color = Color.Lerp(reactorTint, new Color(1f,.87f,.59f), pulse * .38f + reactorShock * .44f + arenaPulse * .20f);
-            reactorLight.intensity = 1.6f + pulse * .85f + reactorShock * 3.25f + arenaPulse * .62f;
+            reactorLight.intensity = IsRelayArt
+                ? .46f + pulse * .14f + reactorShock * .65f + arenaPulse * .25f
+                : 1.6f + pulse * .85f + reactorShock * 3.25f + arenaPulse * .62f;
         }
     }
 }

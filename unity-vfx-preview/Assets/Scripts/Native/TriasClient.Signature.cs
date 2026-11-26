@@ -121,9 +121,18 @@ namespace Trias.Native
             var material = new Material(shader);
             material.SetColor("_Tint", tint);
             material.SetFloat("_Faction", mode == "ffa" ? -1 : team);
+            material.SetVector("_Anchor", avatar.Root.position);
+            material.SetVector("_Axis", avatar.Root.right);
+            var optical = new MaterialPropertyBlock();
             foreach (var renderer in avatar.Root.GetComponentsInChildren<Renderer>())
             {
+                if (!renderer.enabled) continue;
                 var slots = renderer.sharedMaterials;
+                for (int i = 0; i < slots.Length; i++)
+                {
+                    optical.SetFloat("_Shell", slots[i] == world.Porcelain || slots[i] == world.Insulation ? 1f : .16f);
+                    renderer.SetPropertyBlock(optical, i);
+                }
                 Array.Fill(slots, material);
                 renderer.sharedMaterials = slots;
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -212,7 +221,7 @@ namespace Trias.Native
             Color edge = Color.Lerp(teamTint, Chalk, tier * .14f);
             edge.a = momentumPresentation;
             Fill(new Rect(atX, atY, 213, 53), new Color(Ink.r, Ink.g, Ink.b, Ink.a * momentumPresentation));
-            Fill(new Rect(atX, atY, 24 + 30 * left, 2), edge);
+            Segments(new Rect(atX + 8, atY + 1, 180, 2), 3 + tier * 2, live ? left : 0, edge);
             string labelFlow = live ? $"{FlowTiers[tier]}  ×{flow[2].Float:0.#}   {flow[1].Int}" : $"ŘETĚZEC  {flow[11].Int}";
             var saved = GUI.color;
             GUI.color = new Color(1, 1, 1, momentumPresentation);

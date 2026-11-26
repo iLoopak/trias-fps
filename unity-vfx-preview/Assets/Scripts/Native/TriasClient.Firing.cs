@@ -127,7 +127,8 @@ namespace Trias.Native
 
         Vector3 MuzzlePoint()
         {
-            Vector3 muzzle = grip.TransformPoint(new Vector3(0, .04f, .32f));
+            float depth = PhaseArmory.Muzzle(own[9].Text);
+            Vector3 muzzle = grip.TransformPoint(new Vector3(0, .04f, depth));
             if (Physics.Linecast(view.transform.position, muzzle, out var block, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
                 muzzle = block.point + block.normal * .045f;
             return muzzle;

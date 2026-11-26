@@ -1,0 +1,154 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Trias.Native
+{
+    internal sealed partial class TriasWorld
+    {
+        internal readonly Material Porcelain, Insulation, SafetyAmber, PilotVisor;
+        readonly Dictionary<int, Mesh> ceramicArcs = new();
+
+        Material CeramicFinish(string color, float metallic, float smoothness)
+        {
+            var finish = MaterialAt(color);
+            finish.SetFloat("_Metallic", metallic);
+            finish.SetFloat("_Glossiness", smoothness);
+            return finish;
+        }
+
+        void DressRelayCover(BoxSpec box, Transform home, float height)
+        {
+            bool ribbed = box.relay || height >= 3.3f;
+            bool low = height < 1.8f;
+            for (int face = 0; face < 4; face++)
+            {
+                bool end = face % 2 != 0;
+                float width = end ? box.d : box.w;
+                float depth = (end ? box.w : box.d)*.5f;
+                if (box.gantry && end) continue;
+                var skin = Group(home, "Replaceable layered fascia");
+                skin.localRotation = Quaternion.Euler(0,face*90,0);
+                if (box.gantry)
+                {
+                    Armor(skin, Graphite, new Vector3(0,height*.22f,depth+.025f),new Vector3(width*.98f,height*.53f,.12f),false);
+                    Armor(skin, Porcelain, new Vector3(-width*.22f,height*.70f,depth+.08f),new Vector3(width*.49f,height*.49f,.13f),false);
+                    Armor(skin, relayStructure, new Vector3(width*.27f,height*.65f,depth+.073f),new Vector3(width*.41f,height*.36f,.12f),false);
+                    Armor(skin, SafetyAmber,new Vector3(-width*.28f,height*.43f,depth+.169f),new Vector3(width*.112f,height*.15f,.066f),false);
+                    continue;
+                }
+                if (end || ribbed)
+                {
+                    Armor(skin, Graphite,new Vector3(0,height*.27f,depth+.025f),new Vector3(width*.93f,height*.45f,.13f),false);
+                    if (low || end && !ribbed) continue;
+                }
+                var panel = Armor(skin, Porcelain,new Vector3((ribbed ? -.073f : .07f)*width,height*(low ? .78f : .65f),depth+.041f),
+                    new Vector3(width*(ribbed ? .78f : .84f),height*(low ? .34f : .62f),.116f),false);
+                panel.localRotation = Quaternion.Euler(0,0,ribbed ? 0f : face == 0 ? 2f : -2f);
+                if (low || end) continue;
+                Armor(skin, box.sector >= 0 ? FactionPaint[box.sector] : SafetyAmber,
+                    new Vector3(-width*.28f,height*.39f,depth+.093f),new Vector3(width*.22f,.078f,.044f),false);
+                if (!ribbed) continue;
+                var bearing = Armor(skin, relayStructure, new Vector3(width*.38f,height*.48f,depth+.065f),
+                    new Vector3(width*.125f,height*.76f,.19f),false);
+                bearing.localRotation = Quaternion.Euler(0,0,9);
+            }
+            if (!box.gantry) return;
+            for (int i = -1; i <= 1; i++)
+            {
+                Armor(home, Graphite,new Vector3(i*box.w*.33f,-.020f,0),new Vector3(box.w*.295f,.11f,box.d*.89f),false);
+                Armor(home, relayStructure,new Vector3(i*box.w*.33f,-.081f,0),new Vector3(box.w*.063f,.056f,box.d*.86f),false);
+            }
+        }
+
+        void BuildRelayHorizon()
+        {
+            var distantHull = CeramicFinish("#556173", .12f, .32f);
+            var distantFrame = CeramicFinish("#414b5b", .18f, .28f);
+            var distantInsulation = CeramicFinish("#7b8290", .04f, .30f);
+            var signal = MaterialAt("#837b69", true);
+
+            // The structure reads as one broken orbital collar with gaps for the planet and star.
+            var collar = Group(Root, "Outer orbital assembly", new Vector3(-21,-3,62));
+            collar.localRotation = Quaternion.Euler(-32,-18,-10);
+            for (int sector = 0; sector < 3; sector++)
+            {
+                var span = Group(collar, "Orbital collar bay");
+                span.localRotation = Quaternion.Euler(0, sector*111 + 42, 0);
+                CeramicArc(span,distantFrame,Vector3.down*2,new Vector3(61,5.9f,58),63);
+                CeramicArc(span,distantHull,Vector3.up*2,new Vector3(61.7f,3.8f,58.4f),66);
+                CeramicArc(span,distantInsulation,Vector3.up*4.5f,new Vector3(62.1f,1.08f,59),59);
+                CeramicArc(span,signal,Vector3.up*.29f,new Vector3(62.3f,.14f,59.2f),51);
+            }
+            var foundation = Group(Root, "Relay habitat support pylons");
+            for (int side = 0; side < 4; side++)
+            {
+                var perimeter = Group(foundation, "External foundation");
+                perimeter.localRotation = Quaternion.Euler(0,side*90,0);
+                float edge = Spec.length;
+                for (int column = 0; column < 2; column++)
+                {
+                    float x = column == 0 ? -edge*.73f : edge*.57f;
+                    float z = edge + 7.7f + column*4.1f;
+                    float height = side % 2 == column ? 24f : 17f;
+                    var shaft = Group(perimeter,"Habitat pier",new Vector3(x,0,z));
+                    shaft.localRotation = Quaternion.Euler(-5, column == 0 ? 10 : -11,column == 0 ? -8 : 9);
+                    Armor(shaft, distantFrame, new Vector3(0,-2.4f,0),new Vector3(5.2f,height,5.9f),false);
+                    Armor(shaft, distantHull, new Vector3(-.2f,height*.31f,-2.63f),new Vector3(3.9f,height*.52f,1.62f),false);
+                    Armor(shaft, distantInsulation, new Vector3(-.35f,height*.51f,-2.63f),new Vector3(3.35f,1.48f,1.82f),false);
+                    Armor(shaft, distantFrame,new Vector3(1.7f,height*.37f,-.6f),new Vector3(.74f,height*.69f,4.35f),false);
+                    if (side == 1 || side == 3)
+                        Kit.Nature(shaft,"tree_oak",new Vector3(4.05f,4.6f,4.05f),new Vector3(-.2f,height*.52f,-1.7f), side*19);
+                }
+            }
+        }
+
+        // Unit outer radius, with real thickness and exposed ends on both sides of the gap.
+        internal Transform CeramicArc(Transform parent, Material paint, Vector3 at, Vector3 size,
+            int degrees, bool shadows = false)
+        {
+            if (!ceramicArcs.TryGetValue(degrees, out var mesh))
+            {
+                const float inner = .79f, upper = -.5f, lower = .5f;
+                int count = Mathf.CeilToInt(degrees / 7f);
+                var vertices = new List<Vector3>(count * 16 + 8);
+                var indices = new List<int>(count * 24 + 12);
+                var uv = new List<Vector2>(count * 16 + 8);
+                Vector3 Point(int index, float radius, float height)
+                {
+                    float angle = degrees * (index / (float)count - .5f) * Mathf.Deg2Rad;
+                    return new Vector3(Mathf.Sin(angle) * radius, height, Mathf.Cos(angle) * radius);
+                }
+                void Face(Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+                {
+                    int start = vertices.Count;
+                    vertices.Add(a); vertices.Add(b); vertices.Add(c); vertices.Add(d);
+                    uv.Add(Vector2.zero); uv.Add(Vector2.right); uv.Add(Vector2.one); uv.Add(Vector2.up);
+                    indices.Add(start); indices.Add(start + 1); indices.Add(start + 2);
+                    indices.Add(start); indices.Add(start + 2); indices.Add(start + 3);
+                }
+                for (int i = 0; i < count; i++)
+                {
+                    int j = i + 1;
+                    Vector3 a = Point(i, 1, upper), b = Point(j, 1, upper), c = Point(i, 1, lower), d = Point(j, 1, lower);
+                    Vector3 e = Point(i, inner, upper), f = Point(j, inner, upper), g = Point(i, inner, lower), h = Point(j, inner, lower);
+                    Face(a, b, d, c);
+                    Face(f, e, g, h);
+                    Face(c, d, h, g);
+                    Face(e, f, b, a);
+                    if (i == 0) Face(e, a, c, g);
+                    if (j == count) Face(b, f, h, d);
+                }
+                mesh = new Mesh { name = $"Ceramic arc {degrees}°" };
+                mesh.SetVertices(vertices);
+                mesh.SetTriangles(indices, 0);
+                mesh.SetUVs(0, uv);
+                mesh.RecalculateNormals();
+                mesh.RecalculateTangents();
+                mesh.RecalculateBounds();
+                ceramicArcs.Add(degrees, mesh);
+                meshes.Add(mesh);
+            }
+            return TriasMarkings.Model(parent, "Separated ceramic arc", mesh, paint, at, size, shadows);
+        }
+    }
+}

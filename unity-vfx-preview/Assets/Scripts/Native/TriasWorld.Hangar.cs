@@ -21,7 +21,7 @@ namespace Trias.Native
             var graphite = MaterialAt("#293a49", false, "bulkhead");
             var deck = MaterialAt("#657786", false, "deck");
             deck.mainTextureScale = new Vector2(6,4);
-            var brass = MaterialAt("#a67e57", false, "armor");
+            var brass = SafetyAmber;
             var amber = MaterialAt("#e8a065", true);
             hangarLamp = MaterialAt("#a9dde0", true);
             Armor(Root, deck, new Vector3(0,-.17f,-.2f), new Vector3(11,.34f,8));
@@ -30,6 +30,8 @@ namespace Trias.Native
             {
                 var rib = Armor(rails,graphite,new Vector3(side*3.1f,2.1f,0),new Vector3(.43f,4.4f,.55f));
                 rib.localRotation = Quaternion.Euler(0,0,side*13);
+                Armor(rails,Porcelain,new Vector3(side*3.23f,2.5f,.34f),new Vector3(.33f,2.1f,.17f))
+                    .localRotation = rib.localRotation;
                 Armor(rails,brass,new Vector3(side*3.15f,.12f,.09f),new Vector3(3.2f,.11f,.17f));
             }
             Armor(rails,graphite,new Vector3(0,3.8f,0),new Vector3(8.7f,.46f,.64f));
@@ -44,7 +46,13 @@ namespace Trias.Native
             rigLight.shadows = LightShadows.None;
             var stand = Group(Root,"Deployment stand",new Vector3(-1.15f,.02f,0));
             Part(stand,graphite,Vector3.zero,new Vector3(1.38f,.04f,1.38f),PrimitiveType.Cylinder);
-            Ring(stand,new Vector3(0,.052f,0),.63f,amber,.026f,36);
+            for (int i=0;i<3;i++)
+            {
+                var stage = Group(stand, "Ceramic launch cradle");
+                stage.localRotation = Quaternion.Euler(0,i*120,0);
+                CeramicArc(stage,Porcelain,new Vector3(0,.043f,0),new Vector3(.75f,.15f,.75f),91);
+                CeramicArc(stage,amber,new Vector3(0,.12f,0),new Vector3(.63f,.021f,.63f),44);
+            }
             hangarBeacon = Armor(stand,hangarLamp,new Vector3(.56f,.063f,.52f),new Vector3(.16f,.031f,.078f),false);
             var gantry = Group(Root,"Cargo gantry",new Vector3(-18,1,-39));
             gantry.localRotation = Quaternion.Euler(0,-25,-14);

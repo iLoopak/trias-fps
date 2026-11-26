@@ -241,7 +241,7 @@ namespace Trias.Native
             grip.localRotation = Quaternion.Euler(reload.GunRotation + new Vector3(-gunLift + swayY * motion + mount * 26,
                 -4 + swayX * motion, gunTwist + inertia.x * motion * 2 * weaponInertia));
             if (weaponName != null && weaponActions.TryGetValue(weaponName, out var weaponAction))
-                weaponAction.Update(reload, gunTravel);
+                weaponAction.Update(reload, gunTravel, flowTier * .25f * momentumPresentation * visualEffects);
             float fov = baseFov + (driving ? 3 : (Mathf.Clamp01((speed - 6) / 4f) * 3.5f + movementPulse * 2.1f + cameraKick) * motion);
             view.fieldOfView = Mathf.Lerp(view.fieldOfView, fov, 1 - Mathf.Exp(-dt * 6));
         }

@@ -35,15 +35,16 @@ namespace Trias.Native
         internal TriasWorld(ArenaSpec spec, Catalog catalog, string mode, Camera view, bool hangar = false)
         {
             Spec = spec;
+            IsRelayArt = spec.id == "relay" && !hangar;
             Mode = mode;
             Root = Group(null, hangar ? "TRIAS orbital hangar" : spec.label);
             Actors = Group(Root, "Piloti, vozidla a projektily");
             island = spec.id == "island";
             var fog = Catalog.Tint(island ? "#a6d8d9" : spec.id == "foundry" ? "#402a37" : spec.id == "basin" ? "#3c394b" : "#101827");
-            sunColor = Catalog.Tint(island ? "#fff6d2" : spec.id == "foundry" ? "#ffb79f" : "#cee9ff");
+            sunColor = Catalog.Tint(island ? "#fff6d2" : spec.id == "foundry" ? "#ffb79f" : spec.id == "relay" ? "#ffe0b0" : "#f4e3d3");
             RenderSettings.fog = !hangar;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = island ? 0.012f : spec.id == "basin" ? 0.012f : 0.009f;
+            RenderSettings.fogDensity = island || spec.id == "basin" ? .012f : spec.id == "relay" ? .0055f : .009f;
             RenderSettings.fogColor = fog;
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = Catalog.Tint(spec.id switch
@@ -63,11 +64,18 @@ namespace Trias.Native
             lamp.color = sunColor;
             lamp.shadows = hangar ? LightShadows.None : LightShadows.Soft;
             lamp.shadowStrength = island ? .66f : .63f;
-            lamp.transform.rotation = island ? Quaternion.LookRotation(-IslandSun) : Quaternion.Euler(47, -31, 0);
+            lamp.transform.rotation = island ? Quaternion.LookRotation(-IslandSun) : Quaternion.Euler(Spec.id == "relay" ? 37 : 47, -31, 0);
 
-            Dark = MaterialAt("#182332");
+            if (IsRelayArt) ConfigureRelayLight(lamp, view);
+
+            Porcelain = CeramicFinish("#eddbba", .03f, .29f);
+            Insulation = CeramicFinish("#ae8f72", .06f, .22f);
+            Porcelain.mainTexture = Insulation.mainTexture = Resources.Load<Texture2D>("TRIAS/ceramic-grain");
+            SafetyAmber = CeramicFinish("#cb6921", .10f, .34f);
+            PilotVisor = CeramicFinish("#142731", .49f, .64f);
+            Dark = MaterialAt("#222631");
             Steel = MaterialAt("#8091a9", false, "armor");
-            White = MaterialAt("#dce6db", false, "armor");
+            White = Porcelain;
             Glass = MaterialAt("#183246", true);
             TeamNeutral = MaterialAt("#aac5d6", true);
             Hostile = MaterialAt("#ff5454", true);
@@ -79,6 +87,9 @@ namespace Trias.Native
             Graphite.SetFloat("_Glossiness", .24f);
             armorSection = TriasMarkings.ArmorPlate();
             meshes.Add(armorSection);
+            ceramicShell = TriasMarkings.ArmorPlate(true);
+            if (IsRelayArt) ConfigureRelaySurfaces();
+            meshes.Add(ceramicShell);
             Kit = new TriasKit(this);
             if (island)
             {
@@ -128,8 +139,14 @@ namespace Trias.Native
                 if (island) IslandCover(box, home, h);
                 else
                 {
-                    var alloy = box.gantry || box.relay || box.sector >= 0 ? coverPaint : walls;
+                    var alloy = IsRelayArt ? (box.gantry ? Graphite : box.relay ? Hardware : walls)
+                        : box.gantry || box.relay || box.sector >= 0 ? coverPaint : walls;
                     Part(home, alloy, Vector3.up * h / 2, new Vector3(box.w, h, box.d), PrimitiveType.Cube, true);
+                    if (Spec.id == "relay")
+                    {
+                        DressRelayCover(box, home, h);
+                        continue;
+                    }
                     for (int sign = -1; sign <= 1; sign += 2)
                     {
                         Part(home, Dark, new Vector3(0, h - 0.1f, sign * (box.d * 0.5f + 0.023f)), new Vector3(box.w, 0.14f, 0.06f));
@@ -138,6 +155,7 @@ namespace Trias.Native
                     }
                 }
             }
+            if (IsRelayArt) BuildRelayContacts();
             var gold = MaterialAt("#ffae62", true);
             foreach (var pad in Spec.launchPads)
             {
@@ -234,11 +252,11 @@ namespace Trias.Native
         void Station()
         {
             bool basin = Spec.id == "basin", foundry = Spec.id == "foundry";
-            walls = MaterialAt(basin ? "#a99c87" : foundry ? "#9a8072" : "#a9bdd4", false, "bulkhead");
-            coverPaint = MaterialAt(basin ? "#ebd3b3" : foundry ? "#dac2b0" : "#e2e8e4", false, "panel-" + Spec.id);
-            coverPaint.SetFloat("_Metallic", basin ? .10f : .32f);
+            walls = MaterialAt(basin ? "#a99c87" : foundry ? "#866453" : "#929397", false, "bulkhead");
+            coverPaint = MaterialAt(basin ? "#ebd3b3" : foundry ? "#be9e82" : "#eadbc6", false, "panel-" + Spec.id);
+            coverPaint.SetFloat("_Metallic", .08f);
             coverPaint.SetFloat("_Glossiness", foundry ? .27f : .33f);
-            var deck = MaterialAt(basin ? "#b8a498" : foundry ? "#b67660" : "#8e9aad", false,
+            var deck = MaterialAt(basin ? "#b8a498" : foundry ? "#b67660" : "#828c9d", false,
                 basin ? "basin" : foundry ? "foundry-deck" : "deck");
             deck.mainTextureScale = Vector2.one * (basin ? 22 : 15);
             float d = Spec.length * 2;
@@ -248,13 +266,16 @@ namespace Trias.Native
                 var wall = Group(Root, "Perimeter");
                 wall.rotation = Quaternion.Euler(0, 90 * i, 0);
                 Part(wall, walls, new Vector3(0, 2.15f, Spec.length + 0.25f), new Vector3(d + 1, 4.3f, 0.50f), PrimitiveType.Cube, true);
-                for (float x = -Spec.length + 4; x < Spec.length - 1; x += 7.8f)
+                for (float x = -Spec.length + 4; x < Spec.length - 1; x += IsRelayArt ? 12.8f : 7.8f)
                 {
                     Part(wall, Dark, new Vector3(x, 2.82f, Spec.length - 0.11f), new Vector3(0.31f, 5.65f, 0.54f));
-                    Part(wall, TeamNeutral, new Vector3(x + 1.4f, 3.05f, Spec.length - 0.03f), new Vector3(1.7f, 0.045f, 0.035f));
+                    if (IsRelayArt)
+                        Armor(wall, Hardware, new Vector3(x + 1.5f, 3.05f, Spec.length - .04f),new Vector3(2.4f,.12f,.09f),false);
+                    else
+                        Part(wall, TeamNeutral, new Vector3(x + 1.4f, 3.05f, Spec.length - 0.03f), new Vector3(1.7f, 0.045f, 0.035f));
                 }
             }
-            BuildInfrastructure();
+            if (!IsRelayArt) BuildInfrastructure();
             BuildStationDistrict();
             if (basin)
             {
@@ -297,7 +318,11 @@ namespace Trias.Native
                         Part(channel, Dark, new Vector3(1.20f, 0.023f, 19), new Vector3(0.18f, 0.029f, 23));
                     }
                 }
-                else BuildReactor();
+                else
+                {
+                    BuildReactor();
+                    BuildRelayHorizon();
+                }
             }
         }
 
@@ -354,6 +379,18 @@ namespace Trias.Native
             {
                 var point = Array.Find(Spec.river, p => Mathf.Approximately(p.x, x));
                 if (point == null) continue;
+                if (x != 0)
+                {
+                    var sluice = Group(Root, "Ceramic water regulation sill", new Vector3(x,0,point.z));
+                    for (int bank = -1; bank <= 1; bank += 2)
+                    {
+                        var abutment = Group(sluice, "Weathered flow deflector", new Vector3(0, Height(x, point.z+bank*2.7f)-.15f, bank*2.7f));
+                        abutment.localRotation = Quaternion.Euler(0, bank*23, 0);
+                        Armor(abutment, Insulation, new Vector3(0,.47f,0),new Vector3(.80f,1.08f,1.10f),false);
+                        Armor(abutment, Porcelain, new Vector3(0,1.12f,0),new Vector3(.66f,.30f,.93f),false);
+                        Armor(abutment, Graphite, new Vector3(0,.66f,-bank*.56f),new Vector3(.37f,.16f,.09f),false);
+                    }
+                }
                 for (int k = -9; k <= 9; k++)
                     Part(Root, bark, new Vector3(x, 0.091f, point.z + k * 0.27f), new Vector3(2.58f, 0.085f, 0.24f));
             }
@@ -595,6 +632,7 @@ namespace Trias.Native
 
         public void Dispose()
         {
+            if (IsRelayArt && RenderSettings.sun == relaySun) RestoreRelayLight();
             if (orbitalSky != null && RenderSettings.skybox == orbitalSky) RenderSettings.skybox = null;
             if (Root != null)
             {

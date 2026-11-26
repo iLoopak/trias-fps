@@ -802,7 +802,7 @@ namespace Trias.Native
                     {
                         var corpse = new FallenPilot(world,body,casualtyPaint,casualtyTint,mine);
                         if (corpse.Visible) fallen.Add(corpse);
-                        else effects.Elimination(spot,casualtyTint);
+                        else effects.Elimination(spot,casualtyTint,visualEffects);
                     }
                     AddKill(evt["attacker"].Text, evt["victim"].Text, key, evt["team"].Int, now);
                     if (mine && own[6].Int <= 0)
@@ -883,7 +883,7 @@ namespace Trias.Native
                 bool visible = alive || body.Local || !body.HordeEnemy && SpectatorTeam(body.Team);
                 if (body.Root.gameObject.activeSelf != visible) body.Root.gameObject.SetActive(visible);
                 if (!body.Step(world,dt)) continue;
-                if (visible) effects.Elimination(body.Landing,body.Tint);
+                if (visible) effects.Elimination(body.Landing,body.Tint,visualEffects);
                 Destroy(body.Root.gameObject);
                 fallen.RemoveAt(index);
             }

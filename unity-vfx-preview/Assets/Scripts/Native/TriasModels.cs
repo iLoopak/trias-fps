@@ -5,82 +5,8 @@ namespace Trias.Native
 {
     internal static class TriasModels
     {
-        internal static void Gun(TriasWorld w, Transform root, string weapon, Material accent)
-        {
-            if (w.Kit.Gun(root, weapon, accent))
-            {
-                GunHardware(w, root, weapon, accent);
-                return;
-            }
-            bool scatter = weapon == "scatter", lance = weapon == "lance", rift = weapon == "rift", arc = weapon == "arc";
-            float width = scatter || rift ? 0.24f : 0.19f;
-            float length = lance ? 1.02f : arc ? 0.59f : rift ? 0.83f : 0.74f;
-            TriasWorld.Part(root, w.Dark, new Vector3(0, 0, length * 0.17f), new Vector3(width, 0.16f, length * 0.72f));
-            TriasWorld.Part(root, w.Steel, new Vector3(0, .077f, .09f), new Vector3(width * .81f, .046f, .28f));
-            TriasWorld.Part(root, w.Dark, new Vector3(0, .109f, .105f), new Vector3(width * .44f, .024f, .35f));
-            TriasWorld.Part(root, w.Dark, new Vector3(0, -0.126f, 0.07f), new Vector3(0.12f, 0.20f, 0.13f)).localRotation = Quaternion.Euler(-11, 0, 0);
-            if (!scatter && !rift)
-            {
-                var barrel = TriasWorld.Part(root, w.Dark, new Vector3(0, .024f, length * .59f), new Vector3(.081f, length * .13f, .081f), PrimitiveType.Cylinder);
-                barrel.localRotation = Quaternion.Euler(90, 0, 0);
-                TriasWorld.Part(root, accent, new Vector3(0, .025f, length * .66f), new Vector3(.062f,.055f,.018f));
-            }
-            for (int side = -1; side <= 1; side += 2)
-            {
-                TriasWorld.Part(root, w.Steel, new Vector3(side * width * 0.44f, 0.025f, length * 0.40f), new Vector3(.041f, .105f, length * .43f));
-                TriasWorld.Part(root, accent, new Vector3(side * width * 0.52f, 0.042f, length * 0.33f), new Vector3(.018f, .025f, length * .35f));
-                for (int slot = 0; slot < 3; slot++)
-                {
-                    var vent = TriasWorld.Part(root, w.Dark, new Vector3(side * width * .54f, -.008f, length * (.27f + .096f * slot)), new Vector3(.016f, .034f, .022f));
-                    vent.localRotation = Quaternion.Euler(-19, 0, 0);
-                }
-                if (scatter || rift)
-                    TriasWorld.Part(root, w.Dark, new Vector3(side * .065f, .025f, length * .56f), new Vector3(.085f, .073f, .19f));
-                if (arc || rift)
-                    TriasWorld.Part(root, accent, new Vector3(side * width * .56f, -.045f, .12f), new Vector3(.029f, .035f, .17f));
-            }
-            if (lance) TriasWorld.Part(root, w.Glass, new Vector3(0, .152f, .15f),
-                new Vector3(.11f, .12f, .12f), PrimitiveType.Cylinder).localRotation = Quaternion.Euler(90, 0, 0);
-            else TriasWorld.Part(root, w.Dark, new Vector3(0, .14f, length * .30f), new Vector3(.058f, .049f, .083f));
-        }
-
-        static void GunHardware(TriasWorld world, Transform root, string weapon, Material accent)
-        {
-            void Plate(Material paint, Vector3 at, Vector3 size, float angle = 0)
-                => world.Armor(root, paint, at, size, false).localRotation = Quaternion.Euler(angle,0,0);
-
-            switch (weapon)
-            {
-                case "scatter":
-                    for (int side = -1; side <= 1; side += 2)
-                    {
-                        Plate(world.Hardware, new Vector3(side*.074f,.014f,.399f), new Vector3(.105f,.134f,.11f));
-                        Plate(world.Graphite, new Vector3(side*.074f,.014f,.452f), new Vector3(.077f,.094f,.016f));
-                    }
-                    break;
-                case "lance":
-                    Plate(world.Graphite, new Vector3(0,.134f,.064f),new Vector3(.093f,.092f,.25f),-5);
-                    Plate(world.Glass, new Vector3(0,.156f,.196f),new Vector3(.054f,.041f,.029f));
-                    Plate(world.Hardware, new Vector3(0,.035f,.508f),new Vector3(.069f,.081f,.14f));
-                    break;
-                case "arc":
-                    for (int side = -1; side <= 1; side += 2)
-                    {
-                        Plate(world.Hardware, new Vector3(side*.057f,.041f,.355f),new Vector3(.054f,.062f,.113f),-9);
-                        Plate(accent, new Vector3(side*.057f,.079f,.361f),new Vector3(.025f,.010f,.083f));
-                    }
-                    break;
-                case "rift":
-                    Plate(world.Graphite, new Vector3(0,.097f,.312f),new Vector3(.207f,.091f,.164f));
-                    Plate(world.Hardware, new Vector3(0,.141f,.313f),new Vector3(.151f,.041f,.109f));
-                    Plate(accent, new Vector3(0,.164f,.309f),new Vector3(.076f,.010f,.054f));
-                    break;
-                default:
-                    Plate(world.Graphite, new Vector3(0,.109f,.045f),new Vector3(.124f,.043f,.223f),-7);
-                    Plate(world.Hardware, new Vector3(0,.042f,.409f),new Vector3(.107f,.090f,.068f));
-                    break;
-            }
-        }
+        internal static void Gun(TriasWorld world, Transform root, string weapon, Material accent)
+            => PhaseArmory.Build(world, root, weapon, accent);
 
         internal static Transform Vehicle(TriasWorld w, bool heavy, int team, out Transform turret)
         {

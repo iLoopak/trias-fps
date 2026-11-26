@@ -96,6 +96,34 @@ Shader "TRIAS/Orbital Sky"
                 return color;
             }
 
+            float3 oceanPlanet(float3 sky, float3 ray, float3 center, float along, float radius)
+            {
+                float3 sun = normalize(_SunDirection.xyz);
+                float glow = exp(-abs(radius - 1) * 29);
+                if (radius >= 1)
+                    return sky + float3(.28,.61,.92) * glow * .33;
+                float depth = along - _Planet.w * sqrt(saturate(1 - radius*radius));
+                float3 n = (ray * depth - center) / _Planet.w;
+                float3 east = normalize(cross(float3(0,1,0), center));
+                float3 north = cross(center,east);
+                float2 uv = float2(dot(n,east),dot(n,north));
+                uv += n.yz * .092 - n.zx * .056;
+                float2 warp = float2(cloud(uv*8.6),cloud(uv*10.2+16.1)) - .5;
+                float2 landUV = uv * 7.4 + warp * 1.35;
+                float terrain = cloud(landUV)*.61 + cloud(landUV*2.9)*.26 + cloud(landUV*7.7)*.13;
+                float continent = smoothstep(.49,.545,terrain);
+                float ridges = smoothstep(.52,.77,terrain);
+                float3 stone = lerp(float3(.51,.43,.36),float3(.77,.74,.66),ridges);
+                float3 surface = lerp(_Body.rgb * (.69 + terrain*.41), stone, continent);
+                float2 weatherUV = uv * float2(17,23) + warp * 3.2;
+                float weather = cloud(weatherUV)*.59 + cloud(weatherUV*2.81)*.28 + cloud(weatherUV*6.4)*.13;
+                float clouds = smoothstep(.54,.75,weather + abs(n.y)*.11);
+                float day = .21 + .79*smoothstep(-.28,.62,dot(n,sun));
+                float limb = pow(1-saturate(dot(-ray,n)),3);
+                return lerp(surface,float3(.96,.93,.87),clouds*.94)*day
+                    + lerp(float3(.18,.50,.90),_LightColor.rgb,limb*limb) * limb * day;
+            }
+
             half4 frag(SkyPixel input) : SV_Target
             {
                 float3 ray = normalize(input.direction);
@@ -122,6 +150,13 @@ Shader "TRIAS/Orbital Sky"
                 float along = dot(ray,axis);
                 float3 offset = ray - axis * along;
                 float r = length(offset) / _Planet.w;
+                if (_SkyScene > 2.5)
+                {
+                    float facing = saturate(dot(normalize(_SunDirection.xyz), ray));
+                    color += _LightColor.rgb * (pow(facing,35)*.12 + pow(facing,160)*.15 + smoothstep(.9991,.9998,facing)*1.3);
+                    if (along > 0) color = oceanPlanet(color, ray,axis,along,r);
+                    return half4(color,1);
+                }
                 if (along <= 0) return half4(color,1);
                 color = _SkyScene < 1.5
                     ? eclipse(color, offset, r, detail)

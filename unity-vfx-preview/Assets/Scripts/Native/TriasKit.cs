@@ -11,28 +11,16 @@ namespace Trias.Native
         readonly Dictionary<string, GameObject> meshes = new Dictionary<string, GameObject>();
         readonly TriasWorld world;
         readonly Dictionary<string, Material> landscape = new Dictionary<string, Material>();
-        readonly Material blaster;
-        readonly Dictionary<string, Material> weaponFinish = new Dictionary<string, Material>();
+        readonly Material crateFinish;
         readonly AnimationClip idle, run, jump;
 
         internal TriasKit(TriasWorld world)
         {
             this.world = world;
-            blaster = world.MaterialAt("#cedaed");
-            blaster.mainTexture = Resources.Load<Texture2D>(Directory + "Weapons/colormap");
-            blaster.SetFloat("_Glossiness", .56f);
-            blaster.SetFloat("_Metallic", .30f);
-            var shader = Resources.Load<Shader>("TRIAS/ArmoryFinish");
-            foreach (var (key, tint) in new[] { ("pulse","#94a69e"), ("scatter","#a18165"),
-                         ("lance","#b3bbbf"), ("arc","#7c98a0"), ("rift","#635b76") })
-            {
-                var finish = world.MaterialAt(tint);
-                if (shader != null && shader.isSupported) finish.shader = shader;
-                finish.mainTexture = blaster.mainTexture;
-                finish.SetFloat("_Glossiness", .33f);
-                finish.SetFloat("_Metallic", .38f);
-                weaponFinish.Add(key,finish);
-            }
+            crateFinish = world.MaterialAt("#cedaed");
+            crateFinish.mainTexture = Resources.Load<Texture2D>(Directory + "Weapons/colormap");
+            crateFinish.SetFloat("_Glossiness", .56f);
+            crateFinish.SetFloat("_Metallic", .30f);
             idle = Clip("idle"); run = Clip("run"); jump = Clip("jump");
             landscape["leafsGreen"] = world.MaterialAt("#528b50");
             landscape["leafsDark"] = world.MaterialAt("#326e4e");
@@ -81,32 +69,6 @@ namespace Trias.Native
             return null;
         }
 
-        internal bool Gun(Transform parent, string weapon, Material accent)
-        {
-            (string file, float length) = weapon switch
-            {
-                "scatter" => ("blaster-l", .65f),
-                "lance" => ("blaster-f", .94f),
-                "arc" => ("blaster-p", .66f),
-                "rift" => ("blaster-a", .86f),
-                _ => ("blaster-d", .72f)
-            };
-            var item = Place(parent, "Weapons/" + file, Quaternion.Euler(0, 180, 0), out var bounds);
-            if (item == null) return false;
-            float scale = length / Mathf.Max(.001f, bounds.size.z);
-            item.localScale = Vector3.one * scale;
-            item.localPosition = new Vector3(-bounds.center.x * scale, -bounds.center.y * scale - .021f, length * .12f - bounds.center.z * scale);
-            foreach (var renderer in item.GetComponentsInChildren<Renderer>())
-                renderer.sharedMaterial = weaponFinish.TryGetValue(weapon, out var finish) ? finish : weaponFinish["pulse"];
-            for (int side = -1; side <= 1; side += 2)
-            {
-                var rail = TriasWorld.Part(parent, accent, new Vector3(side * (bounds.extents.x * scale + .002f), .02f, .12f),
-                    new Vector3(.009f, .012f, length * .24f));
-                rail.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            }
-            return true;
-        }
-
         internal bool Nature(Transform parent, string name, Vector3 size, Vector3 at, float yaw = 0)
         {
             var item = Sized(parent, "Nature/" + name, size, at, yaw);
@@ -125,7 +87,7 @@ namespace Trias.Native
         {
             var item = Sized(parent, wide ? "Weapons/crate-wide" : "Weapons/crate-medium", size, Vector3.zero, 0);
             if (item == null) return false;
-            foreach (var renderer in item.GetComponentsInChildren<Renderer>()) renderer.sharedMaterial = blaster;
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>()) renderer.sharedMaterial = crateFinish;
             return true;
         }
 
