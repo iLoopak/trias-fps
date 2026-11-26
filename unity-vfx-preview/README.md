@@ -38,6 +38,8 @@ Obraz lobby `Assets/Resources/TRIAS/relay-eclipse.jpg` vznikl vestavěným nást
 
 Pro společný vývoj verzuj `Assets` včetně `.meta`, `Packages` a `ProjectSettings`. Cache Unity a sestavení v `output/` ignoruje Git.
 
+[Vizuální směr W3 a původ assetů](ART-DIRECTION.md) popisuje nové modely, frakční značení a výtvarné odlišení arén.
+
 ## Modely a animace
 
 - Pět modelů zbraní včetně Riftu pochází z [Kenney Blaster Kit](https://kenney.nl/assets/blaster-kit). Sdílejí atlas s doplněnými svítícími prvky pro výbavu TRIAS.

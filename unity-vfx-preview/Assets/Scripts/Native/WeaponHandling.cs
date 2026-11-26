@@ -55,7 +55,7 @@ namespace Trias.Native
             };
         }
 
-        internal WeaponHandling(TriasWorld world, Transform root, string key, Material accent, bool firstPerson)
+        internal WeaponHandling(TriasWorld world, Transform root, string key, Material accent, bool firstPerson, string kit = null, bool male = false)
         {
             this.key = key;
             action = TriasWorld.Group(root, key == "scatter" ? "Hinged breech" : key == "lance" ? "Bolt carriage"
@@ -82,8 +82,10 @@ namespace Trias.Native
             }
             if (firstPerson)
             {
-                leftHand = Glove(world, root, accent, -1, out leftSleeve);
-                rightHand = Glove(world, root, accent, 1, out rightSleeve);
+                Material gloveShell = kit == "wraith" ? world.Graphite : kit == "bulwark" ? world.Hardware : world.White;
+                float gloveWidth = (kit == "bulwark" ? 1.12f : kit == "kestrel" ? .92f : 1f) * (male ? 1.05f : 1f);
+                leftHand = Glove(world, root, accent, gloveShell, -1, gloveWidth, out leftSleeve);
+                rightHand = Glove(world, root, accent, gloveShell, 1, gloveWidth, out rightSleeve);
             }
             Update(default, 0);
         }
@@ -96,11 +98,12 @@ namespace Trias.Native
             return part;
         }
 
-        static Transform Glove(TriasWorld world, Transform root, Material paint, int side, out Transform sleeve)
+        static Transform Glove(TriasWorld world, Transform root, Material paint, Material shell, int side, float width, out Transform sleeve)
         {
             var hand = TriasWorld.Group(root, side < 0 ? "Support glove" : "Grip glove");
             Part(hand, world.Dark, Vector3.zero, new Vector3(.085f,.059f,.096f), PrimitiveType.Sphere);
-            Part(hand, world.Steel, new Vector3(0,.026f,-.014f), new Vector3(.071f,.020f,.055f));
+            hand.localScale = new Vector3(width,1,1);
+            Part(hand, shell, new Vector3(0,.026f,-.014f), new Vector3(.071f,.020f,.055f));
             Part(hand, paint, new Vector3(0,.038f,-.021f), new Vector3(.049f,.006f,.013f));
             for (int i = 0; i < 4; i++)
             {

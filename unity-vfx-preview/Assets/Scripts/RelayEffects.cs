@@ -19,9 +19,14 @@ namespace Trias.Preview
         readonly float[] traceLifetimes = new float[24];
         readonly Transform[] halos = new Transform[16];
         readonly float[] haloTimes = new float[16];
+        readonly float[] haloDuration = new float[16];
+        readonly float[] haloExtent = new float[16];
+        readonly MeshFilter[] haloFilters = new MeshFilter[16];
+        readonly Mesh[] factionGlyphs = new Mesh[3];
         readonly Renderer[] haloRenderers = new Renderer[16];
         MaterialPropertyBlock haloColor;
         int lineIndex, ringIndex;
+        int impactFrame, impactRemaining;
         float pulseLevel, flashAt;
         AudioSource speaker;
         AudioSource boots;
@@ -33,7 +38,8 @@ namespace Trias.Preview
         AudioSource atmosphere;
         AudioClip pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue, menuClick, landing;
         AudioClip focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad;
-        AudioClip phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue;
+        AudioClip phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue, shieldReturnCue;
+        readonly AudioClip[] factionEntry = new AudioClip[3];
         readonly AudioSource[] voices = new AudioSource[20];
         readonly AudioLowPassFilter[] filters = new AudioLowPassFilter[20];
         readonly float[] voicePriority = new float[20];
@@ -111,7 +117,12 @@ namespace Trias.Preview
             phaseFire = MatchSound.Discharge("Echo activation", .20f, 135, 940, .37f);
             phaseFade = EffectPreview.Cue("Echo decay", 540, 160, .13f, 119);
             phaseRupture = MatchSound.Discharge("Echo rupture", .24f, 220, 2700, .54f);
+            for (int i = 0; i < factionGlyphs.Length; i++) factionGlyphs[i] = Native.TriasMarkings.Emblem(i);
+            factionEntry[0] = EffectPreview.Cue("ION deployment", 590, 990, .28f, 84);
+            factionEntry[1] = EffectPreview.Cue("EMBER deployment", 345, 570, .28f, 104);
+            factionEntry[2] = EffectPreview.Cue("VIOLET deployment", 510, 355, .28f, 77);
             nearMissCue = MatchSound.NearMiss();
+            shieldReturnCue = EffectPreview.Cue("Shield online", 430, 890, .19f, 84);
             for (int i = 0; i < traces.Length; i++)
             {
                 var trace = new GameObject("Pulse trace", typeof(LineRenderer)).GetComponent<LineRenderer>();
@@ -127,7 +138,8 @@ namespace Trias.Preview
             {
                 var halo = new GameObject("Re-entry ring", typeof(MeshFilter), typeof(MeshRenderer));
                 halo.transform.SetParent(transform);
-                halo.GetComponent<MeshFilter>().sharedMesh = haloMesh;
+                haloFilters[i] = halo.GetComponent<MeshFilter>();
+                haloFilters[i].sharedMesh = haloMesh;
                 var renderer = halo.GetComponent<MeshRenderer>();
                 renderer.sharedMaterial = haloMaterial;
                 renderer.shadowCastingMode = ShadowCastingMode.Off;
@@ -158,15 +170,15 @@ namespace Trias.Preview
             for (int i = 0; i < halos.Length; i++)
             {
                 if (!haloRenderers[i].enabled) continue;
-                float progress = Mathf.Clamp01(1f - (haloTimes[i] - time) / 0.58f);
+                float progress = Mathf.Clamp01(1f - (haloTimes[i] - time) / haloDuration[i]);
                 haloRenderers[i].enabled = progress < 1;
-                halos[i].localScale = Vector3.one * Mathf.Lerp(0.52f, 2.15f, progress);
+                halos[i].localScale = Vector3.one * haloExtent[i] * Mathf.Lerp(0.24f, 1, progress);
             }
             flash.intensity = pulseLevel * Mathf.Exp(-9f * Mathf.Max(0f, time - flashAt));
         }
 
         public void Shot(Vector3 origin, Vector3 end, bool hit, bool local, Color color, string weapon = "pulse", bool sound = true,
-            string impactKind = null, float intensity = 1)
+            string impactKind = null, float intensity = 1, bool mainPellet = true)
         {
             int index = lineIndex++ % traces.Length;
             var trace = traces[index];
@@ -183,15 +195,27 @@ namespace Trias.Preview
             traceTimes[index] = Time.time + traceLifetimes[index];
             if (sound && local) FireMuzzle(origin, color, weapon, false, intensity);
             else if (sound) FireWorld(origin, weapon, false, false);
-            if (hit)
+            if (hit && intensity > .01f)
             {
                 bool armor = impactKind == "shield";
-                Color impactColor = armor || impactKind == "echo" ? new Color(.47f, .83f, 1f) : impactKind == "wall" ? Matter
+                Vector3 outgoing = (origin - end).normalized;
+                bool landscape = impactKind == "soil" || impactKind == "water";
+                Color impactColor = armor || impactKind == "echo" ? new Color(.47f, .83f, 1f)
+                    : impactKind == "soil" ? new Color(.63f, .55f, .36f)
+                    : impactKind == "water" ? new Color(.58f, .90f, .92f) : impactKind == "wall" ? Matter
                     : impactKind == "pilot" ? Color.Lerp(color, new Color(1f, .56f, .43f), .35f) : color;
                 int count = armor ? 12 : local ? 8 : 5;
                 if (weapon == "scatter") count = Mathf.Min(count, 5);
-                Emit(impact, end, impactColor, 2 + Mathf.RoundToInt(count * intensity));
-                if (armor && intensity > .5f && weapon != "scatter") Emit(arrival, end, impactColor, 5);
+                if (impactFrame != Time.frameCount)
+                {
+                    impactFrame = Time.frameCount;
+                    impactRemaining = 96;
+                }
+                int shown = Mathf.Min(impactRemaining, Mathf.CeilToInt(count * intensity));
+                impactRemaining -= shown;
+                if (shown > 0) Emit(impact, end + outgoing * .035f, impactColor, shown, landscape ? 1.15f : .7f);
+                if (armor && mainPellet && intensity > .5f && (local || listener != null && (listener.position - end).sqrMagnitude < 225))
+                    Ring(end + outgoing * .075f, impactColor, Quaternion.FromToRotation(Vector3.up, outgoing), .20f, .64f);
             }
         }
 
@@ -267,12 +291,17 @@ namespace Trias.Preview
             Play(riftCue, position, .72f);
         }
 
-        public void Reentry(Vector3 position, Color tint, bool local)
+        public void Reentry(Vector3 position, Color tint, bool local, int faction = -1, float intensity = 1)
         {
-            Emit(arrival, position, tint, 32);
-            Ring(position, tint);
-            if (local) Illuminate(position + Vector3.up, tint, 3.6f);
-            Play(arrivalCue, position, local ? 0.52f : 0.30f, local);
+            if (intensity > .01f)
+            {
+                Emit(arrival, position, tint, Mathf.CeilToInt(32 * intensity));
+                if (faction < 0) Ring(position, tint);
+                else ProjectFaction(position, tint, faction, .56f, 1.38f);
+                if (local) Illuminate(position + Vector3.up, tint, 3.6f * intensity);
+            }
+            var audible = faction >= 0 && faction < factionEntry.Length ? factionEntry[faction] : arrivalCue;
+            Play(audible, position, local ? .48f : .30f, local);
         }
 
         public void Pickup(Vector3 position, Color tint, bool local)
@@ -323,12 +352,14 @@ namespace Trias.Preview
                 Emit(muzzle, at, tint, Mathf.CeilToInt(intensity * 4), .45f);
         }
 
-        internal void Motion(Vector3 position, Color tint, Native.MotionCue cue, bool local, float intensity)
+        internal void Motion(Vector3 position, Color tint, Native.MotionCue cue, bool local, float intensity, int faction = -1)
         {
             int particles = cue == Native.MotionCue.Launch ? 19 : cue == Native.MotionCue.Double ? 13 : cue == Native.MotionCue.Dodge ? 8 : 0;
             if (particles > 0 && intensity > 0)
                 Emit(arrival, position, tint, Mathf.CeilToInt(particles * intensity));
             if (cue == Native.MotionCue.Launch && intensity > .25f) Ring(position, tint);
+            if (cue == Native.MotionCue.Dodge && faction >= 0 && intensity > .3f)
+                ProjectFaction(position, tint, faction, .24f, .74f);
             var sound = cue == Native.MotionCue.Launch ? pad : cue == Native.MotionCue.Double ? airJump
                 : cue == Native.MotionCue.Dodge ? dodge : thruster;
             Play(sound, position, cue == Native.MotionCue.Jump ? .14f : .26f, local);
@@ -337,7 +368,9 @@ namespace Trias.Preview
         public void Confirm(bool armor, bool lethal, bool broken = false) =>
             Telemetry(lethal ? kill : broken ? shieldBreak : armor ? shield : confirm,
                 lethal || broken ? .32f : .24f, lethal ? 4 : broken ? 3 : 1);
-        public void Hurt(bool armor) => Telemetry(armor ? shield : hurtCue, armor ? .19f : .29f, 2);
+        public void Hurt(bool armor, bool broken = false) =>
+            Telemetry(broken ? shieldBreak : armor ? shield : hurtCue, broken ? .33f : armor ? .19f : .29f, broken ? 3 : 2);
+        internal void ShieldReturn() => Telemetry(shieldReturnCue, .17f, 1);
 
         void Telemetry(AudioClip cue, float gain, int rank)
         {
@@ -414,14 +447,23 @@ namespace Trias.Preview
         }
 
         void Ring(Vector3 position, Color tint)
+            => Ring(position + Vector3.up * .058f, tint, Quaternion.identity, .58f, 2.15f);
+
+        void ProjectFaction(Vector3 position, Color tint, int faction, float life, float extent)
+            => Ring(position + Vector3.up*.067f,tint,Quaternion.Euler(-90,0,0),life,extent,factionGlyphs[faction]);
+
+        void Ring(Vector3 position, Color tint, Quaternion rotation, float lifetime, float extent, Mesh shape = null)
         {
             int i = ringIndex++ % halos.Length;
-            halos[i].position = position + Vector3.up * 0.058f;
-            halos[i].localScale = Vector3.one * 0.52f;
+            haloFilters[i].sharedMesh = shape == null ? haloMesh : shape;
+            halos[i].SetPositionAndRotation(position, rotation);
+            halos[i].localScale = Vector3.one * extent * .24f;
             haloColor.SetColor("_Color", tint);
             haloRenderers[i].SetPropertyBlock(haloColor);
             haloRenderers[i].enabled = true;
-            haloTimes[i] = Time.time + 0.58f;
+            haloDuration[i] = lifetime;
+            haloExtent[i] = extent;
+            haloTimes[i] = Time.time + lifetime;
         }
 
         static void Emit(ParticleSystem system, Vector3 at, Color tint, int count, float lifetimeScale = 0)
@@ -473,9 +515,11 @@ namespace Trias.Preview
         void OnDestroy()
         {
             foreach (var bed in beds.Values) Destroy(bed);
+            foreach (var mesh in factionGlyphs) if (mesh != null) Destroy(mesh);
+            foreach (var cue in factionEntry) if (cue != null) Destroy(cue);
             foreach (var cue in new[] { pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue,
                 menuClick, landing, focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad,
-                phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue })
+                phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue, shieldReturnCue })
                 if (cue != null) Destroy(cue);
         }
     }

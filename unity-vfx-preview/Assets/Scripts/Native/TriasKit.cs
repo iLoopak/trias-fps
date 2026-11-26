@@ -9,25 +9,29 @@ namespace Trias.Native
     {
         const string Directory = "TRIAS/Kit/";
         readonly Dictionary<string, GameObject> meshes = new Dictionary<string, GameObject>();
-        readonly Dictionary<string, Material> suits = new Dictionary<string, Material>();
+        readonly TriasWorld world;
         readonly Dictionary<string, Material> landscape = new Dictionary<string, Material>();
         readonly Material blaster;
+        readonly Dictionary<string, Material> weaponFinish = new Dictionary<string, Material>();
         readonly AnimationClip idle, run, jump;
 
         internal TriasKit(TriasWorld world)
         {
+            this.world = world;
             blaster = world.MaterialAt("#cedaed");
             blaster.mainTexture = Resources.Load<Texture2D>(Directory + "Weapons/colormap");
             blaster.SetFloat("_Glossiness", .56f);
             blaster.SetFloat("_Metallic", .30f);
-            var pilotKeys = new[] { "vector", "bulwark", "wraith", "kestrel" };
-            var paint = new[] { "#abc5d7", "#d3ac85", "#837b9c", "#97bb95" };
-            var skin = Resources.Load<Texture2D>(Directory + "Pilots/cyborgFemaleA");
-            for (int i = 0; i < pilotKeys.Length; i++)
+            var shader = Resources.Load<Shader>("TRIAS/ArmoryFinish");
+            foreach (var (key, tint) in new[] { ("pulse","#94a69e"), ("scatter","#a18165"),
+                         ("lance","#b3bbbf"), ("arc","#7c98a0"), ("rift","#635b76") })
             {
-                var suit = world.MaterialAt(paint[i]);
-                suit.mainTexture = skin;
-                suits.Add(pilotKeys[i], suit);
+                var finish = world.MaterialAt(tint);
+                if (shader != null && shader.isSupported) finish.shader = shader;
+                finish.mainTexture = blaster.mainTexture;
+                finish.SetFloat("_Glossiness", .33f);
+                finish.SetFloat("_Metallic", .38f);
+                weaponFinish.Add(key,finish);
             }
             idle = Clip("idle"); run = Clip("run"); jump = Clip("jump");
             landscape["leafsGreen"] = world.MaterialAt("#528b50");
@@ -93,7 +97,7 @@ namespace Trias.Native
             item.localScale = Vector3.one * scale;
             item.localPosition = new Vector3(-bounds.center.x * scale, -bounds.center.y * scale - .021f, length * .12f - bounds.center.z * scale);
             foreach (var renderer in item.GetComponentsInChildren<Renderer>())
-                renderer.sharedMaterial = blaster;
+                renderer.sharedMaterial = weaponFinish.TryGetValue(weapon, out var finish) ? finish : weaponFinish["pulse"];
             for (int side = -1; side <= 1; side += 2)
             {
                 var rail = TriasWorld.Part(parent, accent, new Vector3(side * (bounds.extents.x * scale + .002f), .02f, .12f),
@@ -174,7 +178,7 @@ namespace Trias.Native
             return item;
         }
 
-        internal Transform Pilot(Transform parent, string kit, out Animation motion)
+        internal Transform Pilot(Transform parent, string kit, Material accent, int faction, bool male, out Animation motion)
         {
             motion = null;
             var item = Place(parent, "Pilots/characterMedium", Quaternion.identity, out _);
@@ -183,11 +187,6 @@ namespace Trias.Native
             var renderers = item.GetComponentsInChildren<SkinnedMeshRenderer>();
             if (renderers.Length == 0) { Object.Destroy(item.gameObject); return null; }
             if (idle != null) idle.SampleAnimation(rig, 0);
-            foreach (var renderer in renderers)
-            {
-                renderer.sharedMaterial = suits.TryGetValue(kit, out var paint) ? paint : suits["vector"];
-                renderer.updateWhenOffscreen = true;
-            }
             // The imported mesh and skeleton use different unit transforms. Size the
             // posed character from feet to head in the wrapper's coordinate space.
             float bottom = float.PositiveInfinity, top = float.NegativeInfinity;
@@ -199,12 +198,15 @@ namespace Trias.Native
             }
             if (top <= bottom) { Object.Destroy(item.gameObject); return null; }
             float height = kit == "bulwark" ? 1.77f : kit == "wraith" ? 1.62f : 1.68f;
-            float scale = height * .92f / (top - bottom);
-            item.localScale = new Vector3(scale * (kit == "bulwark" ? 1.22f : kit == "wraith" ? .90f : 1f), scale, scale);
+            float scale = height * (male ? .963f : .92f) / (top - bottom);
+            item.localScale = new Vector3(scale * (kit == "bulwark" ? 1.23f : kit == "wraith" ? .87f : 1f) * (male ? 1.045f : 1f), scale, scale);
             item.localPosition = Vector3.down * bottom * scale;
+            foreach (var renderer in renderers) renderer.enabled = false;
+            PilotSuit.Build(world, parent, rig.transform, kit, accent, faction, male);
             var legacy = rig.GetComponent<Animation>();
             motion = legacy != null ? legacy : rig.AddComponent<Animation>();
             motion.playAutomatically = false;
+            motion.cullingType = AnimationCullingType.AlwaysAnimate;
             if (idle != null) { motion.AddClip(idle, "idle"); motion["idle"].wrapMode = WrapMode.Loop; }
             if (run != null) { motion.AddClip(run, "run"); motion["run"].wrapMode = WrapMode.Loop; }
             if (jump != null) { motion.AddClip(jump, "jump"); motion["jump"].wrapMode = WrapMode.ClampForever; }

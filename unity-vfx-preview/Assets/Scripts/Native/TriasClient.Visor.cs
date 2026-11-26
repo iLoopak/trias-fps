@@ -11,10 +11,18 @@ namespace Trias.Native
         static readonly Color Chalk = new Color(.97f, .94f, .87f);
         VisorComposite visor;
         Texture2D radarPlate;
-        Vector3 impactSource;
-        float impactTime;
         Color damageTint = Fault;
         int confirmStyle;
+        const float IncomingDuration = .48f;
+        const float ShieldReturnDuration = .72f;
+        struct IncomingHit
+        {
+            internal float Heading, Until;
+            internal Color Tint;
+            internal bool Heavy;
+        }
+        readonly IncomingHit[] incomingHits = new IncomingHit[4];
+        float healthTrail, armorTrail, vitalsPulse, shieldAlertUntil, shieldReturnUntil;
         float waveFlash, coreFlash;
         bool waveStarts;
         struct KillEntry
@@ -49,8 +57,8 @@ namespace Trias.Native
                 var row = new Rect(x, 132 + i * 26, 240, 24);
                 var previous = GUI.color;
                 GUI.color = new Color(1, 1, 1, opacity);
-                Fill(row, Ink);
-                Fill(new Rect(row.x, row.y, 2, 24), entry.Tint);
+                Fill(row, new Color(Ink.r, Ink.g, Ink.b, Ink.a * opacity));
+                Fill(new Rect(row.x, row.y, 2, 24), new Color(entry.Tint.r, entry.Tint.g, entry.Tint.b, opacity));
                 GUI.Label(new Rect(row.x + 8, row.y + 1, 229, 22), entry.Label, caption);
                 GUI.color = previous;
             }
@@ -135,15 +143,7 @@ namespace Trias.Native
                     for (int i = 0; i < 4; i++)
                         Arc(centerPoint, 25 + drift, i * 90 + 19, 35, response, 1.6f, 4);
             }
-            if (hurt > 0 && Time.unscaledTime - impactTime < .56f)
-            {
-                Vector3 incoming = view.transform.InverseTransformDirection(impactSource - view.transform.position);
-                float direction = Mathf.Atan2(incoming.x, incoming.z) * Mathf.Rad2Deg;
-                var danger = new Color(damageTint.r, damageTint.g, damageTint.b, Mathf.SmoothStep(0, .96f, hurt));
-                Arc(centerPoint, 68, direction - 24, 48, danger, 4, 11);
-                var at = centerPoint + Polar(direction) * 58;
-                Stroke(at - Polar(direction) * 6, at, 2, danger);
-            }
+            PaintIncoming(centerPoint, Time.unscaledTime);
             float reloading = ReloadProgress(Time.unscaledTime);
             if (reloading > 0 && !aimingBuild)
             {
@@ -161,6 +161,76 @@ namespace Trias.Native
 
         float reloadPeriod = 1.55f;
 
+        void RecordIncoming(Vector3 source, Color tint, bool heavy, float now)
+        {
+            float x = source.x - own[18].Float, z = source.z - own[20].Float;
+            if (x * x + z * z < .01f) return;
+            float heading = Mathf.Atan2(x, z) * Mathf.Rad2Deg;
+            int slot = 0;
+            for (int i = 0; i < incomingHits.Length; i++)
+            {
+                var previous = incomingHits[i];
+                if (previous.Until > now && Mathf.Abs(Mathf.DeltaAngle(previous.Heading, heading)) < 32)
+                {
+                    if (previous.Heavy && !heavy) return;
+                    slot = i;
+                    break;
+                }
+                if (previous.Until < incomingHits[slot].Until) slot = i;
+            }
+            incomingHits[slot] = new IncomingHit { Heading = heading, Until = now + IncomingDuration, Tint = tint, Heavy = heavy };
+        }
+
+        void PaintIncoming(Vector2 centerPoint, float now)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            foreach (var hit in incomingHits)
+            {
+                float life = (hit.Until - now) / IncomingDuration;
+                if (life <= 0) continue;
+                float direction = Mathf.DeltaAngle(view.transform.eulerAngles.y, hit.Heading);
+                var danger = hit.Tint;
+                danger.a = Mathf.SmoothStep(0, .95f, life);
+                float sweep = hit.Heavy ? 42 : 29;
+                Arc(centerPoint, 68, direction - sweep / 2, sweep, danger, hit.Heavy ? 4.5f : 3.2f, 9);
+                Vector2 radial = Polar(direction);
+                Stroke(centerPoint + radial * 55, centerPoint + radial * 62, 2.2f, danger);
+                if (hit.Heavy && visualEffects > .01f)
+                {
+                    danger.a *= visualEffects * .7f;
+                    Arc(centerPoint, 75, direction - 11, 22, danger, 1.5f, 5);
+                }
+            }
+        }
+
+        void UpdateShieldFeedback(int previous, int current, float now)
+        {
+            if (previous == current) return;
+            if (current == 0)
+            {
+                shieldAlertUntil = now + .68f;
+                shieldReturnUntil = 0;
+            }
+            else if (previous == 0)
+            {
+                shieldAlertUntil = 0;
+                shieldReturnUntil = now + ShieldReturnDuration;
+                effects.ShieldReturn();
+            }
+        }
+
+        void UpdateVitals(float now, float dt)
+        {
+            float health = Mathf.Clamp01(own[6].Float / 150);
+            float armor = Mathf.Clamp01(own[7].Float / 50);
+            float fade = 1 - Mathf.Exp(-dt * (vitalsPulse > .36f ? 3 : 12));
+            healthTrail = health > healthTrail ? health : Mathf.Lerp(healthTrail, health, fade);
+            armorTrail = armor > armorTrail ? armor : Mathf.Lerp(armorTrail, armor, fade);
+            vitalsPulse = Mathf.MoveTowards(vitalsPulse, 0, dt * 3);
+            if (now >= shieldAlertUntil) shieldAlertUntil = 0;
+            if (now >= shieldReturnUntil) shieldReturnUntil = 0;
+        }
+
         void PaintVitals(float w, float h)
         {
             float health = Mathf.Clamp01(own[6].Float / 150);
@@ -168,16 +238,29 @@ namespace Trias.Native
             Color vitality = Color.Lerp(Fault, teamTint, Mathf.Clamp01((health - .12f) * 2.8f));
             float y = h - 102;
             var plate = new Rect(26, y, 216, 78);
-            CornerPanel(plate, vitality);
+            CornerPanel(plate, Color.Lerp(vitality, damageTint, vitalsPulse * .58f));
             var dial = new Vector2(70, y + 39);
             Arc(dial, 28, 220, 280, Subtle, 4, 22);
+            Arc(dial, 28, 220, 280 * healthTrail, Color.Lerp(Subtle, Fault, .53f), 4, 22);
             Arc(dial, 28, 220, 280 * health, vitality, 4, 22);
             if (health < .24f)
                 Arc(dial, 39, 210, 300, new Color(Fault.r, Fault.g, Fault.b, .24f + (.24f - health) * 2), 1.4f, 22);
+            Arc(dial, 34, 220, 280 * armorTrail, Color.Lerp(Subtle, Shield, .35f), 1.6f, 16);
             Arc(dial, 34, 220, 280 * armor, Shield, 1.6f, 16);
+            if (mode != "ffa" && (shieldReturnUntil > 0 || shieldAlertUntil > 0))
+                DrawFaction(new Vector2(70,y + 16),5.5f,own[3].Int,Color.Lerp(Shield,teamTint,.42f));
+            if (shieldReturnUntil > 0 && visualEffects > .01f)
+            {
+                float life = Mathf.Clamp01((shieldReturnUntil - Time.unscaledTime) / ShieldReturnDuration);
+                var glow = Shield;
+                glow.a = life * visualEffects;
+                Arc(dial, 37, 220, 280 * armor * Mathf.SmoothStep(0, 1, (1 - life) * 3), glow, 2.2f, 16);
+            }
             GUI.Label(new Rect(42, y + 25, 56, 29), own[6].Int.ToString(), center);
             GUI.Label(new Rect(111, y + 9, 123, 22), catalog.teams[own[3].Int].name, section);
-            GUI.Label(new Rect(111, y + 31, 120, 18), own[7].Int > 0 ? "ŠTÍT " + own[7].Int : "ZDRAVÍ", caption);
+            string shieldLabel = shieldAlertUntil > 0 ? "ŠTÍT PRORAŽEN" : shieldReturnUntil > 0 ? "ŠTÍT OBNOVEN"
+                : own[7].Int > 0 ? "ŠTÍT " + own[7].Int : "ZDRAVÍ";
+            GUI.Label(new Rect(111, y + 31, 120, 18), shieldLabel, caption);
             Segments(new Rect(111, y + 57, 108, 4), 9, health, vitality);
 
             var hull = state["vehicles"][own[16].Int];

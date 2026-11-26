@@ -134,7 +134,7 @@ export class Horde {
         : this.wave >= 2 && this.remaining % 3 === 0 ? 'striker' : 'runner';
     const type = TYPES[variant];
     const id = 'horde-' + ++this.nextEnemy;
-    const enemy = this.room.addPlayer(id, type.name, team, slot, now, true, type.character);
+    const enemy = this.room.addPlayer(id, type.name, team, slot, now, true, type.character, this.nextEnemy % 2 === 0 ? 'male' : undefined);
     const flank = 1 + (this.remaining + this.wave) % 2;
     Object.assign(enemy, this.room.layout.spawns[flank][slot], { hordeType: variant, hordeSlot: index,
       hp: Math.round(type.hp * (1 + (this.wave - 1) * .10)),

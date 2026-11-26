@@ -106,7 +106,7 @@ namespace Trias.Native
             Color tint = mode == "ffa" ? Catalog.Tint(catalog.ffaColors[team * 4 + echo[7].Int]) : Catalog.Tint(catalog.teams[team].color);
             // The compact player row lets this pose reuse the exact in-game pilot and weapon silhouette.
             var row = WireValue.Parse(FormattableString.Invariant(
-                $"[\"echo\",\"Combat Echo\",{(echo[10].Bool ? 18 : 2)},{team},{echo[7].Int},\"{echo[8].Text}\",150,0,0,\"{echo[9].Text}\",[],0,0,1,0,-1,-1,0,{echo[2].Float},{echo[3].Float},{echo[4].Float},0,0,0,{echo[5].Float},0]"));
+                $"[\"echo\",\"Combat Echo\",{(echo[10].Bool ? 18 : 2)},{team},{echo[7].Int},\"{echo[8].Text}\",150,0,0,\"{echo[9].Text}\",[],0,0,1,0,-1,-1,0,{echo[2].Float},{echo[3].Float},{echo[4].Float},0,0,0,{echo[5].Float},0,0,0,0,0,0,null,\"{(echo[13].Text == "male" ? "male" : "female")}\"]"));
             var avatar = new Avatar(world, "echo", row, world.TeamLight[team]);
             avatar.Accept(row, Time.unscaledTime);
             avatar.Tick(Time.unscaledTime);
@@ -115,6 +115,7 @@ namespace Trias.Native
                 animation.enabled = false;
             var material = new Material(shader);
             material.SetColor("_Tint", tint);
+            material.SetFloat("_Faction", mode == "ffa" ? -1 : team);
             foreach (var renderer in avatar.Root.GetComponentsInChildren<Renderer>())
             {
                 var slots = renderer.sharedMaterials;
@@ -189,7 +190,7 @@ namespace Trias.Native
             {
                 float x = w * .5f - 76, y = h * .5f + 48;
                 float lifetime = Mathf.Max(.1f, state["signature"]["lifetime"].Float);
-                Color tint = now < echoRejectUntil ? Amber : Shield;
+                Color tint = now < echoRejectUntil ? Amber : teamTint;
                 string label = now < echoRejectUntil ? echoStatus : echoActivation + "   OZVĚNA";
                 Fill(new Rect(x, y, 152, 25), Ink);
                 GUI.Label(new Rect(x + 5, y, 143, 23), label, center);
@@ -201,13 +202,15 @@ namespace Trias.Native
             if (live && tier == 0) return;
             float left = Mathf.Clamp01((flow[4].Float - (now - flowStamp)) / chainWindow);
             float atX = w - 240, atY = h - 167;
-            Color edge = new Color(.37f + tier * .10f, .85f, 1f - tier * .12f, momentumPresentation);
+            Color edge = Color.Lerp(teamTint, Chalk, tier * .14f);
+            edge.a = momentumPresentation;
             Fill(new Rect(atX, atY, 213, 53), new Color(Ink.r, Ink.g, Ink.b, Ink.a * momentumPresentation));
             Fill(new Rect(atX, atY, 24 + 30 * left, 2), edge);
             string labelFlow = live ? $"{FlowTiers[tier]}  ×{flow[2].Float:0.#}   {flow[1].Int}" : $"ŘETĚZEC  {flow[11].Int}";
             var saved = GUI.color;
             GUI.color = new Color(1, 1, 1, momentumPresentation);
-            GUI.Label(new Rect(atX + 8, atY + 4, 201, 22), labelFlow, section);
+            GUI.Label(new Rect(atX + 8, atY + 4, 179, 22), labelFlow, section);
+            if (mode != "ffa") DrawFaction(new Vector2(atX + 195,atY + 16), 8, own[3].Int, edge);
             GUI.Label(new Rect(atX + 8, atY + 26, 201, 23), FlowAction(flow[10][0].Text), caption);
             GUI.color = saved;
         }

@@ -9,6 +9,7 @@ namespace Trias.Native
     internal sealed partial class TriasWorld : IDisposable
     {
         internal readonly ArenaSpec Spec;
+        internal readonly string Mode;
         internal readonly TriasKit Kit;
         internal readonly Transform Root, Actors;
         internal readonly Material Dark, Steel, Glass, White, TeamNeutral;
@@ -25,7 +26,8 @@ namespace Trias.Native
         readonly List<Transform> spinning = new List<Transform>();
         readonly List<Transform> animals = new List<Transform>();
         readonly Material water;
-        readonly bool island;
+        readonly bool island, ribbonShader;
+        float waterEffects = -1;
         readonly Color sunColor;
         readonly System.Random random = new System.Random(719);
         internal float Height(float x, float z) => Spec.terrain?.At(x, z) ?? 0;
@@ -33,6 +35,7 @@ namespace Trias.Native
         internal TriasWorld(ArenaSpec spec, Catalog catalog, string mode, Camera view)
         {
             Spec = spec;
+            Mode = mode;
             Root = Group(null, spec.label);
             Actors = Group(Root, "Piloti, vozidla a projektily");
             island = spec.id == "island";
@@ -43,17 +46,23 @@ namespace Trias.Native
             RenderSettings.fogDensity = island ? 0.012f : spec.id == "basin" ? 0.012f : 0.009f;
             RenderSettings.fogColor = fog;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = island ? Catalog.Tint("#a6ceaf") : Catalog.Tint("#626f91");
-            RenderSettings.ambientEquatorColor = Catalog.Tint("#424653");
-            RenderSettings.ambientGroundColor = Catalog.Tint("#424448");
+            RenderSettings.ambientSkyColor = Catalog.Tint(spec.id switch
+            {
+                "foundry" => "#827281", "basin" => "#99938a", "island" => "#b1d1b3", _ => "#778ca8"
+            });
+            RenderSettings.ambientEquatorColor = Catalog.Tint(spec.id switch
+            {
+                "foundry" => "#513f45", "basin" => "#625750", "island" => "#5c6952", _ => "#45545c"
+            });
+            RenderSettings.ambientGroundColor = Catalog.Tint(island ? "#585747" : "#43464a");
             view.backgroundColor = fog;
             ConfigureSky(view);
             var lamp = Group(Root, "Key").gameObject.AddComponent<Light>();
             lamp.type = LightType.Directional;
-            lamp.intensity = island ? 1.35f : 1.52f;
+            lamp.intensity = island ? 1.34f : spec.id == "basin" ? 1.37f : 1.43f;
             lamp.color = sunColor;
             lamp.shadows = LightShadows.Soft;
-            lamp.shadowStrength = 0.69f;
+            lamp.shadowStrength = island ? .66f : .63f;
             lamp.transform.rotation = island ? Quaternion.LookRotation(-IslandSun) : Quaternion.Euler(47, -31, 0);
 
             Dark = MaterialAt("#182332");
@@ -62,16 +71,37 @@ namespace Trias.Native
             Glass = MaterialAt("#183246", true);
             TeamNeutral = MaterialAt("#aac5d6", true);
             Hostile = MaterialAt("#ff5454", true);
+            Hardware = MaterialAt("#a8aeac", false, "armor");
+            Hardware.SetFloat("_Metallic", .41f);
+            Hardware.SetFloat("_Glossiness", .32f);
+            Graphite = MaterialAt("#303f49", false, "armor");
+            Graphite.SetFloat("_Metallic", .17f);
+            Graphite.SetFloat("_Glossiness", .24f);
+            armorSection = TriasMarkings.ArmorPlate();
+            meshes.Add(armorSection);
             Kit = new TriasKit(this);
-            water = MaterialAt("#278caa", false, "water");
-            water.SetTextureScale("_MainTex", new Vector2(1.8f, 1.0f));
-            water.SetFloat("_Glossiness", 0.73f);
-            water.EnableKeyword("_EMISSION");
-            water.SetColor("_EmissionColor", Catalog.Tint("#104854"));
+            if (island)
+            {
+                var shader = Resources.Load<Shader>("TRIAS/IslandWater");
+                ribbonShader = shader != null && shader.isSupported;
+                if (ribbonShader)
+                {
+                    water = new Material(shader);
+                    water.mainTexture = Resources.Load<Texture2D>("TRIAS/water");
+                    Paint.Add(water);
+                }
+                else
+                {
+                    water = MaterialAt("#278caa", false, "water");
+                    water.SetFloat("_Glossiness", .57f);
+                }
+            }
             for (int i = 0; i < Team.Length; i++)
             {
                 Team[i] = MaterialAt(catalog.teams[i].color);
                 TeamLight[i] = MaterialAt(catalog.teams[i].color, true);
+                FactionPaint[i] = MaterialAt(i switch { 0 => "#327482", 1 => "#995f3e", _ => "#735c91" }, false, "armor");
+                FactionPaint[i].SetFloat("_Glossiness", .29f);
             }
             if (island) Meadow();
             else
@@ -80,6 +110,8 @@ namespace Trias.Native
                 BuildOrbitalTraffic();
             }
 
+            BuildWayfinding();
+            BuildBoundaryVapor();
             foreach (var box in Spec.cover)
             {
                 var home = Group(Root, box.nature ?? (box.gantry ? "Suspended gantry" : box.relay ? "Reactor plinth" : "Cover"),
@@ -89,7 +121,7 @@ namespace Trias.Native
                 if (island) IslandCover(box, home, h);
                 else
                 {
-                    var alloy = walls;
+                    var alloy = box.gantry || box.relay || box.sector >= 0 ? coverPaint : walls;
                     Part(home, alloy, Vector3.up * h / 2, new Vector3(box.w, h, box.d), PrimitiveType.Cube, true);
                     for (int sign = -1; sign <= 1; sign += 2)
                     {
@@ -190,12 +222,15 @@ namespace Trias.Native
                 Ring(Root, pad.Position + Vector3.up * 0.05f, pad.radius, MaterialAt("#a0ff96", true), 0.11f);
         }
 
-        Material walls, earth, bark, grassCrown;
+        Material walls, coverPaint, earth, bark, grassCrown;
         readonly Transform[] pickupMotion;
         void Station()
         {
             bool basin = Spec.id == "basin", foundry = Spec.id == "foundry";
-            walls = MaterialAt(basin ? "#a99c87" : foundry ? "#b18877" : "#a9bdd4", false, "bulkhead");
+            walls = MaterialAt(basin ? "#a99c87" : foundry ? "#9a8072" : "#a9bdd4", false, "bulkhead");
+            coverPaint = MaterialAt(basin ? "#ebd3b3" : foundry ? "#dac2b0" : "#e2e8e4", false, "panel-" + Spec.id);
+            coverPaint.SetFloat("_Metallic", basin ? .10f : .32f);
+            coverPaint.SetFloat("_Glossiness", foundry ? .27f : .33f);
             var deck = MaterialAt(basin ? "#b8a498" : foundry ? "#b67660" : "#8e9aad", false,
                 basin ? "basin" : foundry ? "foundry-deck" : "deck");
             deck.mainTextureScale = Vector2.one * (basin ? 22 : 15);
@@ -220,12 +255,23 @@ namespace Trias.Native
                 var road = MaterialAt("#82707c");
                 Ring(Root, Vector3.up * 0.02f, Spec.roadRadius, road, 7.6f, 128);
                 Ring(Root, Vector3.up * 0.04f, Spec.roadRadius + 3.75f, Dark, 0.10f, 128);
-                var horizon = MaterialAt("#a08a68");
+                var horizon = MaterialAt("#947757");
+                var mineral = MaterialAt("#b48b7c", false, "armor");
+                var fracture = MaterialAt("#715c66", false, "armor");
                 for (int i = 0; i < 20; i++)
                 {
                     float a = i * 0.31f;
                     Part(Root, horizon, new Vector3(Mathf.Cos(a) * 81, -9, Mathf.Sin(a) * 81),
                         new Vector3(24, 22 + R(18), 24)).rotation = Quaternion.Euler(0, i * 23, i * 11);
+                    if (i % 3 != 1) continue;
+                    var vein = Group(Root, "Exposed mineral seam", new Vector3(Mathf.Cos(a)*79,2.4f,Mathf.Sin(a)*79));
+                    vein.localRotation = Quaternion.Euler(0,-a*Mathf.Rad2Deg + 36f,0);
+                    for (int spike = -1; spike <= 1; spike++)
+                    {
+                        var shard = Armor(vein, spike == 0 ? mineral : fracture, new Vector3(spike*3.1f, 4 - Mathf.Abs(spike)*1.5f, 0),
+                            new Vector3(3.2f, spike == 0 ? 13 : 7.5f, 3.1f), false);
+                        shard.localRotation = Quaternion.Euler(9,spike*48,spike*21);
+                    }
                 }
             }
             else
@@ -253,8 +299,8 @@ namespace Trias.Native
             earth = MaterialAt("#807262");
             bark = MaterialAt("#74563d");
             grassCrown = MaterialAt("#599b62");
-            var ground = MaterialAt("#7d9d62", false, "meadow");
-            ground.mainTextureScale = Vector2.one * 8;
+            var ground = MaterialAt("#dedcc2", false, "meadow-macro");
+            ground.SetFloat("_Glossiness", .13f);
             var hill = Spec.terrain;
             var vertices = new List<Vector3>(hill.heights.Length);
             var uv = new List<Vector2>(hill.heights.Length);
@@ -288,7 +334,14 @@ namespace Trias.Native
                 rimIndices.AddRange(new[] { v - 144, v, w, v - 144, w, w - 144 });
             }
             MeshAt("Cliff strata", rim, rimIndices, null, earth);
-            WaterRibbon(Spec.river, 1.83f, false);
+            int midstream = Spec.river.Length / 2;
+            var upstream = new Site[midstream + 1];
+            var downstream = new Site[Spec.river.Length - midstream];
+            Array.Copy(Spec.river, upstream, upstream.Length);
+            Array.Copy(Spec.river, midstream, downstream, 0, downstream.Length);
+            Array.Reverse(upstream);
+            WaterRibbon(upstream, 1.83f, false);
+            WaterRibbon(downstream, 1.83f, false);
             WaterRibbon(Spec.creek, 0.49f, true);
             foreach (int x in new[] { -16, 0, 15 })
             {
@@ -346,6 +399,7 @@ namespace Trias.Native
                     new Vector3(.48f + R(.25f), bloom ? .33f : .44f, .48f + R(.31f)),
                     new Vector3(x, y - .06f, z), R(360f));
             }
+            BuildGrasses();
             var milk = MaterialAt("#fff7db");
             var bill = MaterialAt("#ffc34a");
             for (int i = 0; i < 3; i++)
@@ -385,20 +439,23 @@ namespace Trias.Native
 
         void WaterRibbon(Site[] sites, float width, bool creek)
         {
-            var verts = new List<Vector3>();
+            var verts = new List<Vector3>(sites.Length * 2);
             var tris = new List<int>();
-            var uv = new List<Vector2>();
+            var uv = new List<Vector2>(sites.Length * 2);
+            float traveled = 0;
             for (int i = 0; i < sites.Length; i++)
             {
-                Vector3 p = sites[i].Position + Vector3.up * 0.038f;
+                Vector3 p = sites[i].Position + Vector3.up * .038f;
                 Vector3 side = (creek ? Vector3.right : Vector3.forward) * width;
+                if (i > 0) traveled += Vector3.Distance(sites[i - 1].Position, sites[i].Position);
                 verts.Add(p - side); verts.Add(p + side);
-                uv.Add(new Vector2(0, i * 0.08f)); uv.Add(new Vector2(1, i * 0.08f));
+                uv.Add(new Vector2(0, traveled)); uv.Add(new Vector2(1, traveled));
                 if (i == 0) continue;
                 int idx = i * 2;
-                tris.AddRange(new[] { idx - 2, idx - 1, idx, idx, idx - 1, idx + 1, idx, idx - 1, idx - 2, idx + 1, idx - 1, idx });
+                tris.AddRange(new[] { idx - 2, idx - 1, idx, idx, idx - 1, idx + 1 });
+                if (!ribbonShader) tris.AddRange(new[] { idx, idx - 1, idx - 2, idx + 1, idx - 1, idx });
             }
-            MeshAt(creek ? "Creek" : "River", verts, tris, uv, water, doubleSided: true);
+            MeshAt(creek ? "Creek" : "River", verts, tris, uv, water, doubleSided: !ribbonShader);
         }
 
         void MeshAt(string label, List<Vector3> vertices, List<int> triangles, List<Vector2> uv, Material paint, bool solid = false, bool doubleSided = false)
@@ -416,14 +473,17 @@ namespace Trias.Native
             else mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             target.AddComponent<MeshFilter>().sharedMesh = mesh;
-            target.AddComponent<MeshRenderer>().sharedMaterial = paint;
+            var renderer = target.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = paint;
+            if (paint == water) renderer.shadowCastingMode = ShadowCastingMode.Off;
             if (solid) target.AddComponent<MeshCollider>().sharedMesh = mesh;
             else target.layer = Decor;
             meshes.Add(mesh);
         }
 
-        internal void Animate(float time)
+        internal void Animate(float time, float effects = 1)
         {
+            AnimateBoundaryVapor(effects);
             AnimateLandmark(time);
             AnimateOrbitalTraffic(time);
             AnimateStationDistrict(time);
@@ -437,7 +497,12 @@ namespace Trias.Native
                     pickupMotion[i].localPosition = Vector3.up * (.61f + Mathf.Sin(time * 2.5f + i) * .11f);
             if (island)
             {
-                water.mainTextureOffset = new Vector2(0, time * 0.067f % 1);
+                if (ribbonShader && !Mathf.Approximately(waterEffects, effects))
+                {
+                    waterEffects = effects;
+                    water.SetFloat("_Effects", effects);
+                }
+                else if (!ribbonShader) water.mainTextureOffset = new Vector2(0, -time * .12f * effects % 1);
                 for (int i = 0; i < animals.Count; i++)
                 {
                     float x = 3.7f + Mathf.Sin(time * 0.40f + i * 0.23f) * 3f + i * 2f;
@@ -458,6 +523,7 @@ namespace Trias.Native
                 mat.SetFloat("_Metallic", island ? 0f : .22f);
                 mat.SetFloat("_Glossiness", island ? .31f : .44f);
             }
+            mat.enableInstancing = !glow;
             Paint.Add(mat);
             return mat;
         }

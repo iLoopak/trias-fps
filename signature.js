@@ -226,7 +226,7 @@ export class Signature {
       echo: this.echoEnabled, momentum: this.momentumEnabled, window: SIGNATURE.chainWindow, lifetime: SIGNATURE.echoLifetime,
       durability: SIGNATURE.echoHealth,
       echoes: [...this.echoes.values()].map(e => [e.owner.id, e.serial, e.x, e.y, e.z, e.yaw, e.team, e.slot, e.character, e.weapon,
-        e.crouch, Math.max(0, e.expires - now), e.hp]),
+        e.crouch, Math.max(0, e.expires - now), e.hp, ...(e.frame ? [e.frame] : [])]),
       chains: [...this.chains].map(([id, c]) => [id, c.score, c.multi, c.tier, Math.max(0, SIGNATURE.chainWindow - (now - c.last)),
         c.peak, c.bestTier, c.bestMulti, c.echoKills, c.serial, c.recent,
         now - c.doneAt < 1.25 && c.done >= SIGNATURE.thresholds[1] ? c.done : 0]),

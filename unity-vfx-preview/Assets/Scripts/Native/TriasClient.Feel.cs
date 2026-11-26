@@ -141,7 +141,7 @@ namespace Trias.Native
             localMotionAt[(int)cue] = Time.unscaledTime;
             movementPulse = cue == MotionCue.Dodge ? 1 : cue == MotionCue.Launch ? .85f : cue == MotionCue.Double ? .60f : .24f;
             if (cue == MotionCue.Jump) landingStep = .027f;
-            effects.Motion(at, teamTint, cue, true, visualEffects);
+            effects.Motion(at, teamTint, cue, true, visualEffects, mode == "ffa" ? -1 : own[3].Int);
         }
 
         float ReloadProgress(float now)

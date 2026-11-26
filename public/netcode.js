@@ -46,7 +46,7 @@ export function packSnapshot(state, frame, time) {
     ...world, tick: frame, at: Math.round(time * 1000), v: NETWORK_VERSION,
     players: players.map(p => [
       p.id, p.name, flags(p, PLAYER_FLAGS), ...PLAYER_FIELDS.map(key => p[key]), ...PLAYER_MOTION.map(key => round(p[key])),
-      ...(p.hordeType ? [p.hordeType] : []),
+      ...(p.frame ? [p.hordeType ?? null, p.frame] : p.hordeType ? [p.hordeType] : []),
     ]),
     vehicles: vehicles.map(hull => [
       ...VEHICLE_FIELDS.map(key => hull[key]), ...VEHICLE_MOTION.map(key => round(hull[key])),
@@ -62,6 +62,8 @@ export function unpackSnapshot(packet) {
     readFlags(player, row[2], PLAYER_FLAGS);
     unpackRow(player, row, PLAYER_FIELDS, 3);
     unpackRow(player, row, PLAYER_MOTION, 3 + PLAYER_FIELDS.length);
+    if (row[31]) player.hordeType = row[31];
+    if (row[32]) player.frame = row[32];
     return player;
   });
   const vehicles = packet.vehicles.map(row => {

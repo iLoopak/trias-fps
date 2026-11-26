@@ -141,7 +141,7 @@ wss.on('connection', (socket, request) => {
     }
     if (room.horde && (message.v !== NETWORK_VERSION || request.headers.origin))
       return reject(socket, 'Horda je dostupná v nativním klientu TRIAS.');
-    if (!room.join(socket, name || 'Pilot', time, pick(CHARACTERS, message.character, DEFAULT_CHARACTER)))
+    if (!room.join(socket, name || 'Pilot', time, pick(CHARACTERS, message.character, DEFAULT_CHARACTER), message.frame))
       return reject(socket, room.horde ? 'Obrana má plný tým čtyř hráčů.' : 'Místnost už má 12 hráčů.');
     socket.room = room;
     socket.protocolVersion = message.v === NETWORK_VERSION ? NETWORK_VERSION : 1;

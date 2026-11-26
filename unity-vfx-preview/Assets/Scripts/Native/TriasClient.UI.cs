@@ -7,6 +7,7 @@ namespace Trias.Native
     public sealed partial class TriasClient
     {
         Texture2D overlay, portraits;
+        bool renderedPortraits;
         Font displayFont, textFont;
         GUIStyle title, heading, section, caption, center, action, field;
         readonly Color lime = new Color(.78f, 1f, .43f);
@@ -81,7 +82,9 @@ namespace Trias.Native
                     if (game.id == "horde") selectedMap = "relay";
                 }
             }
-            GUI.Label(new Rect(x + 16, y + 448, 400, 32), "Pilot", heading);
+            GUI.Label(new Rect(x + 16, y + 448, 180, 32), "Pilot", heading);
+            if (Preset(new Rect(x + 393,y + 442,127,42), "Ženská verze", null, !selectedMale)) selectedMale = false;
+            if (Preset(new Rect(x + 527,y + 442,127,42), "Mužská verze", null, selectedMale)) selectedMale = true;
             for (int i = 0; i < catalog.pilots.Length; i++)
             {
                 var pilot = catalog.pilots[i];
@@ -89,8 +92,10 @@ namespace Trias.Native
                 if (Preset(button, null, null, pilot.id == selectedPilot)) selectedPilot = pilot.id;
                 if (portraits != null)
                 {
-                    var crop = portraits.name == "visor-pilots" ? new Rect(i * .25f + .03375f, .105f, .1825f, .755f) : new Rect(i * .25f, 0, .25f, 1);
-                    GUI.DrawTextureWithTexCoords(new Rect(button.x + 30, button.y + 4, 95, 72), portraits, crop);
+                    var crop = renderedPortraits ? new Rect(i * .25f, selectedMale ? 0 : .5f, .25f, .5f)
+                        : portraits.name == "visor-pilots" ? new Rect(i * .25f + .03375f, .105f, .1825f, .755f) : new Rect(i * .25f, 0, .25f, 1);
+                    float width = renderedPortraits ? 72 : 95;
+                    GUI.DrawTextureWithTexCoords(new Rect(button.center.x - width * .5f, button.y + 4, width, 72), portraits, crop);
                 }
                 GUI.Label(new Rect(button.x + 13, button.y + 77, 131, 26), pilot.label, section);
                 GUI.Label(new Rect(button.x + 13, button.y + 104, 131, 22), Catalog.Find(catalog.weapons, pilot.weapon)?.label, caption);
@@ -108,7 +113,7 @@ namespace Trias.Native
                 GUI.Label(new Rect(right + 17, y + 365, 374, 29), "1–4 piloti v jednom týmu · 8 vln", section);
             else fillBots = GUI.Toggle(new Rect(right + 17, y + 365, 374, 29), fillBots, "Doplnit volná místa boty");
             if (Preset(new Rect(right + 17, y + 413, 374, 55), "Vstoupit do arény", null, true) && socket == null)
-                Join(serverAddress, roomCode, nickname, selectedMap, selectedMode, selectedPilot, fillBots);
+                Join(serverAddress, roomCode, nickname, selectedMap, selectedMode, selectedPilot, fillBots, male: selectedMale);
             if (status != null) GUI.Label(new Rect(right + 17, y + 479, 375, 34), status, section);
             if (socket != null && GUI.Button(new Rect(right + 17, y + 519, 174, 36), "Zrušit připojení", action)) Disconnect(null);
             if (socket == null && Preset(new Rect(right + 17, y + 568, 374, 43), "Trénink offline · Relay Station", null, false))
@@ -150,10 +155,18 @@ namespace Trias.Native
             }
         }
 
+        static void DrawFaction(Vector2 centerPoint, float size, int faction, Color tint)
+        {
+            foreach (var line in TriasMarkings.FactionStrokes[faction])
+                Stroke(centerPoint + new Vector2(line.x,-line.y)*size,
+                    centerPoint + new Vector2(line.z,-line.w)*size, Mathf.Max(1.3f,size*.15f),tint);
+        }
+
         void MatchHUD(float w, float h, float scale)
         {
             CornerPanel(new Rect(26, 21, 214, 58), teamTint);
-            DrawInsignia(new Vector2(47, 49), 12, Amber);
+            if (mode == "ffa") DrawInsignia(new Vector2(47,49), 12, Amber);
+            else DrawFaction(new Vector2(47,49), 12, own[3].Int, teamTint);
             GUI.Label(new Rect(67, 25, 165, 28), world.Spec.label, section);
             GUI.Label(new Rect(67, 51, 165, 21), room + "  ·  " + latency + " ms", caption);
             float cx = w * .5f;
@@ -174,7 +187,8 @@ namespace Trias.Native
                     int score = mode == "siege" ? core["hp"].Int : state["scores"][team].Int;
                     var area = new Rect(cx - 207 + 111 * team, 31, 104, 29);
                     Fill(new Rect(area.x + 6, area.y + 25, area.width - 12, 2), Catalog.Tint(catalog.teams[team].color));
-                    GUI.Label(area, catalog.teams[team].name + " " + score, center);
+                    DrawFaction(new Vector2(area.x + 14, area.y + 13), 7, team, Catalog.Tint(catalog.teams[team].color));
+                    GUI.Label(new Rect(area.x + 23,area.y,area.width - 23,area.height), catalog.teams[team].name + " " + score, center);
                 }
             }
             if (mode != "horde")
@@ -247,36 +261,41 @@ namespace Trias.Native
         {
             if (!captured || own[6].Int <= 0) return;
             if (world.DefendedCore != null && world.DefendedCore.gameObject.activeSelf)
-                Objective(world.DefendedCore.position + Vector3.up * 1.42f, "BRAŇ JÁDRO", teamTint, h, scale);
+                Objective(world.DefendedCore.position + Vector3.up * 1.42f, "BRAŇ JÁDRO", teamTint, h, scale, faction: own[3].Int);
             var points = mode == "siege" ? world.Spec.siege.nodes : mode == "dom" ? world.Spec.points : Array.Empty<Site>();
             var status = mode == "siege" ? state["siege"]["nodes"] : state["points"];
             for (int i = 0; i < points.Length; i++)
             {
                 int team = status[i]["capture"].Int >= 0 ? status[i]["capture"].Int : status[i]["owner"].Int;
                 float progress = status[i]["progress"].Float;
-                Objective(points[i].Position + Vector3.up * 2.35f, points[i].label + (progress > 0 && progress < 1 ? " " + Mathf.RoundToInt(progress * 100) + "%" : ""),
-                    team < 0 ? Color.white : Catalog.Tint(catalog.teams[team].color), h, scale);
+                bool contested = status[i]["contested"].Bool;
+                Objective(points[i].Position + Vector3.up * 2.35f, contested ? points[i].label + " · SPOR" : points[i].label,
+                    contested ? Amber : team < 0 ? Chalk : Catalog.Tint(catalog.teams[team].color), h, scale, progress, team);
             }
             for (int i = 0; i < world.Flags.Length; i++)
-                Objective(world.Flags[i].position + Vector3.up * 2.1f, catalog.teams[i].name + " · VLAJKA", Catalog.Tint(catalog.teams[i].color), h, scale);
+                Objective(world.Flags[i].position + Vector3.up * 2.1f, catalog.teams[i].name + " · VLAJKA", Catalog.Tint(catalog.teams[i].color), h, scale, faction: i);
             for (int i = 0; i < world.CoreShield.Length; i++)
             {
                 var core = state["siege"]["cores"][i];
                 if (core["hp"].Int == 0) continue;
                 Objective(world.Spec.siege.cores[i].Position + Vector3.up * 2.1f,
                     catalog.teams[i].name + ((core["opened"].Int & (1 << own[3].Int)) != 0 ? " · ODKRYTO" : " · JÁDRO"),
-                    Catalog.Tint(catalog.teams[i].color), h, scale);
+                    Catalog.Tint(catalog.teams[i].color), h, scale, faction: i);
             }
         }
 
-        void Objective(Vector3 position, string name, Color color, float h, float scale)
+        void Objective(Vector3 position, string name, Color color, float h, float scale, float progress = 0, int faction = -1)
         {
             Vector3 pixel = view.WorldToScreenPoint(position);
-            if (pixel.z < 2) return;
+            if (pixel.z < 2 || pixel.x < 0 || pixel.x > Screen.width || pixel.y < 0 || pixel.y > Screen.height) return;
             var box = new Rect(pixel.x / scale - 70, h - pixel.y / scale - 14, 140, 26);
             Fill(box, new Color(.028f,.057f,.095f,.76f));
-            Fill(new Rect(box.x,box.y + 24,box.width,2),color);
-            GUI.Label(box,name,center);
+            bool capturing = progress > 0 && progress < 1;
+            Fill(new Rect(box.x, box.y + 24, box.width, 2), capturing ? Subtle : color);
+            if (capturing) Fill(new Rect(box.x, box.y + 24, box.width * progress, 2), color);
+            if (faction >= 0)
+                DrawFaction(new Vector2(box.x + 12,box.y + 12),7,faction,color);
+            GUI.Label(new Rect(box.x + (faction >= 0 ? 20 : 0),box.y,box.width - (faction >= 0 ? 20 : 0),box.height),name,center);
         }
 
         static void Panel(Rect rect) => CornerPanel(rect, Amber);

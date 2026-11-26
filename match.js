@@ -86,14 +86,14 @@ export class Match {
     this.horde?.reward(player, now);
   }
 
-  addPlayer(id, name, team, slot, now, bot = false, character = DEFAULT_CHARACTER) {
-    const player = { id, name, team, slot, bot, character, kills: 0, deaths: 0, spawn: 0, ack: 0 };
+  addPlayer(id, name, team, slot, now, bot = false, character = DEFAULT_CHARACTER, frame) {
+    const player = { id, name, team, slot, bot, character, frame: frame === 'male' ? 'male' : undefined, kills: 0, deaths: 0, spawn: 0, ack: 0 };
     this.spawn(player, now);
     this.players.set(id, player);
     return player;
   }
 
-  join(socket, name, now, character = DEFAULT_CHARACTER) {
+  join(socket, name, now, character = DEFAULT_CHARACTER, frame) {
     if (this.horde && this.humans.size >= TEAM_SIZE) return false;
     if (this.humans.size >= CAPACITY) return false;
     const counts = TEAMS.map((_, team) => [...this.players.values()].filter(p => !p.bot && p.team === team).length);
@@ -105,7 +105,7 @@ export class Match {
     const team = this.horde ? 0 : open[0].team;
     const slot = this.layout.spawns[team].findIndex((_, i) => ![...this.players.values()].some(p => p.team === team && p.slot === i && !p.bot));
     this.removePlayer('bot-' + team + '-' + slot, now);
-    socket.player = this.addPlayer(socket.id, name, team, slot, now, false, character);
+    socket.player = this.addPlayer(socket.id, name, team, slot, now, false, character, frame);
     this.humans.add(socket);
     this.fillBots(now);
     return true;
@@ -116,7 +116,7 @@ export class Match {
     for (const [team, spawns] of this.layout.spawns.entries()) {
       for (const slot of spawns.keys()) {
         if ([...this.players.values()].some(player => player.team === team && player.slot === slot)) continue;
-        this.addPlayer('bot-' + team + '-' + slot, BOT_NAMES[team * TEAM_SIZE + slot], team, slot, now, true, BOT_CHARACTERS[(team + slot) % BOT_CHARACTERS.length]);
+        this.addPlayer('bot-' + team + '-' + slot, BOT_NAMES[team * TEAM_SIZE + slot], team, slot, now, true, BOT_CHARACTERS[(team + slot) % BOT_CHARACTERS.length], slot % 2 === 0 ? 'male' : undefined);
       }
     }
   }
@@ -252,7 +252,7 @@ export class Match {
       this.events.push({ type: 'kill', attacker: attacker.name, victim: target.name, team: attacker.team,
         attackerId: attacker.id, victimId: target.id, weapon, impact,
         body: { x: target.x, y: target.y, z: target.z, vx: target.vx, vy: target.vy, vz: target.vz,
-          yaw: target.yaw, crouch: target.crouch, team: target.team, slot: target.slot, character: target.character,
+          yaw: target.yaw, crouch: target.crouch, team: target.team, slot: target.slot, character: target.character, frame: target.frame,
           weapon: target.weapon, hordeType: target.hordeType, from: [origin.x, origin.y, origin.z] },
       });
     }
@@ -634,7 +634,7 @@ export class Match {
         const startX = player.x;
         const startZ = player.z;
         const pose = { x: startX, y: player.y, z: startZ, yaw: player.yaw, crouch: player.crouch,
-          vy: player.vy, grounded: player.grounded, character: player.character, weapon: player.weapon, team: player.team, slot: player.slot };
+          vy: player.vy, grounded: player.grounded, character: player.character, frame: player.frame, weapon: player.weapon, team: player.team, slot: player.slot };
         let signal = movePlayer(player, {
           ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest, dodge: input.dodge || player.dodgeRequest,
         }, TICK, this.combatLayout);
@@ -727,7 +727,7 @@ export class Match {
       return;
     }
     const players = [...this.players.values()].map(p => ({
-      id: p.id, name: p.name, team: p.team, slot: p.slot, character: p.character, bot: p.bot, x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100,
+      id: p.id, name: p.name, team: p.team, slot: p.slot, character: p.character, frame: p.frame, bot: p.bot, x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100,
       y: Math.round(p.y * 1000) / 1000, vx: p.vx, vy: p.vy, vz: p.vz, grounded: p.grounded, airJump: p.airJump,
       airDodge: p.airDodge, dodgeCooldown: p.dodgeCooldown, dodgeTime: p.dodgeTime, padCooldown: p.padCooldown, crouch: p.crouch, sprint: p.sprint, grenades: p.grenades, turret: p.turret, vehicle: p.vehicle,
       yaw: p.yaw, pitch: p.pitch, hp: p.hp, armor: p.armor, surge: Math.max(0, Math.ceil(p.surgeUntil - now)), weapon: p.weapon,

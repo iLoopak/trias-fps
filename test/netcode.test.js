@@ -154,3 +154,26 @@ test('remote playhead is monotonic under jitter and stops advancing in a network
   presentedPose(history, 900, out);
   assert(Math.abs(out.x - 0.75) < 1e-8);
 });
+
+test('pilot frame is cosmetic and uses an optional trailing snapshot field', () => {
+  const match = new Match('FRAMES', 'tdm', false);
+  const female = connect(match, 'female', NETWORK_VERSION);
+  const packets = [];
+  const socket = { id: 'male', readyState: 1, protocolVersion: NETWORK_VERSION, bufferedAmount: 0,
+    send(message) { packets.push(JSON.parse(message)); } };
+  assert(match.join(socket, 'male', 0, female.player.character, 'male'));
+  const player = socket.player;
+  assert.equal(player.hp, female.player.hp);
+  assert.equal(player.weapon, female.player.weapon);
+  assert.deepEqual(player.loadout, female.player.loadout);
+  match.step(1 / 30);
+  const raw = packets[0].players;
+  assert.equal(raw.find(row => row[0] === 'female').length, 31);
+  assert.deepEqual(raw.find(row => row[0] === 'male').slice(31), [null, 'male']);
+  assert.equal(unpackSnapshot(packets[0]).players.find(row => row.id === 'male').frame, 'male');
+  player.signature = true;
+  match.signature.dodge(player, { ...player, x: 0, y: 0, z: -24, crouch: false }, 0.1);
+  assert.equal(match.signature.snapshot(0.1).echoes[0][13], 'male');
+  match.damage(female.player, player, 250, 1, female.player, player.weapon, [player.x, player.y, player.z]);
+  assert.equal(match.events.find(event => event.type === 'kill').body.frame, 'male');
+});

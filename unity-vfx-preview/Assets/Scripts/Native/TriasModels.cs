@@ -7,7 +7,11 @@ namespace Trias.Native
     {
         internal static void Gun(TriasWorld w, Transform root, string weapon, Material accent)
         {
-            if (w.Kit.Gun(root, weapon, accent)) return;
+            if (w.Kit.Gun(root, weapon, accent))
+            {
+                GunHardware(w, root, weapon, accent);
+                return;
+            }
             bool scatter = weapon == "scatter", lance = weapon == "lance", rift = weapon == "rift", arc = weapon == "arc";
             float width = scatter || rift ? 0.24f : 0.19f;
             float length = lance ? 1.02f : arc ? 0.59f : rift ? 0.83f : 0.74f;
@@ -38,6 +42,44 @@ namespace Trias.Native
             if (lance) TriasWorld.Part(root, w.Glass, new Vector3(0, .152f, .15f),
                 new Vector3(.11f, .12f, .12f), PrimitiveType.Cylinder).localRotation = Quaternion.Euler(90, 0, 0);
             else TriasWorld.Part(root, w.Dark, new Vector3(0, .14f, length * .30f), new Vector3(.058f, .049f, .083f));
+        }
+
+        static void GunHardware(TriasWorld world, Transform root, string weapon, Material accent)
+        {
+            void Plate(Material paint, Vector3 at, Vector3 size, float angle = 0)
+                => world.Armor(root, paint, at, size, false).localRotation = Quaternion.Euler(angle,0,0);
+
+            switch (weapon)
+            {
+                case "scatter":
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        Plate(world.Hardware, new Vector3(side*.074f,.014f,.399f), new Vector3(.105f,.134f,.11f));
+                        Plate(world.Graphite, new Vector3(side*.074f,.014f,.452f), new Vector3(.077f,.094f,.016f));
+                    }
+                    break;
+                case "lance":
+                    Plate(world.Graphite, new Vector3(0,.134f,.064f),new Vector3(.093f,.092f,.25f),-5);
+                    Plate(world.Glass, new Vector3(0,.156f,.196f),new Vector3(.054f,.041f,.029f));
+                    Plate(world.Hardware, new Vector3(0,.035f,.508f),new Vector3(.069f,.081f,.14f));
+                    break;
+                case "arc":
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        Plate(world.Hardware, new Vector3(side*.057f,.041f,.355f),new Vector3(.054f,.062f,.113f),-9);
+                        Plate(accent, new Vector3(side*.057f,.079f,.361f),new Vector3(.025f,.010f,.083f));
+                    }
+                    break;
+                case "rift":
+                    Plate(world.Graphite, new Vector3(0,.097f,.312f),new Vector3(.207f,.091f,.164f));
+                    Plate(world.Hardware, new Vector3(0,.141f,.313f),new Vector3(.151f,.041f,.109f));
+                    Plate(accent, new Vector3(0,.164f,.309f),new Vector3(.076f,.010f,.054f));
+                    break;
+                default:
+                    Plate(world.Graphite, new Vector3(0,.109f,.045f),new Vector3(.124f,.043f,.223f),-7);
+                    Plate(world.Hardware, new Vector3(0,.042f,.409f),new Vector3(.107f,.090f,.068f));
+                    break;
+            }
         }
 
         internal static Transform Vehicle(TriasWorld w, bool heavy, int team, out Transform turret)
@@ -96,7 +138,8 @@ namespace Trias.Native
             string kit = player[5].Text;
             float width = kit == "bulwark" ? .64f : kit == "wraith" ? .42f : .53f;
             var shell = kit == "wraith" ? w.Dark : kit == "kestrel" ? w.Steel : w.White;
-            var pilot = w.Kit.Pilot(body, kit, out locomotion);
+            int faction = w.Mode != "ffa" && player[31].Text == null ? player[3].Int : -1;
+            var pilot = w.Kit.Pilot(body, kit, accent, faction, player[32].Text == "male", out locomotion);
             weapon = TriasWorld.Group(body, "Weapon", new Vector3(.18f,1.14f,.36f));
             weapon.localScale = Vector3.one * .62f;
             if (pilot != null)
@@ -109,7 +152,6 @@ namespace Trias.Native
                 spine = Joint("Spine");
                 runCycle = locomotion["run"];
                 if (runCycle != null) runCycle.speed = 0;
-                BuildSuit(w, shell, kit, width);
                 return;
             }
             TriasWorld.Part(body, w.Dark, new Vector3(0, 1.06f, 0), new Vector3(width,.58f,.32f));
@@ -130,54 +172,6 @@ namespace Trias.Native
             }
             left = Leg(-1);
             right = Leg(1);
-        }
-
-        void BuildSuit(TriasWorld w, Material shell, string kit, float width)
-        {
-            Transform pack = TriasWorld.Group(body, "Life support", new Vector3(0, 1.13f, -.20f));
-            TriasWorld.Part(pack, shell, Vector3.zero, new Vector3(width * .54f, .36f, .17f));
-            TriasWorld.Part(pack, accent, new Vector3(0, .008f, -.091f), new Vector3(.039f, .24f, .024f));
-            float plateWidth = kit == "bulwark" ? .235f : .128f;
-            for (int side = -1; side <= 1; side += 2)
-            {
-                var pad = TriasWorld.Part(body, shell, new Vector3(side * width * .43f, 1.35f, -.01f),
-                    new Vector3(plateWidth, .13f, .23f), PrimitiveType.Sphere);
-                pad.localRotation = Quaternion.Euler(0, 0, -side * 23f);
-                TriasWorld.Part(body, accent, new Vector3(side * width * .45f, 1.36f, .086f),
-                    new Vector3(plateWidth * .74f, .040f, .031f));
-            }
-            if (kit == "wraith" || kit == "kestrel")
-                TriasWorld.Part(pack, shell, new Vector3(.096f,.28f,0),new Vector3(.022f,.35f,.022f)).localRotation = Quaternion.Euler(0, 0, -13);
-            if (kit == "bulwark")
-            {
-                TriasWorld.Part(body, shell, new Vector3(0, 1.20f, .15f), new Vector3(.37f, .27f, .14f));
-                for (int side = -1; side <= 1; side += 2)
-                {
-                    var heavy = TriasWorld.Part(body, shell, new Vector3(side * .32f, 1.42f, -.018f), new Vector3(.245f, .20f, .29f));
-                    heavy.localRotation = Quaternion.Euler(0, 0, side * 14);
-                    TriasWorld.Part(body, accent, new Vector3(side * .34f, 1.46f, .133f), new Vector3(.115f, .036f, .023f));
-                }
-            }
-            else if (kit == "wraith")
-            {
-                var scanner = TriasWorld.Part(pack, w.Dark, new Vector3(-.14f,.22f,-.06f), new Vector3(.18f,.31f,.14f));
-                scanner.localRotation = Quaternion.Euler(8, 0, 19);
-                TriasWorld.Part(scanner, accent, new Vector3(0,.24f,-.55f), new Vector3(.54f,.11f,.12f));
-            }
-            else if (kit == "kestrel")
-            {
-                for (int side = -1; side <= 1; side += 2)
-                {
-                    var fin = TriasWorld.Part(pack, w.Steel, new Vector3(side * .22f,.11f,-.064f), new Vector3(.095f,.39f,.19f));
-                    fin.localRotation = Quaternion.Euler(-11, 0, side * -21);
-                    TriasWorld.Part(pack, accent, new Vector3(side * .21f,.03f,-.168f), new Vector3(.044f,.095f,.025f));
-                }
-            }
-            else
-            {
-                TriasWorld.Part(body, shell, new Vector3(-.21f,1.13f,.135f), new Vector3(.17f,.25f,.14f));
-                TriasWorld.Part(body, accent, new Vector3(-.22f,1.15f,.209f), new Vector3(.10f,.028f,.024f));
-            }
         }
 
         Transform Leg(int side)
@@ -322,6 +316,13 @@ namespace Trias.Native
 
         internal void Fire(string key) => weaponKick = key == "rift" || key == "scatter" ? 11 : key == "arc" ? 4 : 7;
         internal void React(bool shieldBreak) => flinch = Mathf.Max(flinch, shieldBreak ? 7 : 3.2f);
+
+        internal void BoostPose(MotionCue motion)
+        {
+            if (motion != MotionCue.Double && motion != MotionCue.Launch) return;
+            var jump = locomotion == null ? null : locomotion["jump"];
+            if (currentMotion == "jump" && jump != null) jump.normalizedTime = .12f;
+        }
     }
 
     internal sealed class FallenPilot
@@ -341,12 +342,12 @@ namespace Trias.Native
             Root = TriasWorld.Group(world.Actors, "Fallen pilot", feet);
             Root.rotation = Quaternion.Euler(0, yaw, 0);
             Tint = tint;
-            var suit = world.Kit.Pilot(Root, body["character"].Text ?? "vector", out var motion);
+            int faction = world.Mode != "ffa" && body["hordeType"].Text == null ? body["team"].Int : -1;
+            var suit = world.Kit.Pilot(Root, body["character"].Text ?? "vector", paint, faction, body["frame"].Text == "male", out var motion);
             if (suit == null) { Object.Destroy(Root.gameObject); return; }
             Visible = true;
             if (motion["jump"] != null)
                 motion["jump"].clip.SampleAnimation(motion.gameObject, motion["jump"].length * .30f);
-            TriasWorld.Part(Root, paint, new Vector3(0, 1.27f, -.23f), new Vector3(.23f, .085f, .042f));
             Vector3 from = new Vector3(body["from"][0].Float, body["from"][1].Float, body["from"][2].Float);
             var push = Vector3.ProjectOnPlane(feet - from, Vector3.up).normalized;
             velocity = Vector3.ClampMagnitude(new Vector3(body["vx"].Float * .36f, 0, body["vz"].Float * .36f) + push * 2.8f, 5);
