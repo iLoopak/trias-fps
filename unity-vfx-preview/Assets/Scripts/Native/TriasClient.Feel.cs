@@ -249,33 +249,21 @@ namespace Trias.Native
             string current = state["winner"]["label"].Text;
             if (current != roundResult)
             {
-                roundResult = current;
-                resultAge = 0;
                 if (current != null)
                 {
-                    effects.Wave(false);
+                    resumeCapture = captured;
+                    Capture(false);
+                    effects.InterfaceTone("result");
                     world.SurgeLandmark();
                 }
+                else if (resumeCapture && Application.isFocused)
+                    Capture(true);
+                resultContinued = false;
+                roundResult = current;
+                resultAge = 0;
             }
             resultAge += dt;
             sceneFade = Mathf.MoveTowards(sceneFade, 0, dt * 3.4f);
-        }
-
-        void PaintResult(float cx, float h)
-        {
-            float age = Mathf.Clamp01(resultAge / .34f);
-            float y = h * .68f + (1 - age) * (1 - age) * 29;
-            var tint = mode == "horde" && state["horde"]["core"]["hp"].Int == 0 ? Fault : Amber;
-            bool showFlow = flow != null && flow[5].Int > 0 && momentumPresentation > .01f;
-            var plate = new Rect(cx - 258, y, 516, showFlow ? 121 : 94);
-            CornerPanel(plate, tint);
-            DrawInsignia(new Vector2(plate.x + 43, y + 48), 21, tint);
-            GUI.Label(new Rect(plate.x + 74, y + 12, 420, 34), roundResult ?? state["winner"]["label"].Text, heading);
-            GUI.Label(new Rect(plate.x + 76, y + 52, 420, 24), "VYŘAZENÍ  " + own[11].Int + "     ·     DALŠÍ KOLO  " + state["restart"].Int + " s", caption);
-            Segments(new Rect(plate.x + 77, y + 77, 399, 3), 15, state["restart"].Float / 9, tint);
-            if (showFlow)
-                GUI.Label(new Rect(plate.x + 77, y + 91, 424, 23),
-                    $"NEJLEPŠÍ ŘETĚZEC  {flow[5].Int}  ·  ×{flow[7].Float:0.#}  ·  OZVĚNA  {flow[8].Int} VYŘ.", caption);
         }
 
         void PaintPause(float w, float h)
@@ -286,7 +274,14 @@ namespace Trias.Native
             DrawInsignia(new Vector2(x + 37, y + 35), 17, Amber);
             GUI.Label(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
             GUI.Label(new Rect(x + 24, y + 64, 436, 27), "Online zápas běží dál", caption);
-            var box = new Rect(x + 22, y + 94, 440, 34);
+            DrawFeelOptions(new Rect(x + 22,y + 94,440,34));
+            if (Preset(new Rect(x + 22, y + 345, 440, 42), "Zpět do zápasu", null, true)) Capture(true);
+            if (Preset(new Rect(x + 22, y + 395, 440, 41), "Opustit místnost", null, false)) Disconnect(null);
+            GUI.Label(new Rect(x + 24, y + 444, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
+        }
+
+        void DrawFeelOptions(Rect box)
+        {
             Option(box, "Zorné pole", "trias.fov", ref baseFov, 60, 95, false);
             box.y += 34; Option(box, "Citlivost myši", "trias.sensitivity", ref sensitivity, .5f, 5, false, 1);
             box.y += 34; Option(box, "Pohyb kamery", "trias.motion", ref cameraMotion, 0, 1, true);
@@ -297,9 +292,6 @@ namespace Trias.Native
             visor.Intensity = visualEffects;
             AudioListener.volume = masterVolume;
             effects.AmbienceMix(ambienceVolume, false);
-            if (Preset(new Rect(x + 22, y + 345, 440, 42), "Zpět do zápasu", null, true)) Capture(true);
-            if (Preset(new Rect(x + 22, y + 395, 440, 41), "Opustit místnost", null, false)) Disconnect(null);
-            GUI.Label(new Rect(x + 24, y + 444, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
         }
 
         void Option(Rect row, string name, string key, ref float value, float min, float max, bool percent, int decimals = 0)
@@ -308,7 +300,21 @@ namespace Trias.Native
             optionTrack ??= new GUIStyle { fixedHeight = 19 };
             optionThumb ??= new GUIStyle { fixedWidth = 12, fixedHeight = 19 };
             var control = new Rect(row.x + 156, row.y + 7, 219, 19);
-            float next = GUI.HorizontalSlider(control, value, min, max, optionTrack, optionThumb);
+            float next = GUI.HorizontalSlider(control,value,min,max,optionTrack,optionThumb);
+            if (world == null)
+            {
+                if (Event.current.type == EventType.Layout) lobbyControls.Add(key);
+                if (lobbyFocus == key)
+                {
+                    Fill(new Rect(control.x-4,control.center.y-7,control.width+8,1),Chalk);
+                    var evt = Event.current;
+                    if (evt.type == EventType.KeyDown && (evt.keyCode == KeyCode.LeftArrow || evt.keyCode == KeyCode.RightArrow))
+                    {
+                        next = Mathf.Clamp(value + (max-min)*.05f*(evt.keyCode == KeyCode.RightArrow ? 1 : -1),min,max);
+                        evt.Use();
+                    }
+                }
+            }
             if (Mathf.Abs(next - value) > .0001f)
             {
                 value = next;

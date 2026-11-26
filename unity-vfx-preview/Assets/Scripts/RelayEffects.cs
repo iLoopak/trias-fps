@@ -39,6 +39,7 @@ namespace Trias.Preview
         AudioClip pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue, menuClick, landing;
         AudioClip focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad;
         AudioClip phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue, shieldReturnCue;
+        AudioClip menuBack, menuInvalid, menuDeploy, menuResult;
         readonly AudioClip[] factionEntry = new AudioClip[3];
         readonly AudioSource[] voices = new AudioSource[20];
         readonly AudioLowPassFilter[] filters = new AudioLowPassFilter[20];
@@ -101,6 +102,10 @@ namespace Trias.Preview
             waveCue = Trias.Preview.MatchSound.Wave("Horde inbound", true);
             clearCue = Trias.Preview.MatchSound.Wave("Area clear", false);
             menuClick = MatchSound.Foley("Console contact", .06f, 490, 1650);
+            menuBack = EffectPreview.Cue("Terminal back",420,290,.09f,94);
+            menuInvalid = EffectPreview.Cue("Terminal error",400,138,.145f,90);
+            menuDeploy = EffectPreview.Cue("Deploy committed",330,710,.18f,96);
+            menuResult = MatchSound.Wave("Round completed",false);
             landing = MatchSound.Foley("Magnetic boots land", .28f, 61, 118);
             focusedCue = MatchSound.Discharge("Scatter focused", .23f, 103, 720, .38f);
             riftShot = MatchSound.Discharge("Rift discharge", .27f, 69, 288, .68f);
@@ -403,7 +408,16 @@ namespace Trias.Preview
             Telemetry(tier >= 4 ? clearCue : airJump, intensity * (.11f + tier * .026f), 1);
         }
         public void Wave(bool coming) => Play(coming ? waveCue : clearCue, Vector3.zero, coming ? .27f : .24f, true);
-        public void InterfaceClick() => Play(menuClick, Vector3.zero, .23f, true);
+        public void InterfaceClick() => Play(menuClick, Vector3.zero, .14f, true);
+        internal void InterfaceTone(string action)
+        {
+            var cue = action switch
+            {
+                "back" => menuBack, "invalid" => menuInvalid, "deploy" => menuDeploy,
+                "result" => menuResult, "select" => equipCue, _ => menuClick
+            };
+            Play(cue,Vector3.zero,action == "result" ? .21f : .16f,true);
+        }
         public void Land(Vector3 position, float force, int surface = 0) =>
             Play(surface == 2 ? water : surface == 1 ? soil : landing, position, .12f + force * .26f, true);
         public void AmbienceMix(float volume, bool playing)
@@ -518,7 +532,7 @@ namespace Trias.Preview
             foreach (var mesh in factionGlyphs) if (mesh != null) Destroy(mesh);
             foreach (var cue in factionEntry) if (cue != null) Destroy(cue);
             foreach (var cue in new[] { pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue,
-                menuClick, landing, focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad,
+                menuClick, menuBack, menuInvalid, menuDeploy, menuResult, landing, focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad,
                 phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue, shieldReturnCue })
                 if (cue != null) Destroy(cue);
         }

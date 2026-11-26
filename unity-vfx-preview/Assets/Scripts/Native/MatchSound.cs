@@ -91,13 +91,14 @@ namespace Trias.Preview
             }
             var samples = new float[dust.Length * 2];
             bool island = arena == "island";
-            int root = arena == "foundry" ? 42 : arena == "basin" ? 33 : 56;
+            int root = arena == "hangar" ? 38 : arena == "foundry" ? 42 : arena == "basin" ? 33 : 56;
             for (int i = 0; i < dust.Length; i++)
             {
                 float t = (float)i / Rate, orbit = Cycle * t / length;
                 float fade = Mathf.Clamp01(Mathf.Min(t, length - t) * 5);
                 float breath = .72f + .28f * Mathf.Sin(orbit * 3);
-                float rumble = island ? 0 : Mathf.Sin(Cycle * root * t + .27f * Mathf.Sin(orbit)) * .30f
+                float tremble = arena == "hangar" ? .68f + .18f * Mathf.Sin(orbit) : 1;
+                float rumble = island ? 0 : Mathf.Sin(Cycle * root * t + .27f * Mathf.Sin(orbit)) * .30f * tremble
                     + Mathf.Sin(Cycle * root * 2 * t) * (.09f + .03f * Mathf.Sin(orbit * 2));
                 for (int channel = 0; channel < 2; channel++)
                 {

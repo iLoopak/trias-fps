@@ -40,6 +40,13 @@ Pro společný vývoj verzuj `Assets` včetně `.meta`, `Packages` a `ProjectSet
 
 [Vizuální směr W3 a původ assetů](ART-DIRECTION.md) popisuje nové modely, frakční značení a výtvarné odlišení arén.
 
+
+**Orbitální lobby.** Rychlá hra používá společný kód pro zvolenou arénu a režim na nastaveném serveru. **Vytvořit zápas** rezervuje samostatný kód a **Připojit se** vyžaduje kód existující místnosti. Adresu vlastního serveru a přezdívku najdeš v **Nastavení → Pokročilé připojení**. Pro striktní vytvoření a připojení používej s klientem W4 stejnou verzi serveru.
+
+Pilotem otočíš tažením v hangáru. Změna náhledového znaku ukazuje výtvarnou podobu frakce. Tým do zápasu přiděluje server. Mapové karty používají snímky přímo z herních arén. **Tab**, **Shift+Tab** a **Enter** ovládají menu, šipky ladí vybraný posuvník. Posuvník **Pohyb kamery** omezuje pohyb kamery hangáru a při vypnutí **Světelných efektů** se zobrazí statické pozadí s portrétem. Zvuky rozhraní a atmosféra jsou syntetizované přímo ve hře.
+
+Po skončení kola lze zůstat na automaticky spuštěné další kolo nebo se vrátit do lobby. Offline trénink zůstává dostupný z hlavní nabídky.
+
 ## Modely a animace
 
 - Pět modelů zbraní včetně Riftu pochází z [Kenney Blaster Kit](https://kenney.nl/assets/blaster-kit). Sdílejí atlas s doplněnými svítícími prvky pro výbavu TRIAS.

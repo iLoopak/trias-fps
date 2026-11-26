@@ -32,16 +32,16 @@ namespace Trias.Native
         readonly System.Random random = new System.Random(719);
         internal float Height(float x, float z) => Spec.terrain?.At(x, z) ?? 0;
 
-        internal TriasWorld(ArenaSpec spec, Catalog catalog, string mode, Camera view)
+        internal TriasWorld(ArenaSpec spec, Catalog catalog, string mode, Camera view, bool hangar = false)
         {
             Spec = spec;
             Mode = mode;
-            Root = Group(null, spec.label);
+            Root = Group(null, hangar ? "TRIAS orbital hangar" : spec.label);
             Actors = Group(Root, "Piloti, vozidla a projektily");
             island = spec.id == "island";
             var fog = Catalog.Tint(island ? "#a6d8d9" : spec.id == "foundry" ? "#402a37" : spec.id == "basin" ? "#3c394b" : "#101827");
             sunColor = Catalog.Tint(island ? "#fff6d2" : spec.id == "foundry" ? "#ffb79f" : "#cee9ff");
-            RenderSettings.fog = true;
+            RenderSettings.fog = !hangar;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogDensity = island ? 0.012f : spec.id == "basin" ? 0.012f : 0.009f;
             RenderSettings.fogColor = fog;
@@ -61,7 +61,7 @@ namespace Trias.Native
             lamp.type = LightType.Directional;
             lamp.intensity = island ? 1.34f : spec.id == "basin" ? 1.37f : 1.43f;
             lamp.color = sunColor;
-            lamp.shadows = LightShadows.Soft;
+            lamp.shadows = hangar ? LightShadows.None : LightShadows.Soft;
             lamp.shadowStrength = island ? .66f : .63f;
             lamp.transform.rotation = island ? Quaternion.LookRotation(-IslandSun) : Quaternion.Euler(47, -31, 0);
 
@@ -102,6 +102,11 @@ namespace Trias.Native
                 TeamLight[i] = MaterialAt(catalog.teams[i].color, true);
                 FactionPaint[i] = MaterialAt(i switch { 0 => "#327482", 1 => "#995f3e", _ => "#735c91" }, false, "armor");
                 FactionPaint[i].SetFloat("_Glossiness", .29f);
+            }
+            if (hangar)
+            {
+                BuildHangar();
+                return;
             }
             if (island) Meadow();
             else
@@ -581,7 +586,11 @@ namespace Trias.Native
         public void Dispose()
         {
             if (orbitalSky != null && RenderSettings.skybox == orbitalSky) RenderSettings.skybox = null;
-            if (Root != null) Object.Destroy(Root.gameObject);
+            if (Root != null)
+            {
+                Root.gameObject.SetActive(false);
+                Object.Destroy(Root.gameObject);
+            }
             foreach (var material in Paint) Object.Destroy(material);
             foreach (var mesh in meshes) Object.Destroy(mesh);
         }

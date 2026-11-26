@@ -31,6 +31,7 @@ namespace Trias.Native
             world.Armor(body, world.Dark, new Vector3(0,-.045f,0), new Vector3(breadth*.92f,.45f,.23f));
             world.Armor(body, shell, new Vector3(0,.085f,.087f), new Vector3(breadth,.25f,.19f));
             world.Armor(body, world.Graphite, new Vector3(0,-.14f,.067f), new Vector3(breadth*.76f,.19f,.14f));
+            world.Armor(body, world.Dark, new Vector3(0,-.247f,.025f),new Vector3(breadth*.60f,.135f,.16f));
             var pack = world.Armor(body, world.Graphite, new Vector3(0,.045f,-.163f),
                 new Vector3(breadth*.78f,heavy ? .44f : .37f,.18f));
             world.Armor(body, shell, new Vector3(0,.05f,-.237f), new Vector3(breadth*.67f,heavy ? .36f : .30f,.065f));

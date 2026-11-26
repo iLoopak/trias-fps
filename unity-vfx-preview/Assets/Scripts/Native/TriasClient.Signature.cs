@@ -68,7 +68,7 @@ namespace Trias.Native
                     {
                         art = CreateEcho(echo, echoShader);
                         bool fresh = echo[11].Float > lifetime - .16f;
-                        if (fresh) effects.Phase(art.Position, art.Tint, "form", false, visualEffects);
+                        if (fresh && (own[6].Int > 0 || SpectatorTeam(art.Team))) effects.Phase(art.Position, art.Tint, "form", false, visualEffects);
                     }
                     art.Material.SetFloat(EchoLife, Mathf.Clamp01(echo[11].Float / lifetime));
                     art.Material.SetFloat(EchoIntegrity, Mathf.Clamp01(echo[12].Float / Mathf.Max(1, frame["durability"].Float)));
@@ -139,11 +139,11 @@ namespace Trias.Native
             }
         }
 
-        void ShowEchoes(bool alive, bool replay)
+        void ShowEchoes(bool alive)
         {
             foreach (var art in echoes.Values)
             {
-                bool visible = alive || mode != "ffa" && (!replay || art.Team == own[3].Int);
+                bool visible = alive || SpectatorTeam(art.Team);
                 if (art.Root.gameObject.activeSelf != visible) art.Root.gameObject.SetActive(visible);
             }
         }
@@ -169,7 +169,7 @@ namespace Trias.Native
         {
             if (!echoes.TryGetValue(evt["echo"].Int, out var art)) return;
             string reason = evt["reason"].Text;
-            if (reason == "exit" || reason == "death" || reason == "replace") return;
+            if (reason == "exit" || reason == "death" || reason == "replace" || own[6].Int <= 0 && !SpectatorTeam(art.Team)) return;
             effects.Phase(art.Position, art.Tint, reason, local && reason != "fire", visualEffects);
             if (local && reason == "rupture") AddNotice("Ozvěna zničena");
         }

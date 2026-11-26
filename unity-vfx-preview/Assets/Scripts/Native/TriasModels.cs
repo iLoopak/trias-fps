@@ -331,17 +331,22 @@ namespace Trias.Native
         internal readonly Color Tint;
         internal readonly bool Visible;
         internal Vector3 Landing => feet;
+        internal readonly bool Local,HordeEnemy;
+        internal readonly int Team;
         Vector3 feet, velocity;
         readonly float yaw;
         float tilt, settled;
 
-        internal FallenPilot(TriasWorld world, WireValue body, Material paint, Color tint)
+        internal FallenPilot(TriasWorld world, WireValue body, Material paint, Color tint,bool local)
         {
             feet = new Vector3(body["x"].Float, body["y"].Float, body["z"].Float);
             yaw = (body["yaw"].Float + Mathf.PI) * Mathf.Rad2Deg;
             Root = TriasWorld.Group(world.Actors, "Fallen pilot", feet);
             Root.rotation = Quaternion.Euler(0, yaw, 0);
             Tint = tint;
+            Local = local;
+            Team = body["team"].Int;
+            HordeEnemy = body["hordeType"].Text != null;
             int faction = world.Mode != "ffa" && body["hordeType"].Text == null ? body["team"].Int : -1;
             var suit = world.Kit.Pilot(Root, body["character"].Text ?? "vector", paint, faction, body["frame"].Text == "male", out var motion);
             if (suit == null) { Object.Destroy(Root.gameObject); return; }

@@ -128,6 +128,8 @@ wss.on('connection', (socket, request) => {
     const name = typeof message.name === 'string'
       ? Array.from(message.name.replace(/[\p{Cc}\p{Cf}]/gu, '').trim()).slice(0, 18).join('') : '';
     let room = rooms.get(code);
+    if (!room && message.intent === 'join') return reject(socket, 'Místnost neexistuje. Zkontroluj kód a server.');
+    if (room && message.intent === 'create') return reject(socket, 'Tenhle kód už někdo používá. Zvol jiný nebo se připoj.');
     if (!room) {
       if (rooms.size >= 16) return reject(socket, 'Server má plno. Zkus existující místnost.');
       const mode = message.mode === 'horde' && message.v === NETWORK_VERSION && !request.headers.origin

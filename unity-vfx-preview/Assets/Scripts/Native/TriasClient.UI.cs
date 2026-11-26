@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace Trias.Native
 {
@@ -22,7 +21,7 @@ namespace Trias.Native
             float scale = Mathf.Min(Screen.width / 1280f, Screen.height / 720f);
             float w = Screen.width / scale, h = Screen.height / scale;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
-            if (world == null || own == null) Lobby(w, h);
+            if (world == null || own == null) DrawLobby(w,h);
             else MatchHUD(w, h, scale);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (labMode && own != null && captured) PaintLab(w);
@@ -37,6 +36,7 @@ namespace Trias.Native
             heading = Label(26, displayFont, Chalk);
             section = Label(17, displayFont, Chalk);
             caption = Label(15, textFont, muted);
+            lobbyWrap = new GUIStyle(caption) {wordWrap=true};
             center = Label(17, displayFont, Chalk);
             center.alignment = TextAnchor.MiddleCenter;
             field = new GUIStyle(GUI.skin.textField) { font = textFont, fontSize = 18, padding = new RectOffset(9, 9, 5, 3) };
@@ -48,78 +48,6 @@ namespace Trias.Native
             return new GUIStyle(GUI.skin.label) { font = font, fontSize = size, clipping = TextClipping.Clip, normal = { textColor = color } };
         }
 
-        void Lobby(float w, float h)
-        {
-            if (overlay != null) GUI.DrawTexture(new Rect(0, 0, w, h), overlay, ScaleMode.ScaleAndCrop);
-            Fill(new Rect(0, 0, w, h), new Color(.014f, .023f, .040f, .25f));
-            float x = w / 2 - 552;
-            float y = h / 2 - 344;
-            DrawInsignia(new Vector2(x + 33, y + 70), 37, Amber);
-            GUI.Label(new Rect(x + 81, y + 22, 400, 104), "TRIAS", title);
-            Fill(new Rect(x + 1, y + 130, 306, 1), Subtle);
-            Fill(new Rect(x + 1, y + 130, 73, 2), Amber);
-            CornerPanel(new Rect(x, y + 157, 680, 490), Amber);
-            GUI.Label(new Rect(x + 16, y + 168, 430, 32), "Mapa", heading);
-            for (int i = 0; i < catalog.maps.Length; i++)
-            {
-                var map = catalog.maps[i];
-                Rect box = new Rect(x + 16 + i % 2 * 328, y + 210 + i / 2 * 58, 316, 49);
-                if (Preset(box, map.label, null, map.id == selectedMap))
-                {
-                    selectedMap = map.id;
-                    if ((selectedMode == "siege" && selectedMap != "basin") || (selectedMode == "horde" && selectedMap != "relay")) selectedMode = "tdm";
-                }
-            }
-            GUI.Label(new Rect(x + 16, y + 332, 400, 32), "Režim", heading);
-            for (int i = 0; i < catalog.modes.Length; i++)
-            {
-                var game = catalog.modes[i];
-                string modeLabel = game.id == "ctf" ? "Vlajky" : game.id == "tdm" ? "Týmový boj" : game.label;
-                if (Preset(new Rect(x + 16 + i * 108, y + 374, 102, 55), game.@short, modeLabel, game.id == selectedMode))
-                {
-                    selectedMode = game.id;
-                    if (game.id == "siege") selectedMap = "basin";
-                    if (game.id == "horde") selectedMap = "relay";
-                }
-            }
-            GUI.Label(new Rect(x + 16, y + 448, 180, 32), "Pilot", heading);
-            if (Preset(new Rect(x + 393,y + 442,127,42), "Ženská verze", null, !selectedMale)) selectedMale = false;
-            if (Preset(new Rect(x + 527,y + 442,127,42), "Mužská verze", null, selectedMale)) selectedMale = true;
-            for (int i = 0; i < catalog.pilots.Length; i++)
-            {
-                var pilot = catalog.pilots[i];
-                var button = new Rect(x + 16 + i * 164, y + 491, 155, 136);
-                if (Preset(button, null, null, pilot.id == selectedPilot)) selectedPilot = pilot.id;
-                if (portraits != null)
-                {
-                    var crop = renderedPortraits ? new Rect(i * .25f, selectedMale ? 0 : .5f, .25f, .5f)
-                        : portraits.name == "visor-pilots" ? new Rect(i * .25f + .03375f, .105f, .1825f, .755f) : new Rect(i * .25f, 0, .25f, 1);
-                    float width = renderedPortraits ? 72 : 95;
-                    GUI.DrawTextureWithTexCoords(new Rect(button.center.x - width * .5f, button.y + 4, width, 72), portraits, crop);
-                }
-                GUI.Label(new Rect(button.x + 13, button.y + 77, 131, 26), pilot.label, section);
-                GUI.Label(new Rect(button.x + 13, button.y + 104, 131, 22), Catalog.Find(catalog.weapons, pilot.weapon)?.label, caption);
-            }
-
-            float right = x + 696;
-            CornerPanel(new Rect(right, y + 157, 408, 490), Amber);
-            GUI.Label(new Rect(right + 17, y + 168, 374, 36), "Místnost", heading);
-            GUI.Label(new Rect(right + 17, y + 218, 365, 23), "Adresa serveru", caption);
-            serverAddress = GUI.TextField(new Rect(right + 17, y + 242, 374, 34), serverAddress, 160, field);
-            GUI.Label(new Rect(right + 17, y + 289, 365, 23), "Kód místnosti a přezdívka", caption);
-            roomCode = GUI.TextField(new Rect(right + 17, y + 314, 178, 34), roomCode, 24, field);
-            nickname = GUI.TextField(new Rect(right + 207, y + 314, 184, 34), nickname, 18, field);
-            if (selectedMode == "horde")
-                GUI.Label(new Rect(right + 17, y + 365, 374, 29), "1–4 piloti v jednom týmu · 8 vln", section);
-            else fillBots = GUI.Toggle(new Rect(right + 17, y + 365, 374, 29), fillBots, "Doplnit volná místa boty");
-            if (Preset(new Rect(right + 17, y + 413, 374, 55), "Vstoupit do arény", null, true) && socket == null)
-                Join(serverAddress, roomCode, nickname, selectedMap, selectedMode, selectedPilot, fillBots, male: selectedMale);
-            if (status != null) GUI.Label(new Rect(right + 17, y + 479, 375, 34), status, section);
-            if (socket != null && GUI.Button(new Rect(right + 17, y + 519, 174, 36), "Zrušit připojení", action)) Disconnect(null);
-            if (socket == null && Preset(new Rect(right + 17, y + 568, 374, 43), "Trénink offline · Relay Station", null, false))
-                SceneManager.LoadScene("Relay Station");
-        }
-
         bool Preset(Rect box, string text, string sub, bool selected)
         {
             bool hovered = box.Contains(Event.current.mousePosition);
@@ -129,7 +57,7 @@ namespace Trias.Native
                 CornerNotch(new Vector2(box.xMax - 5, box.yMax - 6), Amber);
             bool pressed = GUI.Button(box, GUIContent.none, GUIStyle.none);
             if (pressed) effects.InterfaceClick();
-            if (text != null) GUI.Label(new Rect(box.x + 8, box.y + (sub == null ? 12 : 5), box.width - 14, 24), text, section);
+            if (text != null) GUI.Label(new Rect(box.x + 8, box.y + (sub == null ? (box.height-24)*.5f : 5), box.width - 14, 24), text, section);
             if (sub != null) GUI.Label(new Rect(box.x + 8, box.y + 30, box.width - 14, 20), sub, caption);
             return pressed;
         }
@@ -210,22 +138,14 @@ namespace Trias.Native
                 PaintReticle(w, h);
                 PaintSignature(w, h);
                 PaintVitals(w, h);
+                PaintDeployment(w,h);
                 string stateLabel = Prompt();
                 if (stateLabel != null) GUI.Label(new Rect(cx - 240, h - 88, 480, 27), stateLabel, center);
                 CornerPanel(new Rect(cx - 95, h - 55, 190, 28), own[17].Int > 0 ? teamTint : Subtle);
                 GUI.Label(new Rect(cx - 93, h - 55, 186, 28), "G   GRANÁT   " + own[17].Int, center);
             }
             else if (state["winner"]["label"].Text != null) PaintResult(cx, h);
-            else
-            {
-                bool replay = Time.unscaledTime < replayUntil;
-                string lead = replay ? "KILL CAM" : spectator != null ? "SLEDUJEŠ" : "VYŘAZENÍ";
-                string who = replay ? killer : spectator != null && pilots.TryGetValue(spectator, out var actor) ? actor.Row[1].Text : "Čekáš na návrat";
-                Panel(new Rect(cx - 182, h - 156, 364, 113));
-                GUI.Label(new Rect(cx - 165, h - 147, 330, 21), lead + "    /    " + Mathf.CeilToInt(own[29].Float) + " s", section);
-                GUI.Label(new Rect(cx - 165, h - 122, 330, 37), who, heading);
-                GUI.Label(new Rect(cx - 165, h - 81, 330, 24), replay ? "Mezerník · přeskočit" : "E · další spoluhráč", caption);
-            }
+            else PaintDeath(cx,h);
             if (scoreboard)
             {
                 Panel(new Rect(cx - 290, h / 2 - 213, 580, 426));
@@ -240,7 +160,7 @@ namespace Trias.Native
                     j++;
                 }
             }
-            if (!captured) PaintPause(w, h);
+            if (!captured && world != null && state["winner"]["label"].Text == null) PaintPause(w,h);
         }
 
         string Prompt()
