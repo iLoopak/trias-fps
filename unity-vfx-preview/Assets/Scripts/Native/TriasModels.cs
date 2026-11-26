@@ -5,6 +5,16 @@ namespace Trias.Native
 {
     internal static class TriasModels
     {
+        internal static Transform ViewMechanism(TriasWorld world, Transform root, string key, Material accent)
+        {
+            var action = TriasWorld.Group(root, "Viewmodel action");
+            float z = key == "lance" ? .17f : key == "rift" ? .13f : .09f;
+            float width = key == "scatter" || key == "rift" ? .14f : .075f;
+            TriasWorld.Part(action, world.Steel, new Vector3(-.046f,.077f,z), new Vector3(width,.028f,.12f));
+            TriasWorld.Part(action, accent, new Vector3(-.089f,.081f,z), new Vector3(.016f,.017f,key == "lance" ? .17f : .071f));
+            return action;
+        }
+
         internal static void Gun(TriasWorld w, Transform root, string weapon, Material accent)
         {
             if (w.Kit.Gun(root, weapon, accent)) return;
@@ -70,6 +80,7 @@ namespace Trias.Native
         readonly Transform body, head, left, right, weapon;
         readonly Animation locomotion;
         string currentMotion;
+        float weaponKick, flinch, stance = 1, yLean, zLean, previousTick;
         readonly Dictionary<string, Transform> guns = new Dictionary<string, Transform>();
         readonly TriasWorld world;
         readonly Material accent;
@@ -204,13 +215,22 @@ namespace Trias.Native
         internal void Tick(float now)
         {
             var row = Row;
+            float dt = Mathf.Clamp(now - previousTick, 0, .05f);
+            previousTick = now;
             float t = Mathf.Clamp01((now - Got) / .043f);
             Position = Vector3.Lerp(From, Desired, t);
             Yaw = Mathf.LerpAngle(FromYaw, DesiredYaw, t);
             Root.SetPositionAndRotation(Position, Quaternion.Euler(0, Yaw, 0));
             int bits = row[2].Int;
-            float crouch = (bits & 16) != 0 ? .65f : 1;
-            body.localScale = new Vector3(1,crouch,1);
+            float blend = 1 - Mathf.Exp(-dt * 16);
+            stance = Mathf.Lerp(stance, (bits & 16) != 0 ? .65f : 1, blend);
+            body.localScale = new Vector3(1, stance, 1);
+            Vector3 lateral = Root.InverseTransformDirection(new Vector3(row[21].Float, 0, row[23].Float));
+            bool dodge = row[27].Float > .02f;
+            zLean = Mathf.Lerp(zLean, Mathf.Clamp(-lateral.x * (dodge ? 1.6f : .62f), -18, 18), blend);
+            yLean = Mathf.Lerp(yLean, Mathf.Clamp(lateral.z * .6f - row[22].Float * .43f, -11, 11), blend);
+            flinch *= Mathf.Exp(-dt * 21);
+            body.localRotation = Quaternion.Euler(yLean - flinch, 0, zLean);
             float pace = new Vector2(row[21].Float,row[23].Float).magnitude;
             if (locomotion != null)
             {
@@ -231,8 +251,13 @@ namespace Trias.Native
                 left.localRotation = Quaternion.Euler(angle,0,0);
                 right.localRotation = Quaternion.Euler(-angle,0,0);
             }
-            weapon.localRotation = Quaternion.Euler(-row[25].Float * 43, 0, (bits & 64) != 0 ? 24 : 0);
+            weaponKick *= Mathf.Exp(-dt * 19);
+            weapon.localPosition = new Vector3(.18f, 1.14f, .36f - weaponKick * .007f);
+            weapon.localRotation = Quaternion.Euler(-row[25].Float * 43 - weaponKick, 0, (bits & 64) != 0 ? 24 : 0);
         }
+
+        internal void Fire(string key) => weaponKick = key == "rift" || key == "scatter" ? 11 : key == "arc" ? 4 : 7;
+        internal void React(bool shieldBreak) => flinch = Mathf.Max(flinch, shieldBreak ? 7 : 3.2f);
     }
 
     internal sealed class FallenPilot

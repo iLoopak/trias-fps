@@ -13,9 +13,48 @@ namespace Trias.Native
         Texture2D radarPlate;
         Vector3 impactSource;
         float impactTime;
+        Color damageTint = Fault;
         int confirmStyle;
         float waveFlash, coreFlash;
         bool waveStarts;
+        struct KillEntry
+        {
+            internal string Label;
+            internal Color Tint;
+            internal float Time;
+        }
+        readonly KillEntry[] killFeed = new KillEntry[3];
+        int killFeedCount;
+
+        void AddKill(string attacker, string victim, string key, int team, float now)
+        {
+            for (int i = killFeed.Length - 1; i > 0; i--) killFeed[i] = killFeed[i - 1];
+            killFeed[0] = new KillEntry {
+                Label = attacker + "  ›  " + victim + "   ·   " + (Catalog.Find(catalog.weapons, key)?.label ?? key),
+                Tint = team >= 0 && team < catalog.teams.Length ? Catalog.Tint(catalog.teams[team].color) : Chalk,
+                Time = now,
+            };
+            killFeedCount = Mathf.Min(killFeedCount + 1, killFeed.Length);
+        }
+
+        void PaintKillFeed(float w)
+        {
+            for (int i = 0; i < killFeedCount; i++)
+            {
+                var entry = killFeed[i];
+                float age = Time.unscaledTime - entry.Time;
+                float opacity = Mathf.Clamp01((3.7f - age) * 2.7f);
+                if (opacity == 0) break;
+                float x = w - 267 + (1 - Mathf.Clamp01(age * 12)) * 13;
+                var row = new Rect(x, 132 + i * 26, 240, 24);
+                var previous = GUI.color;
+                GUI.color = new Color(1, 1, 1, opacity);
+                Fill(row, Ink);
+                Fill(new Rect(row.x, row.y, 2, 24), entry.Tint);
+                GUI.Label(new Rect(row.x + 8, row.y + 1, 229, 22), entry.Label, caption);
+                GUI.color = previous;
+            }
+        }
 
         static Vector2 Polar(float degrees) => new Vector2(Mathf.Sin(degrees * Mathf.Deg2Rad), -Mathf.Cos(degrees * Mathf.Deg2Rad));
 
@@ -55,7 +94,13 @@ namespace Trias.Native
         {
             if (!captured || scoreboard) return;
             Vector2 centerPoint = new Vector2(w / 2, h / 2);
+            if (own[15].Int < 0 && own[16].Int < 0 && own[6].Int > 0 && !building)
+            {
+                Vector3 screen = view.WorldToViewportPoint(reticleWorld);
+                if (screen.z > 0) centerPoint = new Vector2(screen.x * w, (1 - screen.y) * h);
+            }
             Color accent = Catalog.Tint(Catalog.Find(catalog.weapons, weaponName)?.color ?? "#daffff");
+            accent = Color.Lerp(accent, Fault, dryPulse);
             float kick = tension * 4.6f + Mathf.Min(predicted.Velocity.magnitude * .15f, 2);
             bool aimingBuild = building && CanBuild;
             int feet = aimingBuild ? 4 : weaponName == "scatter" ? 4 : 3;
@@ -77,7 +122,7 @@ namespace Trias.Native
             Fill(new Rect(centerPoint.x - 1, centerPoint.y - 1, 2, 2), Chalk);
             if (hit > 0)
             {
-                Color response = confirmStyle == 2 ? Fault : confirmStyle == 1 ? Shield : lime;
+                Color response = confirmStyle == 3 ? Fault : confirmStyle == 2 ? Amber : confirmStyle == 1 ? Shield : Chalk;
                 response.a = Mathf.Clamp01(hit * 2);
                 float drift = (1 - hit) * 11;
                 for (int i = 0; i < 4; i++)
@@ -85,22 +130,32 @@ namespace Trias.Native
                     var arm = Polar(45 + i * 90);
                     Stroke(centerPoint + arm * (11 + drift), centerPoint + arm * (22 + drift), 2.4f, response);
                 }
-                if (confirmStyle == 2) Arc(centerPoint, 32, 15, 330, response, 1.3f, 22);
+                if (confirmStyle == 3) Arc(centerPoint, 32, 15, 330, response, 1.3f, 22);
+                if (confirmStyle == 2)
+                    for (int i = 0; i < 4; i++)
+                        Arc(centerPoint, 25 + drift, i * 90 + 19, 35, response, 1.6f, 4);
             }
             if (hurt > 0 && Time.unscaledTime - impactTime < .56f)
             {
                 Vector3 incoming = view.transform.InverseTransformDirection(impactSource - view.transform.position);
                 float direction = Mathf.Atan2(incoming.x, incoming.z) * Mathf.Rad2Deg;
-                var danger = new Color(Fault.r, Fault.g, Fault.b, Mathf.SmoothStep(0, .96f, hurt));
+                var danger = new Color(damageTint.r, damageTint.g, damageTint.b, Mathf.SmoothStep(0, .96f, hurt));
                 Arc(centerPoint, 68, direction - 24, 48, danger, 4, 11);
                 var at = centerPoint + Polar(direction) * 58;
                 Stroke(at - Polar(direction) * 6, at, 2, danger);
             }
-            if ((own[2].Int & 64) != 0 && !aimingBuild)
+            float reloading = ReloadProgress(Time.unscaledTime);
+            if (reloading > 0 && !aimingBuild)
             {
-                float remaining = Mathf.Clamp01(own[30].Float / Mathf.Max(.1f, reloadPeriod));
                 Arc(centerPoint, 30, 116, 128, Subtle, 2, 10);
-                Arc(centerPoint, 30, 116, 128 * (1 - remaining), accent, 2, 10);
+                Arc(centerPoint, 30, 116, 128 * reloading, accent, 2, 10);
+            }
+            if (movementPulse > .1f && cameraMotion > .01f)
+            {
+                var motionTint = teamTint;
+                motionTint.a = movementPulse * cameraMotion * .4f;
+                Arc(centerPoint, 42, 156, 20, motionTint, 1.4f, 5);
+                Arc(centerPoint, 42, 184, 20, motionTint, 1.4f, 5);
             }
         }
 
@@ -117,6 +172,8 @@ namespace Trias.Native
             var dial = new Vector2(70, y + 39);
             Arc(dial, 28, 220, 280, Subtle, 4, 22);
             Arc(dial, 28, 220, 280 * health, vitality, 4, 22);
+            if (health < .24f)
+                Arc(dial, 39, 210, 300, new Color(Fault.r, Fault.g, Fault.b, .24f + (.24f - health) * 2), 1.4f, 22);
             Arc(dial, 34, 220, 280 * armor, Shield, 1.6f, 16);
             GUI.Label(new Rect(42, y + 25, 56, 29), own[6].Int.ToString(), center);
             GUI.Label(new Rect(111, y + 9, 123, 22), catalog.teams[own[3].Int].name, section);
@@ -132,12 +189,15 @@ namespace Trias.Native
                 : own[15].Int >= 0 ? "HNÍZDO" : weapon?.label.ToUpperInvariant();
             GUI.Label(new Rect(x + 13, y + 8, 173, 22), tool, section);
             var mags = own[10][System.Array.IndexOf(Arsenal, weaponName)];
+            int ammo = VisibleAmmo(weaponName);
             float heat = state["turrets"][own[15].Int]["heat"].Float;
             string count = own[16].Int >= 0 ? hull[5].Int + " HP" : own[15].Int >= 0 ? Mathf.RoundToInt(heat * 100) + " %"
-                : mags[0].Int + " / " + (mags[1].Int < 0 ? "∞" : mags[1].Int.ToString());
+                : ammo + " / " + (mags[1].Int < 0 ? "∞" : mags[1].Int.ToString());
             GUI.Label(new Rect(x + 12, y + 28, 174, 33), count, heading);
-            float magazine = weaponName == "pulse" ? 24 : weaponName == "arc" ? 36 : weaponName == "scatter" ? 6 : 4;
-            if (own[16].Int < 0) Segments(new Rect(x + 14, y + 64, 185, 4), 12, own[15].Int >= 0 ? heat : mags[0].Float / magazine, energy);
+            float magazine = fireProfiles.TryGetValue(weaponName ?? string.Empty, out var profile) ? profile.Magazine :
+                weaponName == "pulse" ? 24 : weaponName == "arc" ? 36 : weaponName == "scatter" ? 6 : 4;
+            if (own[16].Int < 0) Segments(new Rect(x + 14, y + 64, 185, 4), 12, own[15].Int >= 0 ? heat : ammo / magazine,
+                own[15].Int < 0 && ammo <= Mathf.Max(1, magazine * .18f) ? Amber : energy);
         }
 
         static void Segments(Rect row, int count, float fraction, Color active)

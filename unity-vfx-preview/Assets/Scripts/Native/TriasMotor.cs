@@ -10,6 +10,8 @@ namespace Trias.Native
         internal bool Has(int flag) => (Bits & (1 << flag)) != 0;
     }
 
+    internal enum MotionCue { None, Jump, Double, Dodge, Launch }
+
     internal struct Motor
     {
         internal const float Tick = 1f / 30f;
@@ -32,8 +34,9 @@ namespace Trias.Native
             Crouch = (bits & 16) != 0;
         }
 
-        internal void Step(Command input, ArenaSpec map)
+        internal MotionCue Step(Command input, ArenaSpec map)
         {
+            var cue = MotionCue.None;
             DodgeCooldown = Mathf.Max(0, DodgeCooldown - Tick);
             DodgeTime = Mathf.Max(0, DodgeTime - Tick);
             PadCooldown = Mathf.Max(0, PadCooldown - Tick);
@@ -50,6 +53,7 @@ namespace Trias.Native
                     { launch = pad; break; }
             if (launch != null)
             {
+                cue = MotionCue.Launch;
                 Velocity = new Vector3(launch.vx, 12.35f, launch.vz);
                 Grounded = false;
                 AirJump = AirDodge = true;
@@ -57,12 +61,14 @@ namespace Trias.Native
             }
             else if (input.Has(5) && (Grounded || AirJump))
             {
+                cue = Grounded ? MotionCue.Jump : MotionCue.Double;
                 Velocity.y = (Grounded ? 7.65f : 8.75f) * (Crouch ? 0.69f : 1f);
                 AirJump = Grounded;
                 Grounded = false;
             }
             if (launch == null && input.Has(6) && !Crouch && DodgeCooldown <= 0 && (Grounded || AirDodge))
             {
+                cue = MotionCue.Dodge;
                 Vector2 slide = length > 0 ? wish.normalized : new Vector2(-sin, -cos);
                 Velocity = new Vector3(slide.x * 18.3f, Grounded ? 3.25f : Mathf.Max(Velocity.y, 1.9f), slide.y * 18.3f);
                 DodgeCooldown = 0.96f;
@@ -107,6 +113,7 @@ namespace Trias.Native
                 Velocity.y = 0;
                 AirJump = AirDodge = true;
             }
+            return cue;
         }
 
         static bool StepAllowed(ArenaSpec map, float x, float z, float y, float h, bool slope)
@@ -124,7 +131,7 @@ namespace Trias.Native
             return false;
         }
 
-        static bool Shallow(Vector3 position)
+        internal static bool Shallow(Vector3 position)
         {
             float x = position.x, z = position.z;
             if (z >= -19 && z <= -2.2f && Mathf.Abs(x - (-6.7f + Mathf.Sin((z + 19) * 0.32f) * 1.24f)) < 0.53f) return true;

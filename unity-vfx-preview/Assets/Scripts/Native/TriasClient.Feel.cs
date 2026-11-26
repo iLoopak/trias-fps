@@ -4,10 +4,21 @@ namespace Trias.Native
 {
     public sealed partial class TriasClient
     {
+        [Header("First-person presentation")]
+        [SerializeField, Range(0, 2)] float recoilStrength = 1;
+        [SerializeField, Range(.5f, 2)] float recoilRecoveryTime = 1;
+        [SerializeField, Range(0, 2)] float weaponInertia = 1;
+        [SerializeField, Range(0, 2)] float strideAmplitude = 1;
+
         float baseFov, cameraMotion, masterVolume, ambienceVolume, visualEffects;
         float gunTravel, gunTravelVelocity, gunLift, gunLiftVelocity, gunTwist, gunTwistVelocity;
         float cameraKick, cameraKickVelocity, landingStep, landingVelocity, airSpeed;
         float previousPitch, previousYaw, swayX, swayY;
+        float recoilRecovery = .11f, stridePhase, strideDistance, stanceHeight = 1.58f, stanceVelocity;
+        float equipMotion, dryPulse, movementPulse, reticleRange = 50;
+        float chaseArm;
+        Vector3 lastVelocity, inertia, reticleWorld;
+        readonly float[] localMotionAt = new float[5];
         float sceneFade, resultAge;
         int kickShot;
         bool wasGrounded;
@@ -21,6 +32,7 @@ namespace Trias.Native
             masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.volume", .85f));
             ambienceVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.ambience", .72f));
             visualEffects = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.visualEffects", 1));
+            momentumPresentation = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.momentum", momentumPresentation));
             visor.Intensity = visualEffects;
             sensitivity = Mathf.Clamp(PlayerPrefs.GetFloat("trias.sensitivity", sensitivity), .5f, 5);
             AudioListener.volume = masterVolume;
@@ -33,25 +45,49 @@ namespace Trias.Native
             previousPitch = pitch;
             previousYaw = yaw;
             swayX = swayY = 0;
+            equipMotion = dryPulse = movementPulse = stridePhase = strideDistance = stanceVelocity = 0;
+            stanceHeight = 1.58f;
+            chaseArm = 0;
+            lastVelocity = inertia = Vector3.zero;
+            System.Array.Fill(localMotionAt, -10f);
             kickShot = 0;
             wasGrounded = false;
         }
 
-        void KickWeapon(string key)
+        void KickWeapon(string key, bool alt)
         {
             var profile = key switch
             {
-                "scatter" => new Vector3(.108f, 14, 3.2f),
-                "lance" => new Vector3(.130f, 10.5f, 1.7f),
-                "rift" => new Vector3(.154f, 12.9f, 3.9f),
-                "arc" => new Vector3(.032f, 4.0f, .92f),
-                _ => new Vector3(.052f, 6.5f, 1.15f)
+                "scatter" when alt => (.128f, 13f, 2.5f, .145f),
+                "scatter" => (.113f, 16f, 3.2f, .132f),
+                "lance" => (.144f, 9.3f, 1.35f, .158f),
+                "rift" => (.154f, 13.1f, 4.2f, .186f),
+                "arc" => (.027f, 3.85f, 1.25f, .071f),
+                _ => (.055f, 6.6f, 1.13f, .098f)
             };
             int sign = (kickShot++ & 1) == 0 ? -1 : 1;
-            gunTravel = Mathf.Min(.21f, gunTravel + profile.x);
-            gunLift = Mathf.Min(19, gunLift + profile.y);
-            gunTwist = Mathf.Clamp(gunTwist + profile.z * sign, -5.5f, 5.5f);
-            cameraKick = Mathf.Min(2.1f, cameraKick + profile.y * .085f);
+            gunTravel = Mathf.Min(.21f, gunTravel + profile.Item1 * recoilStrength);
+            gunLift = Mathf.Min(19, gunLift + profile.Item2 * recoilStrength);
+            gunTwist = Mathf.Clamp(gunTwist + profile.Item3 * sign * recoilStrength, -5.5f, 5.5f);
+            recoilRecovery = profile.Item4 * recoilRecoveryTime;
+            cameraKick = Mathf.Min(1.7f, cameraKick + profile.Item2 * .064f * recoilStrength);
+        }
+
+        int FootSurface(Vector3 at) => world.Spec.id != "island" ? 0 : Motor.Shallow(at) ? 2 : 1;
+
+        void PlayLocalMotion(MotionCue cue, Vector3 at)
+        {
+            localMotionAt[(int)cue] = Time.unscaledTime;
+            movementPulse = cue == MotionCue.Dodge ? 1 : cue == MotionCue.Launch ? .85f : cue == MotionCue.Double ? .60f : .24f;
+            if (cue == MotionCue.Jump) landingStep = .027f;
+            effects.Motion(at, teamTint, cue, true, visualEffects);
+        }
+
+        float ReloadProgress(float now)
+        {
+            if ((own[2].Int & 64) != 0)
+                return Mathf.Clamp01(1 - Mathf.Max(0, own[30].Float - (now - lastPacket)) / Mathf.Max(.1f, reloadPeriod));
+            return now < reloadPreviewUntil ? Mathf.Clamp01((now - reloadPreviewStarted) / Mathf.Max(.1f, reloadPeriod)) : 0;
         }
 
         void UpdateFeel(float now, float dt, bool driving)
@@ -64,34 +100,84 @@ namespace Trias.Native
                 if (airSpeed < -4.3f && !driving)
                 {
                     landingStep = Mathf.Min(.125f, -airSpeed * .010f);
-                    effects.Land(view.transform.position, Mathf.Clamp01(-airSpeed / 14));
+                    effects.Land(display, Mathf.Clamp01(-airSpeed / 14), FootSurface(display));
                 }
                 airSpeed = 0;
             }
             wasGrounded = predicted.Grounded;
-            gunTravel = Mathf.SmoothDamp(gunTravel, 0, ref gunTravelVelocity, .105f, Mathf.Infinity, dt);
-            gunLift = Mathf.SmoothDamp(gunLift, 0, ref gunLiftVelocity, .133f, Mathf.Infinity, dt);
-            gunTwist = Mathf.SmoothDamp(gunTwist, 0, ref gunTwistVelocity, .165f, Mathf.Infinity, dt);
+            gunTravel = Mathf.SmoothDamp(gunTravel, 0, ref gunTravelVelocity, recoilRecovery, Mathf.Infinity, dt);
+            gunLift = Mathf.SmoothDamp(gunLift, 0, ref gunLiftVelocity, recoilRecovery * 1.17f, Mathf.Infinity, dt);
+            gunTwist = Mathf.SmoothDamp(gunTwist, 0, ref gunTwistVelocity, recoilRecovery * 1.28f, Mathf.Infinity, dt);
             cameraKick = Mathf.SmoothDamp(cameraKick, 0, ref cameraKickVelocity, .112f, Mathf.Infinity, dt);
             landingStep = Mathf.SmoothDamp(landingStep, 0, ref landingVelocity, .15f, Mathf.Infinity, dt);
             float damping = 1 - Mathf.Exp(-dt * 17);
             swayX = Mathf.Lerp(swayX, Mathf.Clamp(Mathf.DeltaAngle(previousYaw, yaw) * -.48f, -5.5f, 5.5f), damping);
             swayY = Mathf.Lerp(swayY, Mathf.Clamp(Mathf.DeltaAngle(previousPitch, pitch) * -.38f, -4.5f, 4.5f), damping);
             previousYaw = yaw; previousPitch = pitch;
-            float reload = (own[2].Int & 64) == 0 ? 0 : Mathf.Sin(Mathf.Clamp01(own[30].Float / Mathf.Max(.1f, reloadPeriod)) * Mathf.PI);
+            float progress = ReloadProgress(now);
+            float reload = Mathf.Sin(progress * Mathf.PI);
             float motion = cameraMotion;
-            float stride = predicted.Grounded ? Mathf.Sin(now * 13) * Mathf.Min(speed * .0033f, .029f) : 0;
-            float lean = driving ? 0 : Mathf.Clamp(Vector3.Dot(predicted.Velocity, view.transform.right) * -.20f, -1.55f, 1.55f);
-            Quaternion angle = Quaternion.Euler(pitch - cameraKick * motion, yaw, lean * motion);
-            if (driving) Chase(display + Vector3.up * 1.45f, angle * Vector3.forward, 5.5f, 2.1f);
+            if (predicted.Grounded && !driving && speed > .35f)
+            {
+                strideDistance += dt * speed;
+                stridePhase += dt * speed * 3.20f;
+                if (strideDistance >= (predicted.Crouch ? 1.62f : 2.25f))
+                {
+                    strideDistance = 0;
+                    effects.Footstep(display, true, FootSurface(display), predicted.Crouch);
+                }
+            }
+            else strideDistance = 0;
+            float stride = predicted.Grounded ? Mathf.Sin(stridePhase) * Mathf.Min(speed * .0025f, .022f) * strideAmplitude : 0;
+            Quaternion aim = Quaternion.Euler(pitch, yaw, 0);
+            var change = Vector3.ClampMagnitude(predicted.Velocity - lastVelocity, 3);
+            inertia = Vector3.Lerp(inertia, Quaternion.Inverse(aim) * change, damping);
+            lastVelocity = predicted.Velocity;
+            float lean = driving ? 0 : Mathf.Clamp(Vector3.Dot(predicted.Velocity, aim * Vector3.right) * -.15f, -1.35f, 1.35f);
+            Quaternion angle = aim * Quaternion.Euler(0, 0, lean * motion);
+            float eye = predicted.Crouch ? .92f : 1.58f;
+            stanceHeight = Mathf.SmoothDamp(stanceHeight, eye, ref stanceVelocity, predicted.Crouch ? .046f : .083f, Mathf.Infinity, dt);
+            float shownHeight = Mathf.Lerp(eye, stanceHeight, motion);
+            if (driving) Chase(display + Vector3.up * 1.45f, angle * Vector3.forward, 5.5f, 2.1f, false);
             else
-                view.transform.SetPositionAndRotation(display + Vector3.up * ((predicted.Crouch ? .92f : 1.58f)
-                    + (stride - landingStep) * motion), angle);
-            grip.localPosition = new Vector3(.365f + swayX * .0037f * motion + stride * .68f,
-                -.305f - reload * .16f - landingStep * .48f + stride, .60f - gunTravel);
-            grip.localRotation = Quaternion.Euler(-gunLift + reload * 48 + swayY * motion,
-                -4 + swayX * motion, gunTwist + reload * 27);
-            float fov = baseFov + (driving ? 3 : Mathf.Clamp01((speed - 6) / 4f) * 5 * motion);
+            {
+                chaseArm = 0;
+                Vector3 camera = display + Vector3.up * (shownHeight + (stride - landingStep) * motion);
+                Vector3 eyeOrigin = predicted.Position + Vector3.up * eye;
+                if (Physics.Linecast(eyeOrigin, camera, out var ceiling, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
+                    camera = ceiling.point + ceiling.normal * .048f;
+                view.transform.SetPositionAndRotation(camera, angle);
+                Vector3 ray = aim * Vector3.forward;
+                reticleWorld = eyeOrigin + ray * reticleRange;
+                if (Physics.Raycast(eyeOrigin, ray, out var surface, reticleRange, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
+                    reticleWorld = surface.point;
+            }
+            equipMotion = now < switchPreviewUntil
+                ? Mathf.MoveTowards(equipMotion, 1, dt * 15f)
+                : Mathf.MoveTowards(equipMotion, 0, dt * 5f);
+            dryPulse = Mathf.MoveTowards(dryPulse, 0, dt * 5);
+            movementPulse = Mathf.MoveTowards(movementPulse, 0, dt * 3.1f);
+            float mount = equipMotion * equipMotion;
+            float retract = 0;
+            if (!driving && Physics.Raycast(view.transform.position, angle * Vector3.forward, out var wall, .94f, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
+                retract = Mathf.Lerp(.39f, 0, Mathf.Clamp01(wall.distance / .94f));
+            float reloadTilt = weaponName == "scatter" ? 32 : weaponName == "lance" ? 14 : weaponName == "rift" ? -35 : 22;
+            float idle = Mathf.Sin(now * 1.75f) * .006f * motion;
+            grip.localPosition = new Vector3(.365f + (swayX * .0037f - inertia.x * .011f * weaponInertia) * motion + stride * .48f,
+                -.305f - reload * .14f - landingStep * .35f + stride + idle - mount * .19f, .60f - gunTravel - retract);
+            grip.localRotation = Quaternion.Euler(-gunLift + reload * 42 + swayY * motion + mount * 26,
+                -4 + swayX * motion, gunTwist + reload * reloadTilt + inertia.x * motion * 2 * weaponInertia);
+            if (weaponName != null && weaponActions.TryGetValue(weaponName, out var weaponAction))
+            {
+                float cycle = Mathf.Sin(progress * Mathf.PI * 2);
+                weaponAction.localPosition = new Vector3(
+                    weaponName == "rift" ? -reload * .084f : 0,
+                    weaponName == "lance" || weaponName == "arc" ? reload * .042f : 0,
+                    -gunTravel * (weaponName == "scatter" ? .81f : .42f) - Mathf.Max(0, cycle) * .052f);
+                weaponAction.localRotation = Quaternion.Euler(reload * (weaponName == "scatter" ? 52 : 9), 0,
+                    reload * (weaponName == "rift" ? 60 : 0));
+            }
+            float fov = baseFov + (driving ? 3 : (Mathf.Clamp01((speed - 6) / 4f) * 3.5f + movementPulse * 2.1f + cameraKick) * motion);
             view.fieldOfView = Mathf.Lerp(view.fieldOfView, fov, 1 - Mathf.Exp(-dt * 6));
         }
 
@@ -117,19 +203,23 @@ namespace Trias.Native
             float age = Mathf.Clamp01(resultAge / .34f);
             float y = h * .68f + (1 - age) * (1 - age) * 29;
             var tint = mode == "horde" && state["horde"]["core"]["hp"].Int == 0 ? Fault : Amber;
-            var plate = new Rect(cx - 258, y, 516, 94);
+            bool showFlow = flow != null && flow[5].Int > 0 && momentumPresentation > .01f;
+            var plate = new Rect(cx - 258, y, 516, showFlow ? 121 : 94);
             CornerPanel(plate, tint);
             DrawInsignia(new Vector2(plate.x + 43, y + 48), 21, tint);
             GUI.Label(new Rect(plate.x + 74, y + 12, 420, 34), roundResult ?? state["winner"]["label"].Text, heading);
             GUI.Label(new Rect(plate.x + 76, y + 52, 420, 24), "VYŘAZENÍ  " + own[11].Int + "     ·     DALŠÍ KOLO  " + state["restart"].Int + " s", caption);
             Segments(new Rect(plate.x + 77, y + 77, 399, 3), 15, state["restart"].Float / 9, tint);
+            if (showFlow)
+                GUI.Label(new Rect(plate.x + 77, y + 91, 424, 23),
+                    $"NEJLEPŠÍ ŘETĚZEC  {flow[5].Int}  ·  ×{flow[7].Float:0.#}  ·  OZVĚNA  {flow[8].Int} VYŘ.", caption);
         }
 
         void PaintPause(float w, float h)
         {
             float x = w / 2 - 242, y = h / 2 - 223;
             Fill(new Rect(0,0,w,h),new Color(.012f,.024f,.041f,.80f));
-            CornerPanel(new Rect(x, y, 484, 444), Amber);
+            CornerPanel(new Rect(x, y, 484, 477), Amber);
             DrawInsignia(new Vector2(x + 37, y + 35), 17, Amber);
             GUI.Label(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
             GUI.Label(new Rect(x + 24, y + 64, 436, 27), "Online zápas běží dál", caption);
@@ -140,12 +230,13 @@ namespace Trias.Native
             box.y += 34; Option(box, "Hlasitost", "trias.volume", ref masterVolume, 0, 1, true);
             box.y += 34; Option(box, "Atmosféra", "trias.ambience", ref ambienceVolume, 0, 1, true);
             box.y += 34; Option(box, "Světelné efekty", "trias.visualEffects", ref visualEffects, 0, 1, true);
+            box.y += 34; Option(box, "Momentum HUD", "trias.momentum", ref momentumPresentation, 0, 1, true);
             visor.Intensity = visualEffects;
             AudioListener.volume = masterVolume;
             effects.AmbienceMix(ambienceVolume, false);
-            if (Preset(new Rect(x + 22, y + 311, 440, 42), "Zpět do zápasu", null, true)) Capture(true);
-            if (Preset(new Rect(x + 22, y + 361, 440, 41), "Opustit místnost", null, false)) Disconnect(null);
-            GUI.Label(new Rect(x + 24, y + 410, 430, 22), "WASD  ·  Shift  ·  mezerník  ·  Q úhyb  ·  R přebít  ·  E použít", caption);
+            if (Preset(new Rect(x + 22, y + 345, 440, 42), "Zpět do zápasu", null, true)) Capture(true);
+            if (Preset(new Rect(x + 22, y + 395, 440, 41), "Opustit místnost", null, false)) Disconnect(null);
+            GUI.Label(new Rect(x + 24, y + 444, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
         }
 
         void Option(Rect row, string name, string key, ref float value, float min, float max, bool percent, int decimals = 0)

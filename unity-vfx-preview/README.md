@@ -4,6 +4,8 @@ Otevři tuto složku v **Unity 6.3 LTS (6000.3.29f1)**, vyber **TRIAS → Open f
 
 Pro online zápas spusť z kořene repozitáře `npm ci` a `npm start`. V Unity nastav adresu `ws://127.0.0.1:3000` pro lokální server. Na dalších strojích v síti použij jeho LAN adresu. Veřejný server za TLS přijímá adresu ve tvaru `wss://…`. Klienti ve stejné místnosti používají stejný kód. Nastavení arény a režimu určí klient, který místnost založí.
 
+Postup pro server přes internet je v [Multiplayer přes internet](INTERNET.md).
+
 Online klient používá autoritativní server pro pět soutěžních režimů, čtyři arény a kooperativní Obranu jádra. Pěší pohyb se predikuje lokálně, vozidla přebírají polohu ze serveru. Tlačítko **Trénink offline · Relay Station** spouští samostatný místní TDM na Relay Station.
 
 - **WASD** a myš ovládají pohyb a míření. **Shift** sprintuje, **C** krčí, **mezerník** skáče a **Q** provádí úskok.
@@ -15,6 +17,10 @@ Mířidlo mění tvar podle zbraně, zobrazuje postup přebití a odlišuje bě�
 Sluchátka pomáhají určit směr kroků a výstřelů. Kryt je tlumí. Každá aréna má vlastní zvuk prostředí. V Hordě hlásí samostatné signály nástup a odražení vlny.
 
 V nabídce **Esc** můžeš upravit zorné pole, citlivost myši, pohyb kamery, celkovou hlasitost, hlasitost prostředí a intenzitu světelných efektů. Nastavení se ukládá na daném počítači. Zpětný ráz se liší podle zbraně. Tvrdý dopad doprovází tlumený zvuk magnetických bot.
+
+Na aktuálním serveru reagují pěchotní zbraně okamžitě lokálním výšlehem, zvukem a pohybem zbraně. Server potvrzuje munici, trajektorii, zásah a poškození. **Pulse** a **Arc** střílí držením tlačítka, **Scatter**, **Lance** a **Rift** po jednotlivých stiscích. Stisk **F** spustí soustředěnou střelu Scatteru, pokud zbývají aspoň dva náboje.
+
+Úspěšný **Q** úskok za sebou na 2,5 s nechá ozvěnu. **X** vystřelí aktuální pěchotní zbraní z její pozice, **Shift+X** použije soustředěný Scatter. Platí běžná munice, kadence a kolize. Protivník může ozvěnu zničit. **Momentum Chain** boduje platné pohybové akce a potvrzené zásahy a vyřazení. Má vlastní výsledky v souhrnu kola a jeho intenzitu najdeš v nastavení. Klávesu ozvěny lze změnit na objektu **TRIAS client**. Serverové hodnoty a tabulka akcí jsou v `signature.js`. Volby `TRIAS_COMBAT_ECHO=0` a `TRIAS_MOMENTUM=0` vypínají systémy nezávisle.
 
 Světelné efekty ovládají přízemní mlhu, bloom a paprsky rozptýleného světla. Využívají hloubku obrazu a mají vlastní barvy a intenzitu pro každou arénu. Vantu rámují tavicí komora a vysoké výduchy, Meridian Basin pohyblivé těžební stroje a Mechový ostrov má chladný opar v nížinách.
 
@@ -62,6 +68,10 @@ Prototyp běží lokálně jako Team Deathmatch proti jedenácti botům rozděle
 Výstřely, výbuch Riftu a respawn používají stejné typy částic a syntetizované zvuky jako srovnávací scéna níže. Emitery a světla lze vybrat přímo v hierarchii scény.
 
 ## Srovnávací scéna VFX Lab
+
+Pro ladění plné hry spusť v kořenu repozitáře `npm run lab:feel` a v Unity vyber **TRIAS → Play Game Feel Lab**. Laboratoř používá vlastní server na lokální smyčce a stejnou střelbu i pohyb jako zápas. Čísly **1–5** vybereš zbraň. Každá má neomezenou rezervu a standardní kapacitu zásobníku. Na Relay jsou pevný, pohyblivý a štítový terč. Zásahy do podlahy a do krytů lze ověřit v okolí.
+
+**F5** porovná lokální a serverovou odezvu výstřelu, **F6** přepne simulovaných 160 ms RTT a **F7** doplní terče a munici. **F8** přepne Combat Echo a **F9** Momentum Chain. Panel ukazuje dobu snímku, RTT, polohovou korekci a časy lokálního spuštění efektu a serverového potvrzení. Lokální čas měří práci v klientu po zpracování vstupu. V Inspectoru objektu **TRIAS client** lze za běhu ladit sílu a zotavení zpětného rázu, setrvačnost zbraně a amplitudu kroku. Nové zvuky i shader ozvěny jsou původní procedurální tvorba.
 
 Samostatná srovnávací scéna pro Unity 6.3 LTS. Obsahuje výstřel Pulse, nárazové jiskry, explozi Riftu a návrat pilota. Účelem je porovnat vizuální a zvukovou odezvu s webovou verzí TRIAS.
 
