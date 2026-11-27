@@ -175,3 +175,15 @@ dd{font-size:15px;color:var(--muted)}
 .arena-shot figcaption>span{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--quiet);white-space:nowrap}
 @media(max-width:680px){.arena-gallery{grid-template-columns:1fr}.arena-shot figcaption{padding:12px}}
 @media(prefers-reduced-motion:reduce){.arena-shot img{transition:none}}
+
+/* Current Unity exosuit atlas: four columns, two rows of pilot variants. Display the top row only. */
+.pilot-grid{list-style:none;padding:0;margin:0 auto;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(8px,2vw,24px);max-width:960px}
+.pilot-grid li{min-width:0}
+.pilot-card{margin:0;min-width:0}
+.pilot-portrait{position:relative;aspect-ratio:1;overflow:hidden;background:var(--surface-deep);border-bottom:1px solid var(--line)}
+.pilot-portrait img{position:absolute;display:block;width:400%;max-width:none;height:auto;top:0;left:calc(-100% * var(--pilot-column,0));transform:none}
+.pilot-portrait-0{--pilot-column:0}.pilot-portrait-1{--pilot-column:1}.pilot-portrait-2{--pilot-column:2}.pilot-portrait-3{--pilot-column:3}
+.pilot-card figcaption{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;margin-top:14px}
+.pilot-card figcaption strong{font:750 clamp(16px,2.4vw,29px)/1.2 var(--display);color:var(--ink);overflow-wrap:anywhere}
+.pilot-card figcaption span{font-size:14px;color:var(--quiet)}
+@media(max-width:560px){.pilot-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:400px;row-gap:24px}.pilot-card figcaption{margin-top:10px}}
