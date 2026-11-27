@@ -100,6 +100,7 @@ namespace Trias.Native
                 if (ribbonShader)
                 {
                     water = new Material(shader);
+                    water.SetVector("_SunDirection", IslandSun);
                     water.mainTexture = Resources.Load<Texture2D>("TRIAS/water");
                     Paint.Add(water);
                 }
@@ -394,7 +395,13 @@ namespace Trias.Native
                     var sluice = Group(Root, "Ceramic water regulation sill", new Vector3(x,0,point.z));
                     for (int bank = -1; bank <= 1; bank += 2)
                     {
-                        var abutment = Group(sluice, "Weathered flow deflector", new Vector3(0, Height(x, point.z+bank*2.7f*scale)-.15f, bank*2.7f*scale));
+                        // Seat the pair outside opposite edges of the deck. Allow for the
+                        // rotated 1.05 x 1.26 m mount when clearing the bridge footprint.
+                        float side = -Mathf.Sign(x) * bank * (1.29f * scale + .95f);
+                        float along = bank * 2.7f * scale;
+                        float footing = Height(x + side, point.z + along);
+                        if (Array.Exists(Spec.cover, box => box.Overlaps(x + side, point.z + along, .85f))) continue;
+                        var abutment = Group(sluice, "Weathered flow deflector", new Vector3(side, footing-.15f, along));
                         abutment.localRotation = Quaternion.Euler(0, bank*23, 0);
                         if (NatureMesh("SiteReclaimedDeflector", abutment, new Vector3(0,.40f,0),
                             new Vector3(1.05f,.92f,1.26f))) continue;

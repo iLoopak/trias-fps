@@ -22,7 +22,7 @@ namespace Trias.Native
             var sky = Spec.id switch
             {
                 "foundry" => (1f, "#190f1c", "#4c2b32", "#ff9966", "#9a513e", new Vector4(-.42f, .36f, 1, .235f)),
-                "basin" => (2f, "#14212a", "#4f493e", "#d7c99d", "#7a927e", new Vector4(.39f, .50f, 1, .33f)),
+                "basin" => (2f, "#14212a", "#4f493e", "#d7c99d", "#7a927e", new Vector4(-.92f, .63f, -.38f, .225f)),
                 "island" => (0f, "#517eab", "#b0d6cf", "#fff2cb", "#385064", Vector4.zero),
                 _ => (3f, "#142035", "#6a849b", "#fff0d4", "#29739a", new Vector4(.61f,.49f,1,.46f))
             };

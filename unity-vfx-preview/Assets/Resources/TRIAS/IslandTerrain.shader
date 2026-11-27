@@ -43,17 +43,21 @@ Shader "TRIAS/Island Terrain"
             half drainage = sin(p.x * .112 - p.z * .145 + sin(p.z * .081) * 1.8) * .5 + .5;
             half rock = max(IN.weights.g, smoothstep(.30, .67, grade + meadow * .10 + drainage * .045));
             half bank = IN.weights.r * (1 - IN.weights.g);
-            half bedding = p.y * 1.94 + p.x * .21 - p.z * .135 + sin(p.z * .18) * .57;
+            float bedding = p.y * 1.94 + p.x * .21 - p.z * .135 + sin(p.z * .18) * .57;
             half strata = sin(bedding) * .5 + .5;
             strata = strata * .66 + sin(bedding * 3.08) * .12 + .18;
             half3 grass = lerp(half3(.23, .32, .17), half3(.43, .45, .245), meadow);
-            half3 silt = half3(.39, .32, .22);
+            // A low, olive-grey wet shelf gives way to drier ochre alluvium.
+            half wetBank = smoothstep(.46,.87,bank + (detail - .5) * .18);
+            half3 silt = lerp(half3(.41,.335,.22), half3(.205,.225,.158), wetBank);
+            half ledge = smoothstep(.44,.60, grade + .19 * strata + drainage * .09);
+            rock = max(rock, ledge * .79);
             half3 bedrock = lerp(half3(.28, .27, .23), half3(.47, .40, .32), strata);
             half dryPatch = smoothstep(.65,.96, drainage * .60 + detail * .25 + meadow * .35) * .46;
             half3 softGround = lerp(grass, silt, max(dryPatch, bank * .87)) * (.72 + detail * .35 + grain * .34);
             o.Albedo = lerp(softGround, bedrock * (.51 + stoneGrain * .78), rock);
             o.Metallic = 0;
-            o.Smoothness = lerp(.10 + bank * .19, .12 + strata * .07, rock);
+            o.Smoothness = lerp(.10 + wetBank * .23, .12 + strata * .07, rock);
             o.Alpha = 1;
         }
         ENDCG

@@ -12,3 +12,5 @@ Record active renderers, enabled colliders and frame-time median/p95 using the s
 For environment production, open `TRIAS > Open environment kit studio` and enter Play Mode for the assembled kit. Use the fixed eye-level capture and frame-sampling probe in `tools/unity` from scratch projects. Compare native render counters, collider fingerprints, and at least one held camera angle per traversal and natural map under review.
 
 For the arsenal, verify primary, alternate and reload against the Game Feel Lab server. Capture resting frames without the HUD, and report blind human recognition separately.
+
+Set `TRIAS_MERIDIAN_REVIEW=1` on the environment fixture to capture the shelf and two HUD-free views. Render the match camera into a temporary target for a clean image and restore its previous target before timing. Record arena load order and background editor activity when comparing runs.

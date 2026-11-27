@@ -293,6 +293,7 @@ namespace Trias.Native
             var ore=MaterialAt("#9b7b62");
             var dark=MaterialAt("#35313a");
             var warmSteel=MaterialAt("#ae9880");
+            BuildMeridianSection();
             var shelf=Group(industry,"Extraction cut and suspended seam",new Vector3(-43,7,88));
             shelf.localRotation=Quaternion.Euler(0,-16,0);
             var ridge=new PlantBatch();

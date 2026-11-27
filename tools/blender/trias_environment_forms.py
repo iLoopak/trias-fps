@@ -110,10 +110,33 @@ def support(style, detail):
              (2.55,ring(1.18,1.12,lean)),(3.095,ring(1.48,1.30))],"Graphite",.03 if detail else 0)
         shell="Refractory" if heavy else "Alloy" if style=="Mechanical" else "Ceramic"
         for x in (-.49,.47):
-            plates("Compression cheeks",profile(x-.29,x+.27,.31,1.51 if style=="Phase" else 2.92,lean),.69,.13,shell,.018 if detail else 0)
+            if heavy:
+                # The lower refractory block seats against a separate inclined load shoe.
+                outline = ([(-.74,.28),(.62,.28),(.64,.76),(.11,1.16),(-.72,1.03)]
+                           if x<0 else [(-.69,1.28),(.12,1.41),(.64,.98),(.64,2.47),(.37,2.87),(-.48,2.87)])
+                plates("Refractory thrust block" if x<0 else "Inclined pressure shoe",
+                       outline,.69,.13,shell if x<0 else "Secondary",.018 if detail else 0)
+            else:
+                plates("Compression cheeks",profile(x-.29,x+.27,.31,1.51 if style=="Phase" else 2.92,lean),
+                       .69,.13,shell,.018 if detail else 0)
             if style=="Phase":
                 plates("Aligned compression shoe",profile(x-.18,x+.18,1.29,1.93,lean),.64,.13,"Alloy",.009 if detail else 0)
                 plates("Suspended ceramic shoulder",profile(x-.37,x+.23,1.77,2.97,lean),.69,.17,shell,.018 if detail else 0)
+        if heavy or style=="Mechanical":
+            # The player approaches the short ends as often as the plated broad face.
+            # A furnace jaw carries load low; a survey bracket reaches up to its datum.
+            sections = (
+                [(.24,.17,.87),(.48,.22,1.03),(1.26,.16,.82),(1.64,.08,.46)]
+                if heavy else
+                [(.36,.08,.35),(.61,.13,.50),(1.92,.15,.66),(2.58,.10,.45)]
+            )
+            for side in (-1,1):
+                courses=[]
+                for y,width,depth in sections:
+                    inset=.69-.085*(y/3)
+                    courses.append((y,ring(width,depth,side*inset,.08*side,cut=.052)))
+                loft("Furnace thrust jaw" if heavy else "Survey datum bracket",
+                     courses,shell,.012 if detail else 0)
     block("Bearing cap",0,3.02,0,1.57,.18,1.38,"Secondary",.10,.009 if detail else 0)
 
 
@@ -332,7 +355,15 @@ def geology(style, detail):
         levels=tuple((a,b,c*.25,dz*.25) for a,b,c,dz in levels)
     if style=="Phase":
         levels=levels[:6]
-    sections=[(a*h,bedding(a*h,b,c,dz)) for a,b,c,dz in levels]
+    sections=[]
+    for layer,scale,shift,depth_shift in levels:
+        points=bedding(layer*h,scale,shift,depth_shift)
+        if style in ("Outcrop","Shelf","Split","Erased"):
+            # A single diagonal shear truncates successive beds on the upstream face.
+            # The foot retains the original footprint while the crown recedes to one side.
+            cut=shift+w*(.52-.55*layer)
+            points=[(x-.88*max(0,x-cut-.23*z),z,rise) for x,z,rise in points]
+        sections.append((layer*h,points))
     # One closed stratigraphic core. Different beds are assigned on the same connected surface.
     loft("Inclined sediment with directional fracture",sections,"DryStone")
     rock=mesh.parts[mesh.group][-1].data
@@ -342,7 +373,7 @@ def geology(style, detail):
         row=(polygon.index-1)//len(plan)
         if polygon.index==len(rock.polygons)-1:
             polygon.material_index=2 if style not in ("Seam","Phase","Cliff") else 0
-        elif row in (2,6) and polygon.index%len(plan) != seed%len(plan):
+        elif row in (2,6) and (polygon.index + seed + row) % len(plan) < 3:
             polygon.material_index=3
         elif row%3==0 and polygon.index%len(plan) not in (2,5):
             polygon.material_index=1

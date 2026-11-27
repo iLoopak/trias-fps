@@ -10,3 +10,5 @@ Pulse shares the match camera and environment lighting. Check that the open cham
 Use the existing Compact Avatar rig, and verify faction silhouettes at combat distance as well as close range. Preserve the authoritative simulation and prediction for a presentation change.
 
 Use [the weapon identity guide](../../../WEAPON-IDENTITY.md) for all five instruments. Preserve their pivots and compare their movement and sound with separate capture passes.
+
+Rift’s three ceramic vanes travel along the mid-angle of each modeled arc. When rotating an arc in the Blender recipe, update its chamber-local travel axis in WeaponHandling and inspect the aperture at rest, during both shots and with motion reduced.

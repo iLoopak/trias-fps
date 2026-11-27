@@ -126,3 +126,17 @@ Relay používá v pozadí dvě odlišně skloněné základny orbitálního int
 - Kapacitor Obléhání má trojici keramických clon. Po odkrytí zmizí prstence štítu a clony se odsunou, aby byl střed vidět. Menší jádro Hordy používá trvale přístupnou variantu. Nízký stav energie tlumí frakční barvu do měděného tónu.
 - Vlajku tvoří přenosný keramický praporec se znakem na obou stranách a samostatná základnová objímka. Při nesení drží menší siluetu za ramenem pilota.
 - Fázový terminál vyznačuje hranici stanice. Vnitřní oblouk ukazuje průběh obsazování a jantar zvýrazní spor i bez čtení nápisu. Při vypnutém pohybu zůstávají tyto informace k dispozici.
+
+### Přechody Kordilery a krátké strany podpěr
+
+Na archivním záběru `output/architectural-dna/player-after/kordilera-crossing.jpg` končí lávka v kamenném bloku a oba břehy lemuje světlá linka. Vstup na lávku má číst hráč už z protějšího břehu. Dvojici deflektorů proto umísťujeme po diagonále mimo šířku mostovky. Mokrá zemina přechází do olivové mělčiny a hlubšího zelenomodrého proudu. Sluneční odlesk používá stejný směr jako ostrovní obloha. Ve studii `output/art-direction-pass/water-study.jpg` lze porovnat původní a novou kresbu na plochém vzorku. První tmavší varianta potlačila i střed proudu, proto má finální vzorek vyšší odraz na hřbetech vlnek.
+
+Zblízka má být poznat, jak zařízení přenáší sílu. Ve Vantě krátkou stranu podpěry zatěžuje nízká žáruvzdorná čelist, v Meridianu ji protíná vysoká měřicí konzola. Na Kordileře stejný princip vztahu dvou povrchů vyjadřuje šikmo odštípnuté čelo odkryté vrstvy. Při přejímce zkontrolovat krátkou stranu z výšky očí, volný průhled přes lávku a odlesk při otočení kamery po i proti slunci. Nové materiály, Rift a umístění opěr dosud čekají na ověření v nativním přehrávači.
+
+### Meridian Basin — rozvázaný řez
+
+Čtyři zavěšené výbrusy pocházejí z jediného průřezu. Souřadnice minerálních vrstev vycházejí ze vzorku před jeho rozdělením. Při pohybu desek tak lze sledovat stejnou žílu přes mezeru. Každá deska má odlomené rohy, tmavý kamenný bok a úzké zkosené rameno. V aréně se stejný leštěný kámen objevuje v osazených panelech krytů. Procedurální zdroj atlasu je v `tools/make-meridian-section.py`.
+
+V první nativní zkoušce se pruhy obří planety překryly s žilami kamene. Ve druhé verzi patří severní horizont geodě, menší planeta leží na opačné straně a jádro výbrusu má krystalické plošky. Porovnej `output/fault-observatory/after/meridian-shelf.jpg` a `output/fault-observatory/final/meridian-shelf.jpg` ze stejné pozice. Obě jsou z nativního klienta s 12 účastníky včetně botů.
+
+Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivních kolizí Meridianu proti výchozímu exportu. Na přístupové kameře byl při 179 snímcích medián času snímku 14,91 ms před změnou a 15,58 ms po ní, p95 16,82 a 19,97 ms. Medián GPU byl 5,39 a 6,75 ms. Obě zkoušky běžely s 12 účastníky, pořadí načítání map a stav živého zápasu se lišily. Snímky i surová data jsou v `output/fault-observatory/repeat-before/` a `output/fault-observatory/final/`.

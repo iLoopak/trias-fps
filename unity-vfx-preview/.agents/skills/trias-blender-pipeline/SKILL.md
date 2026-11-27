@@ -14,3 +14,5 @@ Check the two distinct coordinate steps: modeling uses Unity-style metres via `t
 Use stable IDs and curated seeds. Keep silhouettes, principal axes, contact heights and main material boundaries at LOD1. A LOD that changes where the surface appears to begin should be discarded or corrected. Treat `Manifest.json` as the generator's output. Keep release provenance and original sources with the project. Put raw renders and review captures in ignored `output/` rather than Resources.
 
 For weapon-specific source files, named assembly mounts and exploded renders, follow [the weapon identity guide](../../../WEAPON-IDENTITY.md).
+
+When art-directing cover from archived gameplay, include the short approach face in the comparison. Use the same orthographic quarter view to compare support jaws and rock shear planes at LOD0, then verify the fitted ends in the native player. Blender’s Python module can run the environment generator and CPU Cycles proofs on a headless Linux host with the repository directory layout preserved.

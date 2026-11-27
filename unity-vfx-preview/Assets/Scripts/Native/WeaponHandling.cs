@@ -21,6 +21,10 @@ namespace Trias.Native
         readonly Vector3 chamberAt, actionAt, payloadAt;
         readonly string key;
         readonly Transform[] vanes;
+        // Midpoints of the three authored arcs in chamber-local XY.
+        static readonly Vector3[] RiftVaneRadii = {
+            new(.485f,.875f,0), new(-.966f,-.259f,0), new(.643f,-.766f,0)
+        };
 
         internal static float ServiceBeat(string key) => key switch
         {
@@ -203,9 +207,11 @@ namespace Trias.Native
                     {
                         if (vanes[i] == null) continue;
                         float drift = Mathf.Sin(time*2.35f+i*2.1f)*motion*(1-stroke);
-                        float spread = stroke*(alternate?.036f:.021f);
-                        vanes[i].SetLocalPositionAndRotation(new Vector3(
-                            (i==1?-1:1)*spread,drift*.008f,(i-1)*spread*.65f),Quaternion.Euler(0,0,drift*4));
+                        // The field opens radially around its core on discharge.
+                        // Its resting aperture remains visible with cosmetic motion disabled.
+                        float spread = .019f + stroke*(alternate?.044f:.027f);
+                        vanes[i].SetLocalPositionAndRotation(RiftVaneRadii[i]*spread +
+                            new Vector3(0,drift*.004f,(i-1)*spread*.65f),Quaternion.Euler(0,0,drift*2));
                     }
             }
             if (leftHand == null) return;

@@ -4,6 +4,7 @@ Shader "TRIAS/Island Water"
     {
         _MainTex ("Water grain", 2D) = "gray" {}
         _Effects ("Water movement", Range(0,1)) = 1
+        _SunDirection ("Island sun direction", Vector) = (0,1,0,0)
         _WindGust ("Arena wind", Range(0,1)) = 0
     }
     SubShader
@@ -19,6 +20,7 @@ Shader "TRIAS/Island Water"
             #include "UnityCG.cginc"
             sampler2D _MainTex;
             half _Effects, _WindGust;
+            half4 _SunDirection;
             struct Varyings
             {
                 float4 pos : SV_POSITION;
@@ -44,16 +46,25 @@ Shader "TRIAS/Island Water"
                 float travel = _Time.y * _Effects;
                 half grain = tex2D(_MainTex, float2(across * 2.71 + .21 * sin(downstream * .37), downstream * .31 - travel * .22)).g;
                 half crossGrain = tex2D(_MainTex, float2(across * 5.3 + .24 * sin(downstream * .61), downstream * .61 - travel * .36)).b;
-                half ripple = saturate((grain * .72 + crossGrain * .28 - .43) * 2.5);
                 half bank = min(across, 1 - across);
-                half drop = 1 - abs(normalize(input.normal).y);
-                half depth = smoothstep(.015,.42,bank);
-                half3 tint = lerp(half3(.24,.56,.52), half3(.043,.24,.31), depth);
-                half boatLight = 1 - abs(dot(normalize(input.normal), normalize(_WorldSpaceCameraPos.xyz - input.world)));
-                tint += half3(.18,.27,.25) * boatLight * boatLight * (.38 + ripple * (.19 + _WindGust * .22));
-                half foam = 1 - smoothstep(.020,.087,bank + (crossGrain - .52) * .075);
-                half runnel = smoothstep(.72,.99,ripple) * .105 + drop * smoothstep(.30,.66,grain) * .79;
-                tint = lerp(tint,half3(.78,.89,.84),saturate(foam * (.36 + .42 * ripple) + runnel * _Effects));
+                half3 normal = normalize(input.normal);
+                half drop = 1 - abs(normal.y);
+                // Bank shelves share the terrain's mineral tones. An uneven shoal
+                // lets the deep channel wander inside the authored river ribbon.
+                half shoal = .13 + .049 * sin(downstream * .24 + across * 3.2)
+                                  + .031 * sin(downstream * .71) + .045 * (grain - .5);
+                half depth = smoothstep(.008, shoal + .14, bank);
+                half3 bed = lerp(half3(.21,.245,.16), half3(.28,.29,.195), crossGrain);
+                half3 tint = lerp(bed, half3(.043,.186,.182), depth);
+                half3 sight = normalize(_WorldSpaceCameraPos.xyz - input.world);
+                half grazing = 1 - saturate(abs(dot(normal, sight)));
+                half crest = smoothstep(.54,.84,grain * .63 + crossGrain * .37);
+                tint = lerp(tint, half3(.32,.45,.48), grazing * grazing * (.37 + crest * (.32 + .16 * _WindGust)));
+                half sunPath = smoothstep(.87,.985,dot(reflect(-sight,normal), _SunDirection.xyz));
+                tint += half3(.18,.132,.078) * sunPath * crest * depth;
+                half wash = (1 - smoothstep(.012,.077,bank)) * smoothstep(.55,.85,crossGrain);
+                half cascade = smoothstep(.09,.53,drop) * smoothstep(.32,.71,grain);
+                tint = lerp(tint, half3(.66,.75,.68), saturate(wash * .34 + cascade * .73));
                 half4 result = half4(tint, 1);
                 UNITY_APPLY_FOG(input.fogCoord, result);
                 return result;

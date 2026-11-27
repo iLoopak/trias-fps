@@ -10,3 +10,5 @@ In Relay, foreground cover, central reactor, and the orbital collar belong to se
 Use [the Relay art notes](../../../ART-DIRECTION.md) when adjusting architectural hierarchy. Record geometry changes as a gameplay proposal when they would require shifting collision.
 
 For a fitted Blender cover, compare the authored blocker with the rendered top and corners. Preserve real passage gaps and check the legs of a new frame stay on the original jambs. Keep nature low along paths and place decorative ruins against existing banks. Compare sorted enabled collider transforms and bounds before and after the fit.
+
+At the two outer Kordilera crossings, reserve the full deck width through both ends. For rotated bank hardware, project both horizontal half-extents onto the deck width axis, sample terrain height at the offset foot, and test the actual catalog cover there.

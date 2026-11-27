@@ -61,6 +61,12 @@ namespace Trias.Native
             yield return View("vanta-approach",new Vector3(-10,1.58f,-24.5f),new Vector3(-6,1.5f,-16));
             yield return Open("basin","tdm");
             yield return View("meridian-approach",new Vector3(-8.8f,1.58f,-37.4f),new Vector3(-5.3f,1.4f,-31));
+            if (Environment.GetEnvironmentVariable("TRIAS_MERIDIAN_REVIEW") == "1")
+            {
+                yield return View("meridian-shelf",new Vector3(-5,1.58f,0),new Vector3(20,15,73));
+                yield return View("meridian-unbound",new Vector3(-12,1.58f,-21),new Vector3(20,24,73), clean:true);
+                yield return View("meridian-cut",new Vector3(-8.8f,1.58f,-37.4f),new Vector3(-5.3f,1.4f,-31), clean:true);
+            }
             if (Environment.GetEnvironmentVariable("TRIAS_ENV_FOOTAGE") == "1")
             {
                 yield return Open("relay","tdm");
@@ -124,7 +130,7 @@ namespace Trias.Native
             }
         }
 
-        IEnumerator View(string key,Vector3 position,Vector3 target)
+        IEnumerator View(string key,Vector3 position,Vector3 target,bool clean = false)
         {
             eye=position;
             aim=target;
@@ -132,7 +138,27 @@ namespace Trias.Native
             for(int i=0;i<55;i++) yield return null;
             yield return new WaitForEndOfFrame();
             var shot=new Texture2D(Screen.width,Screen.height,TextureFormat.RGB24,false);
-            shot.ReadPixels(new Rect(0,0,Screen.width,Screen.height),0,0);
+            if (clean)
+            {
+                var camera = client.view;
+                var previous = camera.targetTexture;
+                var active = RenderTexture.active;
+                var targetTexture = RenderTexture.GetTemporary(shot.width,shot.height,24);
+                try
+                {
+                    camera.targetTexture = targetTexture;
+                    camera.Render();
+                    RenderTexture.active = targetTexture;
+                    shot.ReadPixels(new Rect(0,0,shot.width,shot.height),0,0);
+                }
+                finally
+                {
+                    camera.targetTexture = previous;
+                    RenderTexture.active = active;
+                    RenderTexture.ReleaseTemporary(targetTexture);
+                }
+            }
+            else shot.ReadPixels(new Rect(0,0,shot.width,shot.height),0,0);
             File.WriteAllBytes(Path.Combine(folder,key+".jpg"),shot.EncodeToJPG(94));
             string resolution=$"{shot.width}x{shot.height}";
             Destroy(shot);

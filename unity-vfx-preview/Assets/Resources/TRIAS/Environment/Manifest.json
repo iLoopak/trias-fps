@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "blender": "4.5.17 LTS",
+  "blender": "4.5.11 LTS",
   "units": "metres",
   "source": "tools/blender/build-environment.py + trias_environment_forms.py + trias_mesh.py",
   "provenance": "Original TRIAS procedural geometry and studio materials. No external inputs.",
@@ -888,14 +888,14 @@
                   0.69
                 ]
               ],
-              "triangles": 660,
-              "vertices": 344,
+              "triangles": 972,
+              "vertices": 504,
               "slots": [
                 "Graphite",
                 "Alloy",
                 "Secondary"
               ],
-              "authoredShells": 7
+              "authoredShells": 9
             },
             {
               "mount": "SupportMechanical_LOD1",
@@ -911,14 +911,14 @@
                   0.69
                 ]
               ],
-              "triangles": 212,
-              "vertices": 120,
+              "triangles": 332,
+              "vertices": 184,
               "slots": [
                 "Graphite",
                 "Alloy",
                 "Secondary"
               ],
-              "authoredShells": 7
+              "authoredShells": 9
             }
           ]
         },
@@ -996,14 +996,14 @@
                   0.69
                 ]
               ],
-              "triangles": 660,
-              "vertices": 344,
+              "triangles": 900,
+              "vertices": 468,
               "slots": [
                 "Graphite",
                 "Refractory",
                 "Secondary"
               ],
-              "authoredShells": 7
+              "authoredShells": 9
             },
             {
               "mount": "SupportHeavy_LOD1",
@@ -1019,14 +1019,14 @@
                   0.69
                 ]
               ],
-              "triangles": 212,
-              "vertices": 120,
+              "triangles": 308,
+              "vertices": 172,
               "slots": [
                 "Graphite",
                 "Refractory",
                 "Secondary"
               ],
-              "authoredShells": 7
+              "authoredShells": 9
             }
           ]
         },
@@ -2464,7 +2464,7 @@
           ]
         }
       ],
-      "fbxSha256": "3641794ad7a84a94da0f946cfce32a32d43ea7c68ae936d0402190271a8299a6"
+      "fbxSha256": "9097dbcb918c5c81c4d4b45f68c3a3db1ddfd639327592e609d96b39858cd4da"
     },
     "Nature": {
       "assets": [
@@ -2482,7 +2482,7 @@
                   -1.20745
                 ],
                 [
-                  1.97546,
+                  1.80846,
                   2.75772,
                   1.05928
                 ]
@@ -2537,7 +2537,7 @@
                   -1.20809
                 ],
                 [
-                  1.49507,
+                  1.39831,
                   2.22601,
                   1.39078
                 ]
@@ -2568,7 +2568,7 @@
                   -1.32075
                 ],
                 [
-                  1.75281,
+                  1.37611,
                   1.81164,
                   1.18099
                 ]
@@ -2623,7 +2623,7 @@
                   -1.68503
                 ],
                 [
-                  2.4144,
+                  2.41212,
                   3.75265,
                   1.76116
                 ]
@@ -3255,7 +3255,7 @@
                   -1.20745
                 ],
                 [
-                  1.97546,
+                  1.80846,
                   2.78772,
                   1.425
                 ]
@@ -3282,7 +3282,7 @@
                   -1.20745
                 ],
                 [
-                  1.97546,
+                  1.80846,
                   2.78772,
                   1.425
                 ]
@@ -3303,7 +3303,7 @@
           ]
         }
       ],
-      "fbxSha256": "1a51a368721272eac9e367e5c936d4b2fa628d364234b58eb7eda1a8d02c19b9"
+      "fbxSha256": "49af7e724f72957381c0f43e34406cebbbb59549802ad0ccff36ba0c1b2a6397"
     }
   }
 }
