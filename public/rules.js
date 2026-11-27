@@ -8,6 +8,7 @@ export const MAP_SIZE = 34;
 export const BODY_RADIUS = 0.43;
 export const EYE = 1.58;
 export const PILOT_HP = 210;
+export const HEADSHOT_MULTIPLIER = 1.5;
 export const MED_HEAL = 65;
 export const SHIELD_ARMOR = 50;
 const BODY_HEIGHT = 1.78;

@@ -226,11 +226,52 @@ test('Lance penetration is attenuated and stops at armor and arena cover', () =>
     const pilot = room.addPlayer('pilot', 'Pilot', 0, 0, 0, false, 'wraith');
     const first = room.addPlayer('first', 'First', 1, 0, 0);
     const second = room.addPlayer('second', 'Second', 1, 1, 0);
-    Object.assign(pilot, { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+    Object.assign(pilot, { x: 0, y: 0, z: 0, yaw: 0, pitch: -.075 });
     Object.assign(first, { x: 0, y: 0, z: -4, safeUntil: 0, armor: obstacle === 'shield' ? 50 : 0 });
     Object.assign(second, { x: 0, y: 0, z: -8, safeUntil: 0 });
     room.shoot(pilot, 3, true);
     assert(first.hp < PILOT_HP, obstacle);
     assert.equal(second.hp, PILOT_HP - (obstacle === 'none' ? 38 : 0), obstacle);
   }
+});
+
+test('pilot headshots use a narrow stance-aware volume and go through the normal armor calculation', () => {
+  for (const [stance, pitch, x, armor, headshot, amount] of [
+    [false, 0, 0, 0, true, 35],
+    [false, -.1, 0, 0, false, 23],
+    [false, 0, .32, 0, false, 23],
+    [true, -.16, 0, 0, true, 35],
+    [true, 0, 0, 0, false, 0],
+    [false, 0, 0, 10, true, 35],
+  ]) {
+    const room = new Match('HEADSHOT', 'tdm', false, { ...ARENAS.relay, cover: [], launchPads: [] });
+    const pilot = room.addPlayer('pilot', 'Pilot', 0, 0, 0);
+    const rival = room.addPlayer('rival', 'Rival', 1, 0, 0);
+    Object.assign(pilot, { x: 0, y: 0, z: 0, yaw: 0, pitch });
+    Object.assign(rival, { x, y: 0, z: -4, safeUntil: 0, crouch: stance, armor });
+    room.shoot(pilot, 3);
+    const hit = room.events.find(event => event.type === 'shot').hits[0];
+    assert.equal(Boolean(hit?.headshot), headshot);
+    assert.equal(rival.hp, PILOT_HP - amount + armor);
+    if (armor) assert.equal(hit.shieldBreak, true);
+  }
+});
+
+test('Lance retains headshot damage after penetration but cover can occlude the head', () => {
+  const room = new Match('HEADSHOT', 'tdm', false, { ...ARENAS.relay, cover: [], launchPads: [] });
+  const pilot = room.addPlayer('pilot', 'Pilot', 0, 0, 0, false, 'wraith');
+  const first = room.addPlayer('first', 'First', 1, 0, 0);
+  const second = room.addPlayer('second', 'Second', 1, 1, 0);
+  Object.assign(pilot, { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+  Object.assign(first, { x: 0, y: 0, z: -4, safeUntil: 0 });
+  Object.assign(second, { x: 0, y: 0, z: -8, safeUntil: 0 });
+  room.shoot(pilot, 3, true);
+  assert.equal(first.hp, PILOT_HP - 105);
+  assert.equal(second.hp, PILOT_HP - 57);
+  assert(room.events.find(event => event.type === 'shot').hits.every(hit => hit.headshot));
+
+  room.layout.cover = packCover([{ x: 0, z: -3, w: 1, d: .4, h: 2, angle: 0 }]);
+  room.shoot(pilot, 6);
+  assert.equal(first.hp, PILOT_HP - 105);
+  assert.deepEqual(room.events.at(-1).hits, []);
 });

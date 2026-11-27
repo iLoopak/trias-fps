@@ -1,6 +1,6 @@
 import {
   aimVector, ARENAS, ARMORY, CAPACITY, CHARACTERS, DEFAULT_CHARACTER, DEFAULT_WEAPON, distanceSquared, eyeHeight, floorBelow,
-  GRENADE, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RELAY_HORDE, RELAY_SERVICE, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, touchesHazard, turretYaw, wallDistance, WEAPONS,
+  GRENADE, HEADSHOT_MULTIPLIER, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RELAY_HORDE, RELAY_SERVICE, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, touchesHazard, turretYaw, wallDistance, WEAPONS,
 } from './public/rules.js';
 import { botInput } from './bots.js';
 import { normalizeDifficulty } from './bot-profiles.js';
@@ -19,6 +19,8 @@ const EMPTY = { x: 0, z: 0, sprint: false, fire: false, reload: false, jump: fal
 const BOT_CHARACTERS = Object.keys(CHARACTERS);
 const BOT_NAMES = ['Apex', 'Flux', 'Helix', 'Ghost', 'Nova', 'Pulse', 'Drift', 'Forge', 'Rift', 'Echo', 'Shade', 'Volt'];
 const ROUND_PAUSE = 9;
+const HEAD_HALF_WIDTH = 0.20;
+const HEAD_BELOW_EYE = 0.09;
 
 export const fireProfileData = () => ARMORY.map(key => {
   const spec = WEAPONS[key];
@@ -265,8 +267,9 @@ export class Match {
 
   get combatLayout() { return this.horde?.layout ?? this.layout; }
 
-  trace(player, origin, direction, range, width = 0, pierced = null) {
-    let distance = wallDistance(origin, direction, range, this.combatLayout);
+  trace(player, origin, direction, range, width = 0, pierced = null, allowHeadshots = false) {
+    const wall = wallDistance(origin, direction, range, this.combatLayout);
+    let distance = wall;
     let target;
     for (const other of this.players.values()) {
       if (other === pierced || !this.hostile(player, other)) continue;
@@ -292,7 +295,17 @@ export class Match {
       target = core;
     }
     const echo = this.signature.trace(player, origin, direction, distance, width);
-    return echo.target ? echo : { target, distance };
+    if (echo.target) return echo;
+    if (allowHeadshots && target && !target.kind && target.opened === undefined && !target.hordeType) {
+      const base = target.y + eyeHeight(target) - HEAD_BELOW_EYE;
+      if (origin.y + direction.y * distance >= base) {
+        const head = rayBox(origin, direction,
+          { x: target.x - HEAD_HALF_WIDTH, y: base, z: target.z - HEAD_HALF_WIDTH },
+          { x: target.x + HEAD_HALF_WIDTH, y: target.y + hitHeight(target), z: target.z + HEAD_HALF_WIDTH });
+        if (head < wall) return { target, distance, headshot: true };
+      }
+    }
+    return { target, distance };
   }
 
   damage(attacker, target, value, now, origin, weapon, impact, direct = true) {
@@ -371,13 +384,16 @@ export class Match {
     }
     const damage = new Map();
     const intercepts = this.interactions.intercept && !mounted && !vehicle && !trigger?.echo ? new Set() : null;
-    function recordImpact(target, distance, direction, strength = 1) {
+    const allowHeadshots = !mounted && !vehicle;
+    function recordImpact({ target, distance, headshot }, direction, strength = 1) {
       const at = [origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance];
       if (target && (target.isEcho || target.opened !== undefined || target.kind || target.safeUntil <= now)) {
-        const amount = weapon.damage * power * strength;
+        const amount = weapon.damage * power * strength * (headshot ? HEADSHOT_MULTIPLIER : 1);
         const hit = damage.get(target);
-        if (hit) hit.damage += amount;
-        else damage.set(target, { damage: amount, impact: at });
+        if (hit) {
+          hit.damage += amount;
+          hit.headshot ||= headshot;
+        } else damage.set(target, { damage: amount, impact: at, headshot });
       }
       const impact = target?.isEcho ? 'echo' : target?.opened !== undefined
         ? (target.opened & (1 << player.team) ? 'core' : 'shield')
@@ -389,7 +405,8 @@ export class Match {
     for (const [index, offset] of weapon.pattern.entries()) {
       const elevation = weapon.horizontal ? 0 : (index % 2 ? offset * 0.7 : -offset * 0.7);
       const direction = mountedAim?.direction ?? aimVector(shotYaw + offset, shotPitch + elevation);
-      const { target, distance } = this.trace(player, origin, direction, weapon.range);
+      const trace = this.trace(player, origin, direction, weapon.range, 0, null, allowHeadshots);
+      const { target, distance } = trace;
       const cut = intercepts && grenadeOnRay(this,player,origin,direction,distance,now);
       if (cut) {
         intercepts.add(cut.grenade);
@@ -397,11 +414,11 @@ export class Match {
           origin.z + direction.z * cut.distance, 'grenade']);
         continue;
       }
-      recordImpact(target, distance, direction);
+      recordImpact(trace, direction);
       if (weapon.penetration && target && !target.isEcho && !target.kind && target.opened === undefined &&
           target.safeUntil <= now && !target.armor) {
-        const next = this.trace(player, origin, direction, weapon.range, 0, target);
-        if (next.distance > distance) recordImpact(next.target, next.distance, direction, weapon.penetration);
+        const next = this.trace(player, origin, direction, weapon.range, 0, target, allowHeadshots);
+        if (next.distance > distance) recordImpact(next, direction, weapon.penetration);
       }
     }
     for (const [target, value] of damage) {
@@ -411,6 +428,7 @@ export class Match {
       }
       const hit = this.damage(player, target, value.damage, now, origin, key, value.impact);
       if (hit) {
+        if (value.headshot) hit.headshot = true;
         hits.push(hit);
         this.signature.combat(player, hit, now, Boolean(trigger?.echo));
       }
