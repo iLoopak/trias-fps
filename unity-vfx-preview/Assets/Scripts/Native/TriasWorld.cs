@@ -58,7 +58,12 @@ namespace Trias.Native
             if (QualitySettings.activeColorSpace == ColorSpace.Linear)
             {
                 // The trilight values were tuned for gamma lighting; in linear they over-fill shadows.
-                float fill = island ? .78f : .88f;
+                // Meridian's polished-stone covers sit in shade from most approaches; a stronger sky
+                // fill (review l3) keeps the agate and graphite construction readable instead of black.
+                float fill = island ? .78f : spec.id == "basin" ? 1.28f : .88f;
+                // Absolute per arena (never multiplied) so revisiting arenas cannot accumulate; Relay
+                // overrides and restores it in ConfigureRelayLight.
+                RenderSettings.reflectionIntensity = spec.id == "basin" ? 1.6f : 1f;
                 RenderSettings.ambientSkyColor *= fill;
                 RenderSettings.ambientEquatorColor *= fill;
                 RenderSettings.ambientGroundColor *= fill;

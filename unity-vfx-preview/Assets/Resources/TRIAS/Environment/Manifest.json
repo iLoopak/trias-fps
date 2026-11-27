@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "blender": "4.5.11 LTS",
+  "blender": "4.5.17 LTS",
   "units": "metres",
   "source": "tools/blender/build-environment.py + trias_environment_forms.py + trias_mesh.py",
   "provenance": "Original TRIAS procedural geometry and studio materials. No external inputs.",
@@ -2464,7 +2464,7 @@
           ]
         }
       ],
-      "fbxSha256": "9097dbcb918c5c81c4d4b45f68c3a3db1ddfd639327592e609d96b39858cd4da"
+      "fbxSha256": "7961ecd568a7a98dc96606d344f460ce9e836376d1778e429a57a3900b3bc77c"
     },
     "Nature": {
       "assets": [
@@ -2477,14 +2477,38 @@
               "mount": "RockShelf",
               "boundsUnityXYZ": [
                 [
-                  -1.87519,
+                  -1.92182,
                   0.0,
-                  -1.20745
+                  -1.23263
                 ],
                 [
-                  1.80846,
-                  2.75772,
-                  1.05928
+                  1.87662,
+                  2.81796,
+                  1.0798
+                ]
+              ],
+              "triangles": 604,
+              "vertices": 304,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            },
+            {
+              "mount": "RockShelf_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.86292,
+                  0.0,
+                  -1.23358
+                ],
+                [
+                  1.8767,
+                  2.81799,
+                  1.08001
                 ]
               ],
               "triangles": 156,
@@ -2508,18 +2532,18 @@
               "mount": "RockSplit",
               "boundsUnityXYZ": [
                 [
-                  -1.91309,
+                  -1.96121,
                   0.0,
-                  -1.20809
+                  -1.19845
                 ],
                 [
                   1.81225,
-                  2.22601,
-                  1.39078
+                  2.24483,
+                  1.4565
                 ]
               ],
-              "triangles": 244,
-              "vertices": 128,
+              "triangles": 692,
+              "vertices": 352,
               "slots": [
                 "DryStone",
                 "DarkStone",
@@ -2532,14 +2556,14 @@
               "mount": "RockSplit_LOD1",
               "boundsUnityXYZ": [
                 [
-                  -1.91309,
+                  -1.96118,
                   0.0,
-                  -1.20809
+                  -1.1572
                 ],
                 [
-                  1.39831,
-                  2.22601,
-                  1.39078
+                  1.45144,
+                  2.24472,
+                  1.43696
                 ]
               ],
               "triangles": 156,
@@ -2563,14 +2587,38 @@
               "mount": "RockErased",
               "boundsUnityXYZ": [
                 [
-                  -1.53181,
+                  -1.51772,
                   0.0,
-                  -1.32075
+                  -1.34629
                 ],
                 [
-                  1.37611,
-                  1.81164,
-                  1.18099
+                  1.38213,
+                  1.81107,
+                  1.20517
+                ]
+              ],
+              "triangles": 604,
+              "vertices": 304,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            },
+            {
+              "mount": "RockErased_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.47834,
+                  0.0,
+                  -1.34115
+                ],
+                [
+                  1.38217,
+                  1.75381,
+                  1.20491
                 ]
               ],
               "triangles": 156,
@@ -2596,16 +2644,16 @@
                 [
                   -2.835,
                   0.0,
-                  -1.68503
+                  -1.80827
                 ],
                 [
                   2.835,
-                  3.75265,
-                  1.76116
+                  3.66876,
+                  1.86674
                 ]
               ],
-              "triangles": 244,
-              "vertices": 128,
+              "triangles": 692,
+              "vertices": 352,
               "slots": [
                 "DryStone",
                 "DarkStone",
@@ -2618,14 +2666,14 @@
               "mount": "RockOutcrop_LOD1",
               "boundsUnityXYZ": [
                 [
-                  -2.56255,
+                  -2.51059,
                   0.0,
-                  -1.68503
+                  -1.80739
                 ],
                 [
-                  2.41212,
-                  3.75265,
-                  1.76116
+                  2.44893,
+                  3.67034,
+                  1.8635
                 ]
               ],
               "triangles": 156,
@@ -2651,16 +2699,16 @@
                 [
                   -0.55125,
                   0.0,
-                  -0.40729
+                  -0.39657
                 ],
                 [
                   0.60025,
-                  0.42004,
-                  0.37181
+                  0.45488,
+                  0.3624
                 ]
               ],
-              "triangles": 244,
-              "vertices": 128,
+              "triangles": 692,
+              "vertices": 352,
               "slots": [
                 "DryStone",
                 "DarkStone",
@@ -2673,14 +2721,14 @@
               "mount": "RockPebbles_LOD1",
               "boundsUnityXYZ": [
                 [
-                  -0.50529,
+                  -0.51418,
                   0.0,
-                  -0.40729
+                  -0.39653
                 ],
                 [
-                  0.51469,
-                  0.42004,
-                  0.37181
+                  0.5524,
+                  0.45596,
+                  0.36242
                 ]
               ],
               "triangles": 156,
@@ -2704,14 +2752,37 @@
               "mount": "RockCliff",
               "boundsUnityXYZ": [
                 [
-                  -2.78721,
+                  -2.80834,
                   0.0,
-                  -1.2569
+                  -1.35757
                 ],
                 [
-                  2.85046,
-                  4.55609,
-                  1.31607
+                  2.97252,
+                  4.60909,
+                  1.35956
+                ]
+              ],
+              "triangles": 604,
+              "vertices": 304,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            },
+            {
+              "mount": "RockCliff_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -2.80855,
+                  0.0,
+                  -1.35769
+                ],
+                [
+                  2.8768,
+                  4.6108,
+                  1.3357
                 ]
               ],
               "triangles": 156,
@@ -2719,7 +2790,6 @@
               "slots": [
                 "DryStone",
                 "DarkStone",
-                "Moss",
                 "OchreStone"
               ],
               "authoredShells": 1
@@ -2737,20 +2807,19 @@
                 [
                   -1.6275,
                   0.0,
-                  -1.2378
+                  -1.25258
                 ],
                 [
-                  1.6355,
-                  2.43788,
-                  1.32277
+                  1.66609,
+                  2.38617,
+                  1.34103
                 ]
               ],
-              "triangles": 244,
-              "vertices": 128,
+              "triangles": 692,
+              "vertices": 352,
               "slots": [
                 "DryStone",
                 "DarkStone",
-                "Moss",
                 "OchreStone"
               ],
               "authoredShells": 3
@@ -2759,14 +2828,14 @@
               "mount": "RockSeam_LOD1",
               "boundsUnityXYZ": [
                 [
-                  -1.40566,
+                  -1.34088,
                   0.0,
-                  -1.2378
+                  -1.20196
                 ],
                 [
-                  1.59423,
-                  2.43788,
-                  1.32277
+                  1.65223,
+                  2.38609,
+                  1.30409
                 ]
               ],
               "triangles": 156,
@@ -2774,7 +2843,6 @@
               "slots": [
                 "DryStone",
                 "DarkStone",
-                "Moss",
                 "OchreStone"
               ],
               "authoredShells": 1
@@ -2790,14 +2858,37 @@
               "mount": "RockPhase",
               "boundsUnityXYZ": [
                 [
-                  -1.65628,
+                  -1.69671,
                   0.0,
-                  -1.44424
+                  -1.4854
                 ],
                 [
-                  1.61057,
+                  1.58074,
                   2.87478,
-                  1.49137
+                  1.51131
+                ]
+              ],
+              "triangles": 412,
+              "vertices": 212,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "OchreStone"
+              ],
+              "authoredShells": 3
+            },
+            {
+              "mount": "RockPhase_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.7013,
+                  0.0,
+                  -1.48533
+                ],
+                [
+                  1.58074,
+                  2.87478,
+                  1.5113
                 ]
               ],
               "triangles": 156,
@@ -3252,16 +3343,16 @@
                 [
                   -2.0836,
                   0.0,
-                  -1.20745
+                  -1.23263
                 ],
                 [
-                  1.80846,
-                  2.78772,
+                  1.87662,
+                  2.81796,
                   1.425
                 ]
               ],
-              "triangles": 472,
-              "vertices": 252,
+              "triangles": 920,
+              "vertices": 476,
               "slots": [
                 "DryStone",
                 "DarkStone",
@@ -3279,11 +3370,11 @@
                 [
                   -2.0836,
                   0.0,
-                  -1.20745
+                  -1.23358
                 ],
                 [
-                  1.80846,
-                  2.78772,
+                  1.8767,
+                  2.81799,
                   1.425
                 ]
               ],
@@ -3303,7 +3394,7 @@
           ]
         }
       ],
-      "fbxSha256": "49af7e724f72957381c0f43e34406cebbbb59549802ad0ccff36ba0c1b2a6397"
+      "fbxSha256": "6d149ee23c114b7d4feb4bcc897492083ac50b14cb24db6da9f4d0b139a3a3ed"
     }
   }
 }
