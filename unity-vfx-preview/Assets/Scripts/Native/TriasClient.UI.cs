@@ -18,6 +18,9 @@ namespace Trias.Native
         void OnGUI()
         {
             if (catalog == null) return;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (labMode && labHideHud && captured) return;
+#endif
             if (title == null) Styles();
             Matrix4x4 saved = GUI.matrix;
             float scale = Mathf.Min(Screen.width / 1280f, Screen.height / 720f);

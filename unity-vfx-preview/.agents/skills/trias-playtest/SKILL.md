@@ -10,3 +10,5 @@ For Relay, check the normal approach, exposed and shaded lanes, the main reactor
 Record active renderers, enabled colliders and frame-time median/p95 using the same sample and display settings. Report the Editor measurements as such. Test `npm test` from the repo root and confirm native builds separately.
 
 For environment production, open `TRIAS > Open environment kit studio` and enter Play Mode for the assembled kit. Use the fixed eye-level capture and frame-sampling probe in `tools/unity` from scratch projects. Compare native render counters, collider fingerprints, and at least one held camera angle per traversal and natural map under review.
+
+For the arsenal, verify primary, alternate and reload against the Game Feel Lab server. Capture resting frames without the HUD, and report blind human recognition separately.

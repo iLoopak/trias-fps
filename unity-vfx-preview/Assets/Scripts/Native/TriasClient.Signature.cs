@@ -13,13 +13,16 @@ namespace Trias.Native
 
         sealed class EchoArt
         {
-            internal Transform Root;
+            internal Avatar Pilot;
+            internal Transform Root => Pilot.Root;
             internal Material Material;
             internal Vector3 Position;
             internal Color Tint;
             internal int Team;
+            internal float ReleaseUntil;
         }
 
+        const float EchoReleaseDuration = .14f;
         static readonly string[] FlowTiers = { "MOMENTUM", "KINETIC", "SURGE", "OVERDRIVE", "FLOW STATE" };
         static readonly int EchoLife = Shader.PropertyToID("_Life");
         static readonly int EchoIntegrity = Shader.PropertyToID("_Integrity");
@@ -138,28 +141,48 @@ namespace Trias.Native
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderer.receiveShadows = false;
             }
-            var art = new EchoArt { Root = avatar.Root, Material = material, Position = avatar.Position, Tint = tint, Team = team };
+            var art = new EchoArt { Pilot = avatar, Material = material, Position = avatar.Position, Tint = tint, Team = team };
             echoes.Add(echo[1].Int, art);
             return art;
         }
 
-        void RemoveVanishedEchoes()
+        void RemoveVanishedEchoes(float now)
         {
             foreach (int id in vanishedEchoes)
             {
-                if (!echoes.Remove(id, out var art)) continue;
+                if (!echoes.TryGetValue(id, out var art) || art.ReleaseUntil > now) continue;
+                echoes.Remove(id);
                 Destroy(art.Root.gameObject);
                 Destroy(art.Material);
             }
         }
 
-        void ShowEchoes(bool alive)
+        void ShowEchoes(bool alive, float now)
         {
             foreach (var art in echoes.Values)
             {
                 bool visible = alive || SpectatorTeam(art.Team);
+                if (art.ReleaseUntil > 0)
+                {
+                    float remaining = Mathf.Clamp01((art.ReleaseUntil - now) / EchoReleaseDuration);
+                    visible &= remaining > 0;
+                    if (visible)
+                    {
+                        art.Material.SetFloat(EchoLife, .12f * remaining);
+                        art.Material.SetFloat(EchoIntegrity, 0);
+                        art.Pilot.Tick(now);
+                        art.Pilot.PlaceHands();
+                    }
+                }
                 if (art.Root.gameObject.activeSelf != visible) art.Root.gameObject.SetActive(visible);
             }
+        }
+
+        void AnimateEchoShot(int id, string weapon, bool alternate, float now)
+        {
+            if (!echoes.TryGetValue(id, out var art)) return;
+            art.Pilot.Fire(weapon, alternate);
+            art.ReleaseUntil = now + EchoReleaseDuration;
         }
 
         void ResetSignature()

@@ -26,7 +26,7 @@ PIVOTS={}
 def part(key, name):
     art.group=key+"_"+name
     info=SPECS[key]
-    PIVOTS[art.group]={"Receiver":(0,0,0),"Chamber":info[1],"Action":info[2],"Payload":info[3]}[name]
+    PIVOTS[art.group]={"Receiver":(0,0,0),"Action":info[2],"Payload":info[3]}.get(name,info[1])
 
 
 def block(name, x, y, profile, finish, bevel=.003):
@@ -99,23 +99,19 @@ def pulse():
     k="pulse"
     part(k,"Receiver")
     grip(k)
-    block("Compact kinetic receiver",0,0,[(-.261,.062,.060,.019),(-.171,.087,.081,.013),
-        (.118,.077,.073,.017),(.247,.065,.044,.022)],"Graphite",.007)
+    block("Cast compression spine",0,-.013,[(-.255,.061,.048,.009),(-.198,.078,.073,.014),
+        (.082,.070,.062,.007),(.266,.042,.034,.019)],"Graphite",.008)
     for side in (-1,1):
-        block("Ivory removable upper",side*.079,.052,[(-.216,.026,.047,-.019),
-            (-.163,.041,.065,-.010),(.115,.035,.054,.012),(.220,.022,.031,.009)],"Ceramic",.006)
-        rail("Floating insulation rib",side*.091,-.033,-.126,.188,.027,.018,"Secondary")
-        rail("Recessed induction bus",side*.107,.009,.008,.190,.015,.014,"Graphite")
-        rail("Induction slit",side*.117,.013,.022,.169,.007,.006,"PulseGlow")
-        rails_z=-.12 if side<0 else -.10
-        channels(side*.106,-.011,rails_z,rails_z+.093,4)
-        rail("Half-floating current contact",side*.073,.026,.201,.275,.021,.022,"Alloy",.008)
-    rail("Amber upper service latch",0,.094,-.204,-.096,.046,.017,"Amber",.003)
-    rail("Upper rear optic spine",0,.112,-.099,.203,.032,.011,"Graphite",-.002)
-    for x in (-.032,.032):
-        rail("Protected aiming post",x,.128,.120,.198,.011,.036,"Graphite")
-    rail("Rear sight lip",0,.161,.132,.178,.038,.006,"Alloy")
-    rail("Separated front post",0,.107,.253,.284,.012,.015,"PulseGlow")
+        block("Oval ceramic saddle",side*.065,.043,[(-.231,.018,.026,-.018),
+            (-.176,.037,.057,-.002),(-.086,.042,.064,.003),(.065,.032,.052,.007),
+            (.110,.019,.029,.013)],"Ceramic",.009)
+        rail("Exposed compression strut",side*.061,.008,.075,.270,.015,.020,"Alloy",.008)
+        rail("Induction contact",side*.077,.038,.102,.205,.008,.009,"PulseGlow")
+    tube("Visible rear piston",0,.035,.117,.255,.035,.67,"Alloy",20)
+    rail("Cassette lock",0,.100,-.155,-.061,.030,.009,"Amber")
+    for x in (-.033,.033):
+        rail("Sighting horns",x,.100,.108,.174,.008,.023,"Graphite")
+    rail("Front witness",0,.108,.241,.272,.010,.009,"PulseGlow")
 
     part(k,"Chamber")
     tube("Hollow concentric cylinder",0,.011,-.078,.099,.063,.55,"Alloy",24)
@@ -141,26 +137,25 @@ def scatter():
     k="scatter"
     part(k,"Receiver")
     grip(k,-.263)
-    block("Break-action breech frame",0,-.005,[(-.193,.070,.053,.025),(-.138,.102,.069,.004),
-        (.119,.121,.064,.007),(.274,.121,.043,.021)],"Graphite",.008)
-    rail("Wide heat-isolated pump grip",0,-.065,.070,.257,.107,.038,"Fabric")
+    block("Short pressure bridge",0,-.027,[(-.175,.041,.046,.017),(-.10,.085,.057,.003),
+        (.125,.140,.038,0),(.268,.142,.028,.011)],"Graphite",.007)
     for side in (-1,1):
-        for at in (.082,.117,.152,.187,.221):
-            rail("Pump ribs",side*.080,-.073,at,at+.021,.021,.031,"Alloy")
-        block("Recoil yoke ceramic",side*.092,.025,[(-.124,.047,.049,-.003),(-.088,.052,.059,.006),
-            (.178,.055,.049,.004),(.236,.043,.037,0)],"Ceramic",.008)
-        rail("Warning lock on each shoulder",side*.111,.078,-.027,.179,.023,.011,"Amber")
-        tube("Hinge pin socket",side*.083,.028,.206,.28,.036,.40,"Alloy",16)
-        rail("Local pressure check",side*.132,.009,.151,.208,.007,.015,"ScatterGlow")
-    rail("Central firing notch",0,.099,.097,.192,.019,.016,"Graphite")
+        x=side*.124
+        rail("Dropped industrial support grip",side*.087,-.084,.033,.223,.060,.036,"Fabric")
+        tube("Longitudinal hinge bearing",side*.155,-.031,.122,.263,.035,.40,"Alloy",16)
+        rail("Latch between fork and receiver",side*.120,.045,-.012,.227,.023,.023,"Amber",-.019)
+        for z in (.055,.098,.141):
+            rail("Ribbed pressure frame",side*.144,-.056,z,z+.02,.029,.018,"Alloy")
+    rail("Open central spine",0,.047,-.128,.246,.024,.024,"Graphite")
     part(k,"Chamber")
     for side in (-1,1):
-        x=side*.073
-        tube("Twin counterbored tube",x,.016,-.097,.094,.069,.64,"Alloy",24)
-        tube("Black muzzle sleeve",x,.016,.067,.095,.070,.80,"Graphite",24)
-        segment("Ceramic barrel shoulder",(x,.016,-.002),.079,.130,.019,13 if side>0 else 144,199,"Ceramic")
-        segment("Safety index",(x,.016,-.035),.081,.096,.008,39,58,"Amber")
-        segment("Chamber separator",(x,.016,-.102),.058,.012,.017,3,155,"ScatterGlow")
+        x=side*.097
+        tube("Twin counterbored discharge",x,.016,-.153,.094,.084,.67,"Alloy",24)
+        tube("Recessed muzzle sleeve",x,.016,.063,.095,.073,.80,"Graphite",24)
+        segment("Massive pressure shell",(x,.016,-.006),.094,.147,.025,
+                22 if side>0 else 96,236,"Ceramic")
+        segment("Orange ceramic collar",(x,.016,-.093),.093,.029,.014,18,162,"Amber")
+        segment("Separated pressure seal",(x,.016,-.143),.080,.015,.019,13,170,"ScatterGlow")
     part(k,"Action")
     block("Break-action latch and hinge",0,0,[(-.057,.039,.017,0),(-.037,.044,.026,0),
         (.044,.047,.021,.004),(.067,.029,.015,.008)],"Alloy",.005)
@@ -175,26 +170,25 @@ def scatter():
 def lance():
     k="lance"
     part(k,"Receiver")
-    grip(k,-.37)
-    block("Long linear action",0,.019,[(-.331,.055,.045,-.012),(-.264,.080,.065,0),
-        (.192,.074,.061,.022),(.309,.054,.039,.028)],"Graphite",.007)
+    grip(k,-.39)
+    block("Low instrument bed",0,-.014,[(-.364,.039,.037,.019),(-.268,.065,.060,0),
+        (.098,.053,.051,.003),(.223,.030,.023,.012)],"Graphite",.006)
     for side in (-1,1):
-        rail("Long front ceramic rail",side*.071,.039,-.124,.467,.025,.035,"Ceramic",.015)
-        rail("Visible inner guide",side*.055,.034,.238,.544,.015,.014,"Alloy")
-        rail("Lance sensor path",side*.069,.056,.281,.477,.004,.010,"LanceGlow")
-        channels(side*.084,-.014,-.123,.023,5)
-    tube("Open isolation tube",0,.042,.225,.501,.030,.66,"Graphite",20)
-    rail("Adjustable cheekpiece",0,.080,-.325,-.139,.053,.023,"Secondary",.005)
-    rail("Precision sight channel",0,.127,-.099,.185,.052,.022,"Alloy")
-    tube("Long rangefinder body",0,.158,-.093,.164,.036,.63,"Graphite",20)
-    tube("Rangefinder lens",0,.158,.147,.165,.027,.27,"Visor",20)
-    segment("Rear optic pupil",(0,.158,-.095),.030,.009,.006,0,340,"LanceGlow")
+        rail("Needle guide",side*.045,.026,.148,.513,.011,.013,"Alloy",.008)
+        rail("Splayed aft rail",side*.059,-.014,.055,.269,.012,.020,"Alloy",.012)
+        rail("Exposed ceramic isolator",side*.044,.043,.267,.335,.014,.025,"Ceramic",-.01)
+        rail("Floating front electrode",side*.042,.038,.395,.473,.010,.011,"LanceGlow")
+    rail("Rear cheek pad",0,.051,-.381,-.170,.049,.016,"Secondary",.005)
+    rail("Cantilevered sensor mount",0,.060,-.123,.067,.028,.030,"Alloy")
+    tube("Long precision optic",0,.122,-.126,.200,.033,.72,"Graphite",24)
+    tube("Forward optic lens",0,.122,.184,.201,.026,.25,"Visor",20)
+    segment("Rear aperture",(0,.122,-.128),.029,.009,.006,0,320,"LanceGlow")
     part(k,"Chamber")
-    tube("Reentrant muzzle break",0,.019,-.046,.093,.041,.61,"Graphite",20)
+    for z in (-.024,.027,.077):
+        tube("Disconnected focus annulus",0,.006,z,z+.016,.034,.62,"Alloy",18)
     for side in (-1,1):
-        rail("Isolated baffle cheeks",side*.041,.019,-.031,.083,.012,.037,"Ceramic",-.013)
-        for z in (-.025,.024,.064):
-            rail("Baffle vent",side*.043,.022,z,z+.012,.004,.029,"Alloy")
+        rail("Baffle guide",side*.034,.005,-.037,.091,.007,.012,"Graphite")
+        rail("Front witness block",side*.038,.023,.062,.092,.008,.014,"Ceramic")
     part(k,"Action")
     rail("Long bolt carriage",0,.008,-.096,.084,.025,.023,"Alloy",.003)
     rail("Offset lock",-.025,-.009,-.061,.039,.022,.014,"Graphite")
@@ -208,24 +202,23 @@ def arc():
     k="arc"
     part(k,"Receiver")
     grip(k,-.250)
-    block("Compact pulse transformer",0,.009,[(-.199,.076,.057,-.005),(-.171,.095,.067,-.007),
-        (.158,.090,.062,.004),(.213,.064,.044,.015)],"Graphite",.007)
-    for side in (-1,1):
-        z=.018*side
-        rail("Asymmetric upper insulated shell",side*.079,.073,-.147+z,.134+z,.035,.038,"Ceramic",.014)
-        rail("Service slab",side*.094,-.028,-.087+z,.142+z,.027,.030,"Secondary",.008)
-        rail("Copper collector",side*.111,.011,-.084+z,.142+z,.013,.018,"Alloy")
-        channels(side*.124,.020,-.061+z,.131+z,6,"ArcGlow")
-    rail("Arc calibration socket",0,.107,.028,.133,.037,.016,"Amber")
+    block("Vertical transformer chassis",-.028,-.010,[(-.188,.044,.070,-.004),(-.148,.063,.105,.004),
+        (.081,.059,.100,.016),(.163,.051,.055,.025)],"Graphite",.008)
+    for x,y,z in ((-.058,.069,-.138),(-.044,-.038,-.109),(.059,.009,-.071)):
+        tube("Stacked transformer winding",x,y,z,z+.135,.041,.65,"Alloy",16)
+        for off in (.016,.057,.094):
+            segment("Insulated winding crown",(x,y,z+off),.047,.014,.009,30,250,"Secondary")
+    block("Tall canted ceramic back",-.065,.094,[(-.171,.032,.028,-.026),(-.119,.043,.052,.011),
+        (.003,.040,.048,.009),(.079,.022,.028,-.006)],"Ceramic",.006)
+    rail("Outboard bus",.106,-.035,-.106,.198,.018,.019,"Alloy",.011)
+    rail("Isolated lower cell handle",-.061,-.076,.023,.195,.030,.017,"Fabric")
+    channels(.110,-.018,.005,.158,4,"ArcGlow")
     part(k,"Chamber")
-    for side in (-1,1):
-        x=side*.064
-        z=.027*side
-        tube("Cantilever electrode",x,.029,-.075+z,.072+z,.024,.39,"Alloy",18)
-        tube("Stake plug",x,.029,.049+z,.070+z,.028,.43,"ArcGlow",18)
-        segment("Broken ceramic jaw",(x,.029,.006+z),.048,.119,.018,35 if side>0 else 120,222,"Ceramic")
-        for setback in (-.042,.009):
-            segment("Dielectric rings",(x,.029,setback+z),.037,.016,.011,4,340,"Graphite")
+    for x,y,z0,z1 in ((-.061,.084,-.127,.053),(.087,-.020,-.134,.099)):
+        rail("Cantilever discharge prong",x,y,z0,z1,.016,.019,"Alloy",.007)
+        tube("Open electrode collector",x,y,z1-.035,z1+.002,.024,.50,"ArcGlow",14)
+        segment("Porcelain neck isolator",(x,y,z0+.033),.044,.043,.018,10,223,"Ceramic")
+    rail("Lower grounding fork",.054,-.057,-.101,.061,.011,.009,"Graphite")
     part(k,"Action")
     block("Side-loading sled",0,0,[(-.063,.030,.029,0),(-.042,.037,.032,0),
         (.044,.036,.028,.007),(.062,.025,.020,.015)],"Alloy",.005)
@@ -241,23 +234,21 @@ def rift():
     k="rift"
     part(k,"Receiver")
     grip(k,-.291)
-    block("Heavy containment drive",0,0,[(-.262,.070,.057,.006),(-.197,.108,.073,.016),
-        (.188,.112,.084,.025),(.270,.103,.059,.032)],"Graphite",.009)
-    for side in (-1,1):
-        rail("Layered reaction case",side*.099,.066,-.194,.229,.043,.051,"Ceramic",.026)
-        rail("High temperature isolator",side*.117,-.027,-.123,.245,.031,.041,"Secondary")
-        rail("Transverse retainer",side*.132,.010,-.125,.230,.010,.030,"Alloy")
-        channels(side*.139,.023,-.078,.222,5,"Graphite")
-        rail("Concentrated phase thread",side*.143,.028,-.017,.174,.006,.009,"RiftGlow")
-    rail("Interlock block",0,.121,-.134,.179,.059,.025,"Graphite")
-    rail("Armature interlock tab",0,.147,-.093,-.012,.035,.009,"Amber")
+    block("Inclined containment saddle",0,-.011,[(-.256,.055,.047,.005),(-.179,.094,.063,.018),
+        (.060,.080,.051,.010),(.178,.045,.028,-.016)],"Graphite",.008)
+    rail("Ceramic yoke heel",.039,.061,-.217,.058,.067,.041,"Ceramic",.011)
+    for x,y,z,rake in ((-.091,.073,.227,.049),(.102,-.019,.246,-.027),(-.040,-.089,.247,-.032)):
+        rail("Triangulated containment arm",x,y,.039,z,.024,.026,"Graphite",rake)
+        rail("Alloy terminal saddle",x,y+rake,z-.063,z+.021,.028,.019,"Alloy")
     part(k,"Chamber")
-    tube("Rift containment inner bore",0,.012,-.096,.094,.062,.70,"Graphite",24)
-    tube("Inner energy capsule",0,.012,-.042,.064,.042,.14,"RiftGlow",24)
-    for angle in (27,147,267):
-        segment("Outer shutters",(0,.012,-.001),.120,.182,.030,angle,98,"Ceramic")
-        segment("Alloy baffle",(0,.012,.086),.106,.037,.024,angle+7,83,"Alloy")
-        segment("Tracking seam",(0,.012,-.098),.103,.020,.013,angle+12,68,"RiftGlow")
+    for i,(z,radius,angle,sweep) in enumerate(((-.088,.147,17,88),(-.045,.158,154,82),(.032,.119,269,82)),1):
+        part(k,"Vane"+str(i))
+        segment("Suspended ceramic containment vane",(0,.019,z),radius,.079,.033,angle,sweep,"Ceramic")
+        segment("Alloy field return",(0,.019,z-.027),radius-.014,.019,.020,angle+4,sweep-8,"Alloy")
+        segment("Interior phase pickup",(0,.019,z+.029),radius-.025,.009,.009,angle+7,sweep-16,"RiftGlow")
+    part(k,"Chamber")
+    block("Suspended faceted core",0,.019,[(-.111,.012,.015,-.004),(-.061,.053,.054,0),
+        (-.011,.052,.046,.009),(.053,.014,.019,.005)],"RiftGlow",.003)
     part(k,"Action")
     block("Rotating containment gate",0,0,[(-.064,.043,.024,0),(-.031,.054,.038,0),
         (.059,.046,.033,0),(.073,.037,.022,0)],"Alloy",.006)

@@ -23,6 +23,7 @@ namespace Trias.Native
         readonly float[] localMotionAt = new float[5];
         float sceneFade, resultAge;
         int kickShot;
+        bool alternateImpulse;
         bool wasGrounded;
         string roundResult;
         GUIStyle optionTrack, optionThumb;
@@ -59,6 +60,7 @@ namespace Trias.Native
             lastVelocity = inertia = Vector3.zero;
             System.Array.Fill(localMotionAt, -10f);
             kickShot = 0;
+            alternateImpulse = false;
             wasGrounded = false;
         }
 
@@ -120,6 +122,7 @@ namespace Trias.Native
 
         void KickWeapon(string key, bool alt)
         {
+            alternateImpulse = alt;
             var profile = key switch
             {
                 "pulse" when alt => (.092f, 9.5f, 1.65f, .135f),
@@ -236,18 +239,20 @@ namespace Trias.Native
                 : Mathf.MoveTowards(equipMotion, 0, dt * 5f);
             dryPulse = Mathf.MoveTowards(dryPulse, 0, dt * 5);
             movementPulse = Mathf.MoveTowards(movementPulse, 0, dt * 3.1f);
-            float mount = equipMotion * equipMotion;
             float retract = 0;
             if (!driving && Physics.Raycast(view.transform.position, angle * Vector3.forward, out var wall, .94f, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
                 retract = Mathf.Lerp(.39f, 0, Mathf.Clamp01(wall.distance / .94f));
             float idle = Mathf.Sin(now * 1.75f) * .006f * motion;
+            var presentation = WeaponHandling.Presentation(weaponName,now,equipMotion*motion,speed,
+                movementPulse,landingStep,motion);
             grip.localPosition = new Vector3(.365f + (swayX * .0037f - inertia.x * .011f * weaponInertia) * motion + stride * .48f - reload.Reach * .17f,
-                -.305f + reload.Reach * .137f - reload.Dip - landingStep * .35f + stride + idle - mount * .19f,
-                .60f - gunTravel - retract + reload.Reach * .082f);
-            grip.localRotation = Quaternion.Euler(reload.GunRotation + new Vector3(-gunLift + swayY * motion + mount * 26,
-                -4 + swayX * motion, gunTwist + inertia.x * motion * 2 * weaponInertia));
+                -.305f + reload.Reach * .137f - reload.Dip - landingStep * .35f + stride + idle,
+                .60f - gunTravel - retract + reload.Reach * .082f) + presentation.Offset;
+            grip.localRotation = Quaternion.Euler(reload.GunRotation + new Vector3(-gunLift + swayY * motion,
+                -4 + swayX * motion, gunTwist + inertia.x * motion * 2 * weaponInertia) + presentation.Rotation);
             if (weaponName != null && weaponActions.TryGetValue(weaponName, out var weaponAction))
-                weaponAction.Update(reload, gunTravel, flowTier * .25f * momentumPresentation * visualEffects);
+                weaponAction.Update(reload, gunTravel, flowTier * .25f * momentumPresentation * visualEffects,
+                    motion, alternateImpulse, kickShot);
             float fov = baseFov + (driving ? 3 : (Mathf.Clamp01((speed - 6) / 4f) * 3.5f + movementPulse * 2.1f + cameraKick) * motion);
             view.fieldOfView = Mathf.Lerp(view.fieldOfView, fov, 1 - Mathf.Exp(-dt * 6));
         }

@@ -20,6 +20,7 @@ namespace Trias.Native
         readonly Transform chamber, action, payload, leftHand, rightHand, leftSleeve, rightSleeve;
         readonly Vector3 chamberAt, actionAt, payloadAt;
         readonly string key;
+        readonly Transform[] vanes;
 
         internal static float ServiceBeat(string key) => key switch
         {
@@ -32,26 +33,45 @@ namespace Trias.Native
 
         internal static Pose At(string key, float t)
         {
-            float reach = Beat(t, .11f, .29f, .76f, .94f);
-            float open = Beat(t, .16f, .34f, .66f, .86f);
-            float exchange = Beat(t, .31f, .46f, .51f, .70f);
+            float hold = Beat(t, .08f, .29f, .76f, .97f);
+            float open = Beat(t, .15f, .34f, .70f, .91f);
+            float exchange = Beat(t, .32f, .47f, .55f, .74f);
             return key switch
             {
-                "scatter" => new Pose(new Vector3(24, -4, 24) * reach, .078f * reach,
-                    new Vector3(0, -.015f, .036f) * open, new Vector3(0, 0, -72) * open,
-                    new Vector3(-.12f, -.06f, 0) * exchange, reach),
-                "lance" => new Pose(new Vector3(12, -9, 15) * reach, .044f * reach,
-                    new Vector3(0, .026f, -.127f) * open, new Vector3(-14, 0, 0) * open,
-                    new Vector3(-.09f, .05f, -.04f) * exchange, reach),
-                "arc" => new Pose(new Vector3(19, -10, -27) * reach, .065f * reach,
-                    new Vector3(-.088f, .015f, .016f) * open, new Vector3(0, -17, 0) * open,
-                    new Vector3(-.077f, -.075f, .01f) * exchange, reach),
-                "rift" => new Pose(new Vector3(26, 6, 32) * reach, .086f * reach,
-                    new Vector3(-.038f, .05f, -.012f) * open, new Vector3(0, 12, 72) * open,
-                    new Vector3(-.119f, .016f, .025f) * exchange, reach),
-                _ => new Pose(new Vector3(13, -7, -21) * reach, .035f * reach,
-                    new Vector3(0, .01f, -.042f) * open, Vector3.zero,
-                    new Vector3(-.055f, -.176f, -.01f) * exchange, reach),
+                "scatter" => new Pose(new Vector3(15,-4,18)*hold,.064f*hold,
+                    new Vector3(0,.019f,.015f)*open,new Vector3(36,0,-12)*open,
+                    new Vector3(-.14f,.028f,-.062f)*exchange,hold),
+                "lance" => new Pose(new Vector3(7,-12,7)*hold,.025f*hold,
+                    new Vector3(0,.013f,-.159f)*Beat(t,.06f,.32f,.62f,.91f),Vector3.zero,
+                    new Vector3(-.037f,.031f,-.147f)*exchange,hold),
+                "arc" => new Pose(new Vector3(8,-5,-25)*hold,.040f*hold,
+                    new Vector3(-.116f,.006f,0)*open,new Vector3(0,-12,-25)*open,
+                    new Vector3(-.157f,-.022f,.012f)*exchange,hold),
+                "rift" => new Pose(new Vector3(10,9,23)*hold,.044f*hold,
+                    new Vector3(-.053f,.037f,-.022f)*open,new Vector3(-5,12,66)*open,
+                    new Vector3(-.139f,.105f,.006f)*exchange,hold),
+                _ => new Pose(new Vector3(13,-7,-21)*hold,.040f*hold,
+                    new Vector3(0,.012f,-.036f)*Beat(t,.60f,.70f,.75f,.91f),Vector3.zero,
+                    new Vector3(-.055f,-.176f,-.01f)*exchange,hold),
+            };
+        }
+
+        internal static (Vector3 Offset, Vector3 Rotation) Presentation(string key, float now, float equip,
+            float speed, float movement, float landing, float motion)
+        {
+            float amount = Mathf.Clamp01(speed/9);
+            float drop = equip*equip;
+            return key switch
+            {
+                "scatter" => (new Vector3(-.032f,.018f,-.047f)+new Vector3(.052f*drop,-.19f*drop-.022f*amount,-.090f*drop),
+                    new Vector3(28*drop+8*amount,-4*drop,16*drop+5*landing)*motion),
+                "lance" => (new Vector3(-.035f,-.010f,-.056f)+new Vector3(.096f*drop,-.12f*drop,-.24f*drop),
+                    new Vector3(17*drop+4*amount,-17*drop,-9*drop-3*movement)*motion),
+                "arc" => (new Vector3(.011f,.027f,.009f)+new Vector3(-.137f*drop,-.10f*drop,-.076f*drop),
+                    new Vector3(19*drop,-11*drop,32*drop+9*movement)*motion),
+                "rift" => (new Vector3(.018f,-.018f,-.014f)+new Vector3(.034f*drop,-.145f*drop,-.035f*drop),
+                    new Vector3(19*drop+3*amount,18*drop,-28*drop+5*movement+Mathf.Sin(now*2)*.75f)*motion),
+                _ => (new Vector3(0,-.17f*drop,-.068f*drop),new Vector3(23*drop+4*amount,-3*drop,5*drop)*motion)
             };
         }
 
@@ -59,7 +79,12 @@ namespace Trias.Native
         {
             this.key = key;
             chamber = root.Find(PhaseArmory.Chamber);
-            if (chamber != null) chamberAt = chamber.localPosition;
+            if (chamber != null)
+            {
+                chamberAt = chamber.localPosition;
+                if (key == "rift")
+                    vanes = new[] { chamber.Find("Vane1"),chamber.Find("Vane2"),chamber.Find("Vane3") };
+            }
             actionAt = ActionPoint(key);
             payloadAt = ServicePoint(key);
             action = root.Find(BlenderArmory.Action);
@@ -130,7 +155,12 @@ namespace Trias.Native
         }
 
         internal static Vector3 TriggerGrip => new Vector3(.047f, -.094f, -.065f);
-        internal Vector3 SupportGrip(Pose pose) => Vector3.Lerp(new Vector3(-.061f,-.075f,.164f),
+        internal Vector3 SupportGrip(Pose pose) => Vector3.Lerp(key switch
+        {
+            "scatter" => new Vector3(-.117f,-.091f,.161f), "lance" => new Vector3(-.058f,-.039f,.190f),
+            "arc" => new Vector3(-.071f,-.077f,.121f), "rift" => new Vector3(-.063f,-.070f,.103f),
+            _ => new Vector3(-.061f,-.075f,.164f)
+        },
             ServicePoint(key) + pose.PayloadTravel + new Vector3(-.039f,-.028f,0), pose.Reach);
 
         internal static Vector3 ActionPoint(string key) =>
@@ -143,16 +173,40 @@ namespace Trias.Native
             _ => new Vector3(-.034f,-.115f,.080f),
         };
 
-        internal void Update(Pose pose, float kick, float phaseCharge = 0)
+        internal void Update(Pose pose, float kick, float phaseCharge = 0, float motion = 1, bool alternate = false, int impulse = 0)
         {
-            action.localPosition = actionAt + pose.MechanismTravel - Vector3.forward * (kick * .38f);
-            action.localRotation = Quaternion.Euler(pose.MechanismRotation);
+            float sign = (impulse & 1) == 0 ? 1 : -1;
+            float time = Time.unscaledTime;
+            float stroke = Mathf.Clamp01(kick * 9f);
+            Vector3 actionRecoil = key == "arc" ? new Vector3(sign*kick*.34f,0,-kick*.16f) :
+                key == "scatter" ? new Vector3(0,kick*.18f,-kick*.49f) : Vector3.back*kick*.38f;
+            action.localPosition = actionAt + pose.MechanismTravel + actionRecoil;
+            action.localRotation = Quaternion.Euler(pose.MechanismRotation+Vector3.forward*(key=="arc"?sign*stroke*9f:0));
             payload.localPosition = payloadAt + pose.PayloadTravel;
             payload.localRotation = Quaternion.Euler(pose.MechanismRotation * .50f);
             if (chamber != null)
             {
-                chamber.localPosition = chamberAt + new Vector3(0, pose.Reach * .019f, pose.Reach * .069f - Mathf.Clamp(kick, 0, .045f) * .46f + phaseCharge*.019f);
-                chamber.localRotation = Quaternion.Euler(-pose.Reach * 6f,0,pose.MechanismRotation.z*.12f);
+                float open = pose.MechanismTravel.magnitude;
+                var (shift, swivel) = key switch
+                {
+                    "scatter" => (new Vector3(0,-open*.78f,-kick*.25f),new Vector3(open*2100,-stroke*(alternate?1:3),0)),
+                    "lance" => (new Vector3(0,0,-stroke*(alternate?.036f:.018f)+open*.14f),Vector3.zero),
+                    "arc" => (new Vector3(stroke*sign*(alternate?.027f:.013f),0,-kick*.13f),new Vector3(0,0,stroke*sign*8f)),
+                    "rift" => (new Vector3(Mathf.Sin(time*1.6f)*.006f*motion,.014f*Mathf.Sin(time*2.7f)*motion+open*.26f,
+                        stroke*(alternate?.064f:.041f)+open*.44f),new Vector3(-stroke*9f,stroke*7f,
+                        Mathf.Sin(time*1.75f)*6*motion+stroke*18+open*190)),
+                    _ => (new Vector3(0,0,-stroke*(alternate?.036f:.026f)+phaseCharge*.019f),Vector3.zero)
+                };
+                chamber.SetLocalPositionAndRotation(chamberAt+shift,Quaternion.Euler(swivel));
+                if (vanes != null)
+                    for (int i=0;i<vanes.Length;i++)
+                    {
+                        if (vanes[i] == null) continue;
+                        float drift = Mathf.Sin(time*2.35f+i*2.1f)*motion*(1-stroke);
+                        float spread = stroke*(alternate?.036f:.021f);
+                        vanes[i].SetLocalPositionAndRotation(new Vector3(
+                            (i==1?-1:1)*spread,drift*.008f,(i-1)*spread*.65f),Quaternion.Euler(0,0,drift*4));
+                    }
             }
             if (leftHand == null) return;
             Vector3 support = SupportGrip(pose);

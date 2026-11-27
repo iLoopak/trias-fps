@@ -12,3 +12,5 @@ Use the catalog collider as the fitting envelope for gameplay cover. Keep the gr
 Check the two distinct coordinate steps: modeling uses Unity-style metres via `trias_mesh.coordinates`, and FBX uses the established Blender 180° front-axis correction before export. Confirm front, floor pivot, imported slots and triangle counts after reimport. Bind mounts through `BlenderParts` and map named finishes through the existing world material helpers. Retain authoritative colliders and use the Decor layer on visuals.
 
 Use stable IDs and curated seeds. Keep silhouettes, principal axes, contact heights and main material boundaries at LOD1. A LOD that changes where the surface appears to begin should be discarded or corrected. Treat `Manifest.json` as the generator's output. Keep release provenance and original sources with the project. Put raw renders and review captures in ignored `output/` rather than Resources.
+
+For weapon-specific source files, named assembly mounts and exploded renders, follow [the weapon identity guide](../../../WEAPON-IDENTITY.md).

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -171,6 +172,7 @@ namespace Trias.Preview
             factionEntry[0] = EffectPreview.Cue("ION deployment", 590, 990, .28f, 84);
             factionEntry[1] = EffectPreview.Cue("EMBER deployment", 345, 570, .28f, 104);
             factionEntry[2] = EffectPreview.Cue("VIOLET deployment", 510, 355, .28f, 77);
+            BuildArsenalAudio();
             nearMissCue = MatchSound.NearMiss();
             shieldReturnCue = EffectPreview.Cue("Shield online", 430, 890, .19f, 84);
             for (int i = 0; i < traces.Length; i++)
@@ -239,24 +241,54 @@ namespace Trias.Preview
             flash.intensity = pulseLevel * Mathf.Exp(-9f * Mathf.Max(0f, time - flashAt));
         }
 
+        readonly string[] arsenalKeys = { "pulse", "scatter", "lance", "arc", "rift" };
+        readonly Dictionary<string,(AudioClip Primary,AudioClip Alternate,AudioClip[] Handling)> arsenalAudio = new();
+
+        void BuildArsenalAudio()
+        {
+            foreach (string key in arsenalKeys)
+            {
+                var handling = new AudioClip[6];
+                for (int i = 0; i < handling.Length; i++) handling[i] = MatchSound.ArsenalFoley(key,i);
+                arsenalAudio.Add(key,(MatchSound.ArsenalShot(key,false),MatchSound.ArsenalShot(key,true),handling));
+            }
+        }
+
+        AudioClip ArsenalHandling(string key, int cue, AudioClip fallback) =>
+            key != null && arsenalAudio.TryGetValue(key,out var sounds) ? sounds.Handling[cue] : fallback;
+
         public void Shot(Vector3 origin, Vector3 end, bool hit, bool local, Color color, string weapon = "pulse", bool sound = true,
-            string impactKind = null, float intensity = 1, bool mainPellet = true)
+            string impactKind = null, float intensity = 1, bool mainPellet = true, bool alternate = false)
         {
             int index = lineIndex++ % traces.Length;
             var trace = traces[index];
             trace.enabled = true;
             trace.widthMultiplier = traceWidths[index] = weapon switch
             {
-                "lance" => .093f, "scatter" => .044f, "arc" => .038f, "rift" => .125f, _ => .053f
+                "lance" => alternate ? .049f : .024f, "scatter" => alternate ? .082f : .039f,
+                "arc" => alternate ? .054f : .040f, "rift" => .125f, _ => alternate ? .067f : .047f
             };
+            trace.positionCount = weapon == "arc" && intensity > .15f ? 5 : 2;
             trace.SetPosition(0, origin);
-            trace.SetPosition(1, end);
+            if (trace.positionCount == 5)
+            {
+                Vector3 side = Vector3.Cross((end-origin).normalized,Vector3.up) * Mathf.Min(.095f,(end-origin).magnitude*.018f);
+                for (int i=1;i<4;i++) trace.SetPosition(i,Vector3.Lerp(origin,end,i*.25f)+side*((i+index)%2==0?1:-1));
+            }
+            trace.SetPosition(trace.positionCount-1, end);
             trace.startColor = Color.Lerp(Color.white, color, 0.79f);
             trace.endColor = Color.Lerp(color, Color.white, 0.55f);
-            traceLifetimes[index] = weapon == "lance" ? .19f : weapon == "arc" ? .073f : local ? .13f : .093f;
+            traceLifetimes[index] = weapon switch
+            {
+                "lance" => alternate ? .23f : .165f, "scatter" => alternate ? .105f : .062f,
+                "arc" => .068f, _ => local ? .115f : .085f
+            };
             traceTimes[index] = Time.time + traceLifetimes[index];
-            if (sound && local) FireMuzzle(origin, color, weapon, false, intensity);
-            else if (sound) FireWorld(origin, weapon, false, false);
+            if (sound && local) FireMuzzle(origin, color, weapon, alternate, intensity, (end-origin).normalized);
+            else if (sound) FireWorld(origin, weapon, alternate, false);
+            bool surfaceHit = hit && (impactKind is "wall" or "soil" or "water");
+            if (mainPellet && surfaceHit)
+                Play(ArsenalHandling(weapon,5,null),end,.12f,false);
             if (hit && intensity > .01f)
             {
                 bool armor = impactKind == "shield";
@@ -276,12 +308,15 @@ namespace Trias.Preview
                 int shown = Mathf.Min(impactRemaining, Mathf.CeilToInt(count * intensity));
                 impactRemaining -= shown;
                 if (shown > 0) Emit(impact, end + outgoing * .035f, impactColor, shown, landscape ? 1.15f : .7f);
+                if (mainPellet && surfaceHit && intensity > .45f && (weapon == "scatter" || alternate && weapon == "lance"))
+                    Ring(end+outgoing*.035f,impactColor,Quaternion.FromToRotation(Vector3.up,outgoing),
+                        weapon=="scatter"?.16f:.105f,weapon=="scatter"?.36f:.21f);
                 if (armor && mainPellet && intensity > .5f && (local || listener != null && (listener.position - end).sqrMagnitude < 225))
                     Ring(end + outgoing * .075f, impactColor, Quaternion.FromToRotation(Vector3.up, outgoing), .20f, .52f, ceramicFragments);
             }
         }
 
-        public void FireMuzzle(Vector3 origin, Color color, string weapon, bool alternate, float intensity)
+        public void FireMuzzle(Vector3 origin, Color color, string weapon, bool alternate, float intensity, Vector3 direction = default)
         {
             var profile = weapon switch
             {
@@ -300,19 +335,44 @@ namespace Trias.Preview
                 Emit(muzzle, origin, color, Mathf.CeilToInt(profile.Item1 * intensity), profile.Item3);
                 if ((weapon == "rift" || alternate) && intensity > .4f)
                     Emit(impact, origin, Color.Lerp(color, Color.white, .35f), 5, .65f);
+                if (direction.sqrMagnitude > .1f && intensity > .4f)
+                    ArsenalDischarge(origin,direction,color,weapon,alternate);
                 Illuminate(origin, color, profile.Item2 * intensity);
             }
             FireWorld(origin, weapon, alternate, true);
         }
 
+        void ArsenalDischarge(Vector3 origin, Vector3 direction, Color tint, string weapon, bool alternate)
+        {
+            var plane = Quaternion.FromToRotation(Vector3.up,direction);
+            switch (weapon)
+            {
+                case "pulse" when alternate:
+                    for (int i=0;i<3;i++) Ring(origin+direction*(.04f+i*.055f),tint,plane,.10f,.15f-i*.020f);
+                    break;
+                case "scatter":
+                    Ring(origin+direction*.10f,tint,plane,.15f,alternate?.24f:.49f);
+                    break;
+                case "lance":
+                    Ring(origin+direction*.095f,tint,plane,.095f,alternate?.23f:.115f,null,true);
+                    break;
+                case "arc" when alternate:
+                    Ring(origin+direction*.07f,tint,plane,.095f,.28f,ceramicFragments);
+                    break;
+                case "rift":
+                    Ring(origin,tint,plane,alternate?.27f:.19f,alternate?.42f:.29f,ceramicFragments,true);
+                    break;
+            }
+        }
+
         public void FireWorld(Vector3 origin, string weapon, bool alternate, bool local)
         {
-            AudioClip cue = alternate && weapon == "scatter" ? focusedCue : weapon == "rift" ? riftShot
+            AudioClip cue = weapon != null && arsenalAudio.TryGetValue(weapon,out var sound) ? (alternate ? sound.Alternate : sound.Primary)
+                : alternate && weapon == "scatter" ? focusedCue : weapon == "rift" ? riftShot
                 : shots.TryGetValue(weapon, out var sample) ? sample : pulseCue;
             float scale = weapon == "arc" ? .76f : weapon == "scatter" || weapon == "rift" ? 1f : .91f;
             int voiceIndex = firingVoice++ & 3;
             float pitch = new Vector4(.965f, 1.02f, .99f, 1.035f)[voiceIndex];
-            if (alternate) pitch *= weapon == "arc" ? 1.21f : weapon == "lance" ? .79f : .87f;
             if (!local) { Play(cue, origin, .25f * scale, false, pitch, true); return; }
             var voice = firingVoices[voiceIndex];
             voice.Stop();
@@ -341,7 +401,15 @@ namespace Trias.Preview
             {
                 Emit(rift, position, color, Mathf.CeilToInt((grenade ? 28 : alternate ? 62 : 44) * intensity), grenade ? .61f : .91f);
                 Emit(impact, position, Matter, Mathf.CeilToInt(11 * intensity), 1.2f);
-                if (intensity > .30f) Ring(position, color);
+                if (intensity > .30f)
+                {
+                    if (grenade) Ring(position,color);
+                    else
+                    {
+                        Ring(position+Vector3.up*.085f,color,Quaternion.identity,alternate?.36f:.25f,alternate?1.82f:1.13f,ceramicFragments);
+                        Ring(position+Vector3.up*.27f,color,Quaternion.Euler(76,0,26),alternate?.25f:.16f,alternate?1.21f:.73f);
+                    }
+                }
                 if (listener == null || (listener.position - position).sqrMagnitude < 380)
                     Illuminate(position, color, (grenade ? 5.4f : 7.3f) * intensity);
             }
@@ -396,16 +464,16 @@ namespace Trias.Preview
 
         public void Reload(Vector3 position, bool close, string weapon = null)
         {
-            var cue = weapon == "rift" || weapon == "arc" ? (close ? airJump : equipCue) : (close ? equipCue : reloadCue);
+            var cue = ArsenalHandling(weapon,close?2:0,close?equipCue:reloadCue);
             Play(cue, position, close ? .24f : .21f, true);
         }
         public void ReloadSeat(string weapon)
         {
-            var cue = weapon == "rift" || weapon == "arc" ? airJump : weapon == "scatter" ? reloadCue : equipCue;
+            var cue = ArsenalHandling(weapon,1,equipCue);
             Play(cue, Vector3.zero, .16f, true);
         }
-        public void Equip(string weapon) => Play(weapon == "rift" ? airJump : equipCue, Vector3.zero, .22f, true);
-        public void DryFire() => Play(dryClick, Vector3.zero, .27f, true);
+        public void Equip(string weapon) => Play(ArsenalHandling(weapon,3,equipCue), Vector3.zero, .22f, true);
+        public void DryFire(string weapon = null) => Play(ArsenalHandling(weapon,4,dryClick), Vector3.zero, .27f, true);
         public void Footstep(Vector3 position, bool local, bool damp)
             => Footstep(position, local, damp ? 1 : 0);
 
@@ -441,10 +509,13 @@ namespace Trias.Preview
                     Mathf.CeilToInt((spit || stone ? 11 : 6) * intensity), spit ? 1.05f : .73f);
         }
 
-        public void DistantMuzzle(Vector3 at, Color tint, float intensity)
+        public void DistantMuzzle(Vector3 at, Color tint, float intensity, string weapon = null,
+            bool alternate = false, Vector3 direction = default)
         {
-            if (intensity > .08f && listener != null && (listener.position - at).sqrMagnitude < 1250)
-                Emit(muzzle, at, tint, Mathf.CeilToInt(intensity * 4), .45f);
+            if (intensity <= .08f || listener == null || (listener.position-at).sqrMagnitude >= 1250) return;
+            Emit(muzzle,at,tint,Mathf.CeilToInt(intensity*(weapon=="scatter"?7:4)),.45f);
+            if (direction.sqrMagnitude > .5f && intensity > .5f && (listener.position-at).sqrMagnitude < 400)
+                ArsenalDischarge(at,direction,tint,weapon,alternate);
         }
 
         internal void Motion(Vector3 position, Color tint, Native.MotionCue cue, bool local, float intensity, int faction = -1)
@@ -646,6 +717,7 @@ namespace Trias.Preview
 
         void Play(AudioClip cue, Vector3 position, float gain, bool local = false, float pitch = 1, bool report = false)
         {
+            if (cue == null) return;
             if (local || listener == null) { speaker.PlayOneShot(cue, gain); return; }
             float distance = Vector3.Distance(listener.position, position);
             if (distance >= 48) return;
@@ -677,6 +749,12 @@ namespace Trias.Preview
         void OnDestroy()
         {
             foreach (var bed in beds.Values) Destroy(bed);
+            foreach (var sound in arsenalAudio.Values)
+            {
+                Destroy(sound.Primary);
+                Destroy(sound.Alternate);
+                foreach (var clip in sound.Handling) Destroy(clip);
+            }
             if (ceramicFragments != null) Destroy(ceramicFragments);
             foreach (var mesh in factionGlyphs) if (mesh != null) Destroy(mesh);
             foreach (var cue in factionEntry) if (cue != null) Destroy(cue);

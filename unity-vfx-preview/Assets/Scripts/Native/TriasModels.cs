@@ -44,6 +44,8 @@ namespace Trias.Native
         Quaternion hipsPose, spinePose;
         bool pelvisPosed;
         string currentMotion;
+        bool alternateImpulse;
+        int impulse;
         float weaponKick, flinch, stance = 1, yLean, zLean, previousTick;
         float gait, paceShown, reloadPose, reloadSpan, impactPose, turnPose, gaitYaw, frameSpan = .043f;
         WeaponHandling.Pose handlingPose;
@@ -243,7 +245,7 @@ namespace Trias.Native
             Vector3 geometry = handlingPose.GunRotation * .72f;
             weapon.localPosition = new Vector3(.095f, 1.13f - handlingPose.Dip * .75f, .30f - weaponKick * .004f);
             weapon.localRotation = Quaternion.Euler(geometry + new Vector3(-row[25].Float * 43 - weaponKick, 0, 0));
-            if (actions.TryGetValue(Weapon, out var mechanism)) mechanism.Update(handlingPose, weaponKick * .007f);
+            if (actions.TryGetValue(Weapon, out var mechanism)) mechanism.Update(handlingPose, weaponKick * .007f, alternate:alternateImpulse, impulse:impulse);
         }
 
         internal void PlaceHands()
@@ -263,7 +265,12 @@ namespace Trias.Native
         }
 
         internal void Windup(float now, float duration) => infected?.Windup(now, duration);
-        internal void Fire(string key) => weaponKick = key == "rift" || key == "scatter" ? 11 : key == "arc" ? 4 : 7;
+        internal void Fire(string key, bool alternate = false)
+        {
+            alternateImpulse=alternate;
+            impulse++;
+            weaponKick = key switch { "rift" => 11, "scatter" => 12, "arc" => 4, "lance" => 7, _ => 6 };
+        }
         internal void React(bool shieldBreak) => flinch = Mathf.Max(flinch, shieldBreak ? 7 : 3.2f);
 
         internal void BoostPose(MotionCue motion)

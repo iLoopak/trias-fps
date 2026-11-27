@@ -17,7 +17,7 @@ namespace Trias.Native
         }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        bool labJoining, labMode, labBaseline, labDelay;
+        bool labJoining, labMode, labBaseline, labDelay, labHideHud;
         bool labEcho = true, labMomentum = true;
         float inputFeedbackMs, labFrameTime;
 
@@ -29,7 +29,7 @@ namespace Trias.Native
 
         void ResetLab()
         {
-            labJoining = labMode = labBaseline = labDelay = false;
+            labJoining = labMode = labBaseline = labDelay = labHideHud = false;
             labEcho = labMomentum = true;
             inputFeedbackMs = labFrameTime = 0;
         }
@@ -39,6 +39,7 @@ namespace Trias.Native
             if (!labMode) return;
             labFrameTime = Mathf.Lerp(labFrameTime, Time.unscaledDeltaTime, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 6));
             if (!captured) return;
+            if (Input.GetKeyDown(KeyCode.F11)) labHideHud = !labHideHud;
             if (Input.GetKeyDown(KeyCode.F5)) labBaseline = !labBaseline;
             if (Input.GetKeyDown(KeyCode.F6))
             {
@@ -58,7 +59,7 @@ namespace Trias.Native
         void PaintLab(float width)
         {
             bool intercept = state["interactions"]["intercept"].Bool;
-            var panel = new Rect((width - 486) * .5f, 90, 486, intercept ? 135 : 113);
+            var panel = new Rect((width - 486) * .5f, 90, 486, intercept ? 159 : 137);
             CornerPanel(panel, Shield);
             float milliseconds = labFrameTime * 1000;
             float fps = labFrameTime > 0 ? 1 / labFrameTime : 0;
@@ -68,8 +69,10 @@ namespace Trias.Native
             hudText.Draw(new Rect(panel.x + 11, 159, 467, 21), "F5 srovnání · F6 přidat 160 ms · F7 doplnit terče a munici", caption);
             hudText.Draw(new Rect(panel.x + 11, 180, 467, 21),
                 $"F8 Ozvěna {(labEcho ? "zapnuta" : "vypnuta")} · F9 Momentum {(labMomentum ? "zapnuto" : "vypnuto")}", caption);
+            hudText.Draw(new Rect(panel.x+11,202,467,21),
+                "1–5 výzbroj · LMB výstřel · F alternativní režim · R přebít · X Ozvěna · F11 HUD",caption);
             if (intercept)
-                hudText.Draw(new Rect(panel.x + 11, 202, 467, 21), "F10 tréninkový granát · namiř do volného prostoru", caption);
+                hudText.Draw(new Rect(panel.x + 11, 224, 467, 21), "F10 tréninkový granát · namiř do volného prostoru", caption);
         }
 #endif
     }

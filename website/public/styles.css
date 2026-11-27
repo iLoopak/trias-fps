@@ -59,9 +59,8 @@ p{color:var(--muted)}
 .combat-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.12fr);gap:var(--gap);align-items:center}
 .statement{font-size:clamp(25px,3vw,39px);line-height:1.18;letter-spacing:-.035em;font-weight:650;color:var(--ink);margin-bottom:20px;max-width:21ch}
 .combat-main>p:not(.statement){max-width:43ch}
-.arsenal{margin-top:32px;border-top:1px solid var(--line);padding-top:20px}
-.arsenal h3{font-size:17px;color:var(--muted)}
-.weapon-list{list-style:none;margin:13px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px 17px;font-size:15px;font-weight:650}
+.arsenal{margin-top:clamp(32px,5vw,64px);border-top:1px solid var(--line);padding-top:8px}
+.arsenal img{width:100%;height:auto}
 .game-frame{position:relative;min-width:0;border-top:2px solid var(--accent);padding-top:8px}
 .game-picture{background:var(--surface);overflow:hidden}
 .game-picture img{width:100%;height:auto;aspect-ratio:16/9;object-fit:contain}

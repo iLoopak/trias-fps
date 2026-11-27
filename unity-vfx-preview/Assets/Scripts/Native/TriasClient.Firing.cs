@@ -93,7 +93,7 @@ namespace Trias.Native
                 if ((click || alt) && now >= lastDryClick)
                 {
                     lastDryClick = now + .22f;
-                    effects.DryFire();
+                    effects.DryFire(key);
                     dryPulse = .42f;
                 }
                 return;
@@ -125,7 +125,7 @@ namespace Trias.Native
         {
             tension = key == "scatter" || key == "rift" ? 1.45f : key == "lance" ? 1.16f : .77f;
             KickWeapon(key, alt);
-            effects.FireMuzzle(MuzzlePoint(), ShotTint(key, alt), key, alt, visualEffects);
+            effects.FireMuzzle(MuzzlePoint(), ShotTint(key, alt), key, alt, visualEffects, grip.forward);
         }
 
         Color ShotTint(string key, bool alternate = false)

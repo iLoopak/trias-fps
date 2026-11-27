@@ -10,3 +10,5 @@ When finishing a pass, record the affected maps, shader and material assumptions
 Update only skills whose workflows or evidence changed. Keep generated builds, raw logs, and snapshots by the task outputs rather than in a skill directory.
 
 Keep the environment contract and measured acceptance status in [the environment handbook](../../../ENVIRONMENT-KIT.md). Update the generated manifest through Blender. Link to the fixture outputs from the handoff, and record whether a gap comes from the model, runtime evidence, or an arena that remains outside propagation.
+
+Keep [the weapon identity guide](../../../WEAPON-IDENTITY.md) current after changes to an instrument. Record server invariants and identify which recognition checks involved human observers.

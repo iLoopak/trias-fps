@@ -56,7 +56,9 @@ server.on('connection', (socket, request) => {
       Object.assign(socket.player, { x: 0, z: -24, yaw: -Math.PI });
       drill(match, socket.player, targets, now());
       socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: 'FEEL LAB', mode: 'tdm',
-        arena: 'relay', v: NETWORK_VERSION, fireProfiles: fireProfileData(), pace: match.pace, lab: true }));
+        arena: match.layout.id, geometry: match.layout.revision,
+        worldExtent: match.layout.edgeRadius ?? match.layout.length,
+        v: NETWORK_VERSION, fireProfiles: fireProfileData(), pace: match.pace, lab: true }));
       sessions.add(tick);
       return;
     }

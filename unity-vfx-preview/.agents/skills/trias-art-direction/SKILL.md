@@ -11,3 +11,5 @@ Use the Standard ceramic, graphite and alloy families and authored response maps
 Evaluate new looks on Relay, Pulse, and Vektor from gameplay cameras before applying them to other arenas or classes.
 
 For close-range environments, use [the Blender kit](../../../ENVIRONMENT-KIT.md). Relay's phase gap reads through aligned retainers and a continuous pressure hull. In Kordilera, use inclined structural bedding, exposed rock faces and outward branching crowns. Review at eye height with the horizon and HUD cropped when possible. Check thin overlapping plates for coplanar shading before adding further finish detail.
+
+For weapons, check the neutral silhouettes in [the weapon identity guide](../../../WEAPON-IDENTITY.md). Evaluate mass and negative space before tuning finish or accent.

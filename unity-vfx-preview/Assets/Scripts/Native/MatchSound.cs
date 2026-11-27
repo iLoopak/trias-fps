@@ -66,6 +66,60 @@ namespace Trias.Preview
             return Clip(name, samples, 1);
         }
 
+        internal static AudioClip ArsenalShot(string key, bool alternate)
+        {
+            int seed = key switch { "scatter" => 167, "lance" => 307, "arc" => 641, "rift" => 877, _ => 67 };
+            float length = key switch { "scatter" => .30f, "lance" => .23f, "arc" => .141f, "rift" => .42f, _ => .21f };
+            var random = new System.Random(seed);
+            var samples = new float[Mathf.CeilToInt(length * Rate)];
+            float low = 0, middle = 0;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float t = (float)i / Rate;
+                float noise = (float)random.NextDouble() * 2 - 1;
+                low += (noise - low) * .052f;
+                middle += (noise - middle) * .28f;
+                float air = middle - low;
+                float amplitude = key switch
+                {
+                    "scatter" => (.53f * low + .60f * Tone(t, alternate ? 84 : 117, 230)) * Fall(t, 22)
+                        + .31f * air * Fall(t, alternate ? 19 : 54)
+                        + .32f * Tone(t-.071f, 431, 300) * Fall(t-.071f, 44),
+                    "lance" => (.47f * Tone(t, alternate ? 1860 : 2320, 2040) + .36f * air) * Fall(t, 125)
+                        + .32f * Tone(t, 830, alternate ? 2430 : 440) * Fall(t, 19)
+                        + (alternate ? .24f * Tone(t-.029f, 1290, -690) * Fall(t-.029f, 24) : 0),
+                    "arc" => (.38f * air + .26f * Tone(t, 541, -1010))
+                        * (.60f + .4f * Tone(t, alternate ? 94 : 64, 170)) * Fall(t, 26)
+                        + .25f * Tone(t, alternate ? 903 : 310, -711) * Fall(t, 46),
+                    "rift" => .58f * Tone(t, alternate ? 62 : 83, alternate ? 71 : 119) * Fall(t, 10)
+                        + .24f * Tone(t, 151, -120) * Tone(t, 12, 0) * Fall(t, 9)
+                        + .45f * low * Fall(t, alternate ? 8 : 17)
+                        + .28f * Tone(t-.047f, alternate ? 271 : 381, 310) * Fall(t-.047f, 19),
+                    _ => Pulse(t, air) + (alternate ? .62f * Pulse(t-.016f, air) + .46f * Pulse(t-.032f, air) : 0),
+                };
+                samples[i] = Mathf.Clamp(amplitude * Mathf.Min(1, t * 1700) *
+                    Mathf.Clamp01((length-t)*70), -.87f, .87f);
+            }
+            return Clip(key + (alternate ? " alternate" : " primary"), samples, 1);
+
+            static float Pulse(float t, float air) => (.61f * Tone(t, 473, 1320) + .22f * air) * Fall(t, 35)
+                + .19f * Tone(t-.010f, 1210, 1140) * Fall(t-.010f, 81);
+            static float Tone(float t, float hz, float slope) => t < 0 ? 0 : Mathf.Sin(Cycle * (hz*t - slope*t*t));
+            static float Fall(float t, float rate) => t < 0 ? 0 : Mathf.Exp(-rate*t);
+        }
+
+        internal static AudioClip ArsenalFoley(string key, int phase)
+        {
+            var profile = key switch
+            {
+                "scatter" => (119f,.17f,.31f,.90f), "lance" => (614f,.105f,.12f,.62f),
+                "arc" => (354f,.116f,.42f,.48f), "rift" => (87f,.23f,.71f,.21f),
+                _ => (258f,.10f,.12f,.75f)
+            };
+            return Mechanism(key+" handling "+phase,profile.Item2*(phase==0?1.22f:1),
+                profile.Item1*(phase==2?1.34f:phase==4?1.50f:1),profile.Item3,profile.Item4,phase is 1 or 2);
+        }
+
         internal static AudioClip NearMiss()
         {
             const float duration = .105f;

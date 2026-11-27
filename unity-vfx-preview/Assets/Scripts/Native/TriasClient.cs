@@ -535,7 +535,7 @@ namespace Trias.Native
             SyncSignature(snapshot["signature"], now);
             foreach (var evt in deferredEvents) GameEvent(evt, now);
             foreach (var evt in snapshot["events"].Items) GameEvent(evt, now);
-            RemoveVanishedEchoes();
+            RemoveVanishedEchoes(now);
         }
 
         void SwitchWeapon(string key)
@@ -790,12 +790,18 @@ namespace Trias.Native
                     else if (!tagged) effects.FireWorld(source, key, evt["alt"].Bool, local && !echoShot);
                     bool alternate = evt["alt"].Bool;
                     Color tint = ShotTint(key, alternate);
+                    Vector3 discharge = evt["ends"].Count > 0 ? (At(evt["ends"][0])-source).normalized : Vector3.zero;
                     if (!local && !echoShot && pilots.TryGetValue(evt["id"].Text, out var firingPilot))
                     {
-                        firingPilot.Fire(key);
-                        effects.DistantMuzzle(source + firingPilot.Root.forward * .53f, tint, visualEffects);
+                        firingPilot.Fire(key,alternate);
+                        effects.DistantMuzzle(source + firingPilot.Root.forward * .53f, tint, visualEffects,
+                            key,alternate,discharge.sqrMagnitude>.5f?discharge:firingPilot.Root.forward);
                     }
-                    if (echoShot) effects.DistantMuzzle(source, tint, visualEffects);
+                    if (echoShot)
+                    {
+                        AnimateEchoShot(evt["echo"].Int, key, alternate, now);
+                        effects.DistantMuzzle(source,tint,visualEffects,key,alternate,discharge);
+                    }
                     if (!local) PlayNearMiss(evt, source, now);
                     for (int i = 0; i < evt["ends"].Count; i++)
                     {
@@ -804,7 +810,7 @@ namespace Trias.Native
                         string kind = end[3].Text;
                         if (kind == "wall" && world.Spec.id == "island" && at.y <= world.Height(at.x, at.z) + .11f)
                             kind = Motor.Shallow(at, world.Spec) ? "water" : "soil";
-                        effects.Shot(source, at, kind != null, local, kind == "grenade" ? Amber : tint, key, false, kind, visualEffects, i == 0);
+                        effects.Shot(source, at, kind != null, local, kind == "grenade" ? Amber : tint, key, false, kind, visualEffects, i == 0, alternate);
                         if (kind is "water" or "wall") ReactToSurface(at, now, false);
                         if (alternate && key == "lance") source = at;
                     }
@@ -963,7 +969,7 @@ namespace Trias.Native
                 fallen.RemoveAt(index);
             }
             bool replay = !alive && now < replayUntil;
-            ShowEchoes(alive);
+            ShowEchoes(alive, now);
             UpdateVitals(now, dt);
             foreach (var actor in pilots.Values)
             {

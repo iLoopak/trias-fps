@@ -195,6 +195,13 @@ namespace Trias.Native
 
             Add("Receiver","Blender receiver",Vector3.zero);
             Add("Chamber",PhaseArmory.Chamber,new Vector3(0,.026f,PhaseArmory.Muzzle(key) - (key == "pulse" ? .098f : .096f)));
+            if (key == "rift")
+                for (int i=1;i<=3;i++)
+                {
+                    string vane="Vane"+i;
+                    if (!parts.Has(part+vane)) continue;
+                    parts.Bind(part+vane,TriasWorld.Group(root.Find(PhaseArmory.Chamber),vane),finish,false);
+                }
             Add("Action",Action,WeaponHandling.ActionPoint(key));
             Add("Payload",Payload,WeaponHandling.ServicePoint(key));
             return true;
