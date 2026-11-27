@@ -10,7 +10,7 @@ namespace Trias.Native
         [SerializeField, Range(0, 2)] float weaponInertia = 1;
         [SerializeField, Range(0, 2)] float strideAmplitude = 1;
 
-        float baseFov, cameraMotion, masterVolume, ambienceVolume, visualEffects, radioVolume;
+        float baseFov, cameraMotion, masterVolume, ambienceVolume, musicVolume, visualEffects, radioVolume;
         float gunTravel, gunTravelVelocity, gunLift, gunLiftVelocity, gunTwist, gunTwistVelocity;
         float cameraKick, cameraKickVelocity, landingStep, landingVelocity, airSpeed;
         float previousPitch, previousYaw, swayX, swayY;
@@ -33,6 +33,8 @@ namespace Trias.Native
             cameraMotion = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.motion", .82f));
             masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.volume", .85f));
             radioVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.radio", .74f));
+            musicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.music", .65f));
+            effects.MusicMix(musicVolume);
             ambienceVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.ambience", .72f));
             visualEffects = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.visualEffects", 1));
             momentumPresentation = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.momentum", momentumPresentation));
@@ -295,14 +297,16 @@ namespace Trias.Native
         void DrawFeelOptions(Rect box)
         {
             Option(box, "Zorné pole", "trias.fov", ref baseFov, 60, 95, false);
-            box.y += 34; Option(box, "Citlivost myši", "trias.sensitivity", ref sensitivity, .5f, 5, false, 1);
-            box.y += 34; Option(box, "Pohyb kamery", "trias.motion", ref cameraMotion, 0, 1, true);
-            box.y += 34; Option(box, "Hlasitost", "trias.volume", ref masterVolume, 0, 1, true);
-            box.y += 34; Option(box, "Atmosféra", "trias.ambience", ref ambienceVolume, 0, 1, true);
-            box.y += 34; Option(box, "Světelné efekty", "trias.visualEffects", ref visualEffects, 0, 1, true);
-            box.y += 34; Option(box, "Momentum HUD", "trias.momentum", ref momentumPresentation, 0, 1, true);
-            box.y += 34; Option(box, "Týmové rádio", "trias.radio", ref radioVolume, 0, 1, true);
+            box.y += 30; Option(box, "Citlivost myši", "trias.sensitivity", ref sensitivity, .5f, 5, false, 1);
+            box.y += 30; Option(box, "Pohyb kamery", "trias.motion", ref cameraMotion, 0, 1, true);
+            box.y += 30; Option(box, "Hlasitost", "trias.volume", ref masterVolume, 0, 1, true);
+            box.y += 30; Option(box, "Atmosféra", "trias.ambience", ref ambienceVolume, 0, 1, true);
+            box.y += 30; Option(box, "Hudba v menu", "trias.music", ref musicVolume, 0, 1, true);
+            box.y += 30; Option(box, "Světelné efekty", "trias.visualEffects", ref visualEffects, 0, 1, true);
+            box.y += 30; Option(box, "Momentum HUD", "trias.momentum", ref momentumPresentation, 0, 1, true);
+            box.y += 30; Option(box, "Týmové rádio", "trias.radio", ref radioVolume, 0, 1, true);
             visor.Intensity = visualEffects;
+            effects.MusicMix(musicVolume);
             AudioListener.volume = masterVolume;
             effects.AmbienceMix(ambienceVolume, false);
         }

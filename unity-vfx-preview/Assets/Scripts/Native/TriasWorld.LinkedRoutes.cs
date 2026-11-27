@@ -6,8 +6,6 @@ namespace Trias.Native
     {
         Material routeTread, routeFrame, routeTrim, routeLamp;
         BlenderParts linkedParts;
-        Material plasmaSurface, plasmaFlow;
-        Transform[] plasmaBands;
 
         void ConfigureLinkedRoutes()
         {
@@ -202,19 +200,33 @@ namespace Trias.Native
             }
         }
 
-        void AnimatePlasma(float time)
+        void BuildMoltenSheet(HazardSpec hazard)
         {
-            if (plasmaBands == null) return;
-            float length = Spec.hazard.d;
-            for (int i = 0; i < plasmaBands.Length; i++)
+            var shader=Resources.Load<Shader>("TRIAS/MoltenFlow");
+            if (shader==null || !shader.isSupported)
             {
-                float fraction = Mathf.Repeat(time*.18f + i/(float)plasmaBands.Length,1);
-                var strip = plasmaBands[i];
-                strip.localPosition = new Vector3(Mathf.Sin(i*2.37f+time*1.95f)*.7f,.045f,(fraction-.5f)*(length-.85f));
-                float fade = Mathf.Clamp01(Mathf.Min(fraction,1-fraction)*16);
-                strip.localScale = new Vector3(.74f*fade,.022f,(.26f+(i%3)*.10f)*fade);
+                Part(Root,MapSurface("#bc5e36","refractory",.11f,.32f),hazard.Position+Vector3.up*.026f,
+                    new Vector3(hazard.w,.035f,hazard.d));
+                return;
             }
-            plasmaSurface.SetColor("_EmissionColor",Catalog.Tint("#e94e13")*(1.32f+Mathf.Sin(time*2.6f)*.19f));
+            moltenSurface=new Material(shader);
+            Paint.Add(moltenSurface);
+            const int columns=6, rows=42;
+            var vertices=new System.Collections.Generic.List<Vector3>((columns+1)*(rows+1));
+            var uv=new System.Collections.Generic.List<Vector2>(vertices.Capacity);
+            var indices=new System.Collections.Generic.List<int>(columns*rows*6);
+            for (int z=0;z<=rows;z++)
+            for (int x=0;x<=columns;x++)
+            {
+                var point=new Vector2(x/(float)columns,z/(float)rows);
+                uv.Add(point);
+                vertices.Add(hazard.Position+new Vector3((point.x-.5f)*hazard.w,.049f,(point.y-.5f)*hazard.d));
+                if (x==columns || z==rows) continue;
+                int a=z*(columns+1)+x, next=a+columns+1;
+                indices.Add(a); indices.Add(next); indices.Add(a+1);
+                indices.Add(a+1); indices.Add(next); indices.Add(next+1);
+            }
+            MeshAt("Directional molten spillway",vertices,indices,uv,moltenSurface);
         }
 
         void BuildFoundryChannel()
@@ -225,13 +237,7 @@ namespace Trias.Native
             {
                 var hazard = Spec.hazard;
                 var plasma = Group(channel,"Plasma spillway",hazard.Position);
-                plasmaSurface = MapSurface("#b73a13","refractory",.11f,.58f);
-                plasmaSurface.EnableKeyword("_EMISSION");
-                plasmaFlow = MaterialAt("#ffb03c",true);
-                Part(plasma,plasmaSurface,new Vector3(0,.026f,0),new Vector3(hazard.w,.04f,hazard.d));
-                plasmaBands = new Transform[18];
-                for (int i = 0; i < plasmaBands.Length; i++)
-                    plasmaBands[i] = Part(plasma,plasmaFlow,Vector3.zero,new Vector3(.75f,.022f,.26f));
+                BuildMoltenSheet(hazard);
                 for (int side = -1; side <= 1; side += 2)
                 {
                     Part(plasma,routeTrim,new Vector3(side*(hazard.w*.5f+.09f),.018f,0),new Vector3(.17f,.035f,hazard.d));

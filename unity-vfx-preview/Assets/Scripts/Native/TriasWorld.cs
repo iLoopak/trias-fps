@@ -23,7 +23,6 @@ namespace Trias.Native
         internal const int Decor = 8;
         internal const int TerrainMask = ~(1 << Decor);
         readonly List<Mesh> meshes = new List<Mesh>();
-        readonly List<Transform> spinning = new List<Transform>();
         readonly Material water;
         readonly bool island, ribbonShader;
         float waterEffects = -1, waterWind = -1;
@@ -132,6 +131,7 @@ namespace Trias.Native
                 BuildOrbitalTraffic();
             }
 
+            BuildMegastructure();
             BuildWayfinding();
             BuildBoundaryVapor();
             foreach (var box in Spec.cover)
@@ -182,46 +182,28 @@ namespace Trias.Native
 
             Pickups = new Transform[spec.pickups.Length];
             pickupMotion = new Transform[spec.pickups.Length];
+            pickupBeacons = new Transform[spec.pickups.Length];
             for (int i = 0; i < Pickups.Length; i++)
-            {
-                var item = spec.pickups[i];
-                Part(Root, island ? White : Dark, item.Position + Vector3.up * 0.045f, new Vector3(0.96f, 0.048f, 0.96f), PrimitiveType.Cylinder);
-                var availability = Group(Root, item.type, item.Position);
-                var mark = Group(availability, "Pickup marker", Vector3.up * .64f);
-                var choice = Catalog.Find(catalog.weapons, item.type) ?? Catalog.Find(catalog.powerups, item.type);
-                var tint = MaterialAt(choice?.color ?? "#f6faab", true);
-                if (Catalog.Find(catalog.weapons, item.type) != null) TriasModels.Gun(this, mark, item.type, tint);
-                else
-                {
-                    Part(mark, tint, Vector3.zero, new Vector3(0.40f, 0.13f, 0.12f));
-                    Part(mark, tint, Vector3.zero, new Vector3(0.13f, 0.40f, 0.12f));
-                }
-                Ring(availability, Vector3.up * .084f, .46f, tint, .030f, 24);
-                Pickups[i] = availability;
-                pickupMotion[i] = mark;
-                spinning.Add(mark);
-            }
+                BuildPickup(spec.pickups[i],catalog,i);
 
             Site[] control = mode == "siege" && spec.siege != null ? spec.siege.nodes : mode == "dom" ? spec.points : Array.Empty<Site>();
             Zones = new Transform[control.Length];
+            controlHardware = new ControlHardware[control.Length];
+            disputeSignal = MaterialAt("#efa960",true);
+            dormantSignal = MaterialAt("#597681",true);
             for (int i = 0; i < control.Length; i++)
-            {
-                var site = control[i];
-                Zones[i] = Ring(Root, site.Position + Vector3.up * 0.082f, site.radius > 0 ? site.radius : 3.05f, TeamNeutral, 0.105f).transform;
-                Part(Zones[i], Steel, Vector3.up * 0.13f, new Vector3(0.35f, 0.18f, 0.35f), PrimitiveType.Cylinder);
-            }
+                Zones[i] = BuildControl(control[i],i);
+
             CoreShield = mode == "siege" ? new Transform[3] : Array.Empty<Transform>();
             Cores = new Transform[CoreShield.Length];
+            coreHardware = new CoreHardware[CoreShield.Length];
             Links = mode == "siege" ? new LineRenderer[spec.siege.links.Length] : Array.Empty<LineRenderer>();
             for (int i = 0; i < CoreShield.Length; i++)
             {
-                Vector3 at = spec.siege.cores[i].Position;
-                var orb = Cores[i] = Group(Root, "Reactor core", at);
-                Part(orb, Team[i], Vector3.zero, new Vector3(1.46f, 2.55f, 1.46f), PrimitiveType.Sphere);
-                Part(orb, TeamLight[i], Vector3.zero, new Vector3(0.33f, 2.60f, 0.33f), PrimitiveType.Sphere);
-                CoreShield[i] = Ring(Root, at, 1.42f, TeamLight[i], 0.10f).transform;
-                var rim = Ring(orb, Vector3.zero, 0.89f, TeamNeutral);
-                rim.transform.localRotation = Quaternion.Euler(38, 0, 21);
+                var site = spec.siege.cores[i];
+                var art = coreHardware[i] = BuildCore(site.Position,i,site.radius,site.height,false);
+                Cores[i] = art.Root;
+                CoreShield[i] = art.Halo;
             }
             for (int i = 0; i < Links.Length; i++)
             {
@@ -231,24 +213,15 @@ namespace Trias.Native
             }
             if (mode == "horde")
             {
-                Vector3 at = spec.bases[0].Position;
-                Part(Root, Dark, at + Vector3.up * .20f, new Vector3(2.70f, .20f, 2.7f), PrimitiveType.Cylinder);
-                DefendedCore = Group(Root, "Defended core", at + Vector3.up * .78f);
-                Part(DefendedCore, Team[0], Vector3.zero, new Vector3(1.15f, 1.51f, 1.15f), PrimitiveType.Sphere);
-                Part(DefendedCore, TeamLight[0], Vector3.zero, new Vector3(.41f, 1.56f, .41f), PrimitiveType.Sphere);
-                var shell = Group(DefendedCore, "Core field");
-                Ring(shell, Vector3.zero, 1.24f, TeamLight[0], .08f).transform.localRotation = Quaternion.Euler(24, 0, 11);
-                Ring(shell, Vector3.zero, 1.30f, TeamNeutral, .05f).transform.localRotation = Quaternion.Euler(-24, 0, -11);
-                spinning.Add(shell);
+                var at = spec.bases[0].Position + Vector3.up*.78f;
+                defenseHardware = BuildCore(at,0,.61f,.68f,true);
+                DefendedCore = defenseHardware.Root;
             }
 
             Flags = mode == "ctf" ? new Transform[3] : Array.Empty<Transform>();
+            flagHardware = new FlagHardware[Flags.Length];
             for (int i = 0; i < Flags.Length; i++)
-            {
-                Flags[i] = Group(Root, "CTF · " + catalog.teams[i].name, spec.bases[i].Position);
-                Part(Flags[i], Steel, Vector3.up * 0.86f, new Vector3(0.065f, 1.72f, 0.065f));
-                Part(Flags[i], TeamLight[i], new Vector3(0.42f, 1.38f, 0), new Vector3(0.82f, 0.48f, 0.043f));
-            }
+                Flags[i] = BuildFlag(spec.bases[i].Position,i);
 
             Turrets = new Transform[spec.turrets.Length];
             for (int i = 0; i < Turrets.Length; i++)
@@ -310,6 +283,7 @@ namespace Trias.Native
                 for (int i = 0; i < 20; i++)
                 {
                     float a = i * 0.31f;
+                    if (a > 1.52f && a < 2.56f) continue;
                     Part(Root, horizon, new Vector3(Mathf.Cos(a) * 81, -9, Mathf.Sin(a) * 81),
                         new Vector3(24, 22 + R(18), 24)).rotation = Quaternion.Euler(0, i * 23, i * 11);
                     if (i % 3 != 1) continue;
@@ -327,8 +301,6 @@ namespace Trias.Native
             {
                 if (foundry)
                 {
-                    BuildCrucible();
-                    BuildFoundryStacks();
                     BuildFoundryChannel();
                 }
                 else
@@ -556,27 +528,24 @@ namespace Trias.Native
             target.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = target.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = paint;
-            if (paint == water) renderer.shadowCastingMode = ShadowCastingMode.Off;
+            if (paint == water || paint == moltenSurface)
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
             if (solid) target.AddComponent<MeshCollider>().sharedMesh = mesh;
             else target.layer = Decor;
             meshes.Add(mesh);
         }
 
-        internal void Animate(float time, float effects = 1, float arenaPulse = 0)
+        internal void Animate(float time, float effects, float arenaPulse, Vector3 eye,
+            float motion, float atmosphere, float arenaClock, int seed)
         {
             AnimateBoundaryVapor(effects);
-            AnimateLandmark(time, arenaPulse);
-            AnimateOrbitalTraffic(time, arenaPulse);
-            AnimateStationDistrict(time);
-            AnimatePlasma(time);
-            for (int i = 0; i < spinning.Count; i++)
-            {
-                var item = spinning[i];
-                item.rotation = Quaternion.Euler(0, time * 29 + i * 22, item.name == "Ruptured reactor" ? time * 9 : 0);
-            }
-            for (int i = 0; i < pickupMotion.Length; i++)
-                if (Pickups[i].gameObject.activeSelf)
-                    pickupMotion[i].localPosition = Vector3.up * (.61f + Mathf.Sin(time * 2.5f + i) * .11f);
+            float backgroundTime=plantStarted+(time-plantStarted)*motion;
+            AnimateLandmark(backgroundTime, arenaPulse*motion);
+            AnimateOrbitalTraffic(backgroundTime, arenaPulse*motion);
+            AnimateStationDistrict(backgroundTime);
+            AnimateMegastructure(time,arenaClock,seed,eye,motion,effects,atmosphere);
+            AnimatePickups(time,eye,motion,effects);
+            AnimateObjectives(time,motion);
             if (island)
             {
                 if (ribbonShader && !Mathf.Approximately(waterEffects, effects))
@@ -670,6 +639,7 @@ namespace Trias.Native
                 Root.gameObject.SetActive(false);
                 Object.Destroy(Root.gameObject);
             }
+            if (plantAudio != null && plantAudio.clip != null) Object.Destroy(plantAudio.clip);
             foreach (var material in Paint) Object.Destroy(material);
             foreach (var mesh in meshes) Object.Destroy(mesh);
         }

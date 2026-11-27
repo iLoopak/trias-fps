@@ -110,3 +110,19 @@ Osvětlení nasměruje teplý klíč na keramiku, zatímco odraz oblohy a měkk�
 Soutěžní Relay tvoří tři výškové úrovně kolem nosné páteře reaktoru. Servisní paluba v 0 m obepíná otevřenou šachtu. Galerie v 3,3 m vede kolem otvoru a drží tři stanice pro Dominanci. Ve výšce 6,6 m se čtyři lávky sbíhají na ochozu u reaktoru. Ze startu je možné projít mezi všemi úrovněmi po schodech bez skoku. Čtyři boční vrhače nabízejí rychlejší nástup na lávky. Zbraně na galerii a Rift s Overcharge na lávkách dávají důvod postupovat nahoru.
 
 Pod palubami navazují příhrady na stěny šachty a nosnou páteř. Průchozí povrchy a zábrany se exportují ze stejných dat, z nichž vychází serverový pohyb, střelba a trasy botů. Delší pád končí standardním respawnem. Zisk bodu v Dominanci je vázán také na výšku stanice. Horda a výcvik používají servisní variantu Relay s původními staveništi a cvičnou drahou.
+
+## Living Megastructures
+
+Vanta odvozuje půdorys od výroby fázové keramiky. Chladicí kanál míří přes licí mosty na přijímací závod. Nad ním drží dva stávající výměníky patu výhně. Samostatné prstence tváří polotovar a přepravní závěs ho po tepelném cyklu přesune k přijímači. Ve spodním kanálu se mění odstíny proudícího materiálu od tmavé krusty po světlé proudnice. Poloha kanálu a jeho poškození vycházejí ze stávající autoritativní mapy.
+
+Relay používá v pozadí dvě odlišně skloněné základny orbitálního interferometru. Meridian odkrývá jednu souvislou zlomovou rovinu, z níž se při těžbě oddělují vrstvy se stejnou geologickou kresbou. Na Kordileře bývalé zařízení pro práci s počasím vystupuje až za hřebenem a udržuje u sebe několik zavěšených vodních čoček.
+
+- Sestavy se sdružují do jedné sítě na materiál a nevytvářejí kolize. Vzdálené kulisy nevrhají stíny. Perioda jednotlivých provozů je 78, 107, 94 nebo 121 sekund. Kde server poskytuje čas a seed režie, pracuje klient s nimi. Jinak používá svůj čas od načtení arény. Posuvníky pohybu, světelných efektů a atmosféry omezují příslušné složky.
+- Pedestaly a značky dostupnosti jsou prostorové a respektují zákryt. Na podstavci jsou buď stávající zbraně se zvětšenou siluetou, schránka s křížem, tříplátový štít nebo zavěšené jádro Overcharge. Jejich dostupnost řídí stejný stav zápasu.
+- Zvuk výhně je autorská procedurální smyčka. Dva krátké zvuky sebrání a hudbu hangáru dodal ElevenLabs. Smyčka hangáru má lokální střih na 23 sekund s půlsekundovým přechodem. Hudba používá vlastní hlasitost, ztišuje se pod rádiem a při přechodu do zápasu odezní. [ElevenLabs Sound Effects](https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert) · [ElevenLabs Music](https://elevenlabs.io/docs/api-reference/music/compose/)
+
+### Čitelnost cílů režimů
+
+- Kapacitor Obléhání má trojici keramických clon. Po odkrytí zmizí prstence štítu a clony se odsunou, aby byl střed vidět. Menší jádro Hordy používá trvale přístupnou variantu. Nízký stav energie tlumí frakční barvu do měděného tónu.
+- Vlajku tvoří přenosný keramický praporec se znakem na obou stranách a samostatná základnová objímka. Při nesení drží menší siluetu za ramenem pilota.
+- Fázový terminál vyznačuje hranici stanice. Vnitřní oblouk ukazuje průběh obsazování a jantar zvýrazní spor i bez čtení nápisu. Při vypnutém pohybu zůstávají tyto informace k dispozici.

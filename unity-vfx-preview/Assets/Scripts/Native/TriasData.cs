@@ -16,7 +16,7 @@ namespace Trias.Native
 
     [Serializable] internal class Site
     {
-        public float x, y, z, radius, angle, yaw;
+        public float x, y, z, radius, angle, yaw, height;
         public string label, type, kind;
         public int team, sector;
         internal Vector3 Position => new Vector3(x, y, z);

@@ -78,27 +78,6 @@ namespace Trias.Native
             }
         }
 
-        void BuildFoundryStacks()
-        {
-            var steel = MaterialAt("#60454a", false, "armor");
-            var refractory = MaterialAt("#de794c", true);
-            for (int side = 0; side < 3; side++)
-            {
-                var furnace = Group(Root, "Foundry exhaust bank");
-                furnace.rotation = Quaternion.Euler(0, 120 * side, 0);
-                for (int i = -1; i <= 1; i++)
-                {
-                    float height = 7.8f + (i == 0 ? 2.3f : 0);
-                    var stack = Group(furnace, "Exhaust stack", new Vector3(i * 3.6f, 0, Spec.length + 7));
-                    Part(stack, steel, Vector3.up * (height / 2), new Vector3(2.4f, height / 2, 2.4f), PrimitiveType.Cylinder);
-                    Part(stack, Dark, Vector3.up * (height - .25f), new Vector3(2.9f, .47f, 2.9f), PrimitiveType.Cylinder);
-                    Ring(stack, Vector3.up * (height + .22f), 1.23f, refractory, .16f, 24);
-                    Ring(stack, Vector3.up * (height - 1.1f), 1.23f, Dark, .39f, 24);
-                }
-                Beam(furnace, steel, new Vector3(-8, 5.3f, Spec.length + 6), new Vector3(8, 5.3f, Spec.length + 6), 1.06f);
-            }
-        }
-
         void BuildMiningRigs()
         {
             var rust = MaterialAt("#936858", false, "armor");
@@ -129,32 +108,6 @@ namespace Trias.Native
                 Part(pivot, marker, new Vector3(-6.5f,.18f,0), new Vector3(.31f,.25f,.31f));
                 excavators.Add(pivot);
             }
-        }
-
-        void BuildCrucible()
-        {
-            var mount = Group(Root, "Tavicí komora", new Vector3(0, 8.7f, 0));
-            var refractory = MaterialAt("#81443c", false, "bulkhead");
-            var insulation = MaterialAt("#3b272c", false, "armor");
-            var hot = MaterialAt("#ffa245", true);
-            reactorTint = Catalog.Tint("#ff672d");
-            reactorEnergy = MaterialAt("#ff672d", true);
-            reactorRotor = Group(mount, "Molten charge");
-            Part(reactorRotor, reactorEnergy, Vector3.zero, new Vector3(2.2f, .98f, 2.2f), PrimitiveType.Sphere);
-            for (int side = 0; side < 6; side++)
-            {
-                var rib = Group(mount, "Floating refractory muffle");
-                rib.localRotation = Quaternion.Euler(0, side * 60, 0);
-                CeramicArc(rib, insulation, new Vector3(0,-1.01f,0),new Vector3(4.25f,1.34f,4.25f),51);
-                CeramicArc(rib, Insulation, new Vector3(0,.01f,0),new Vector3(4.64f,.74f,4.64f),49);
-                CeramicArc(rib, refractory, new Vector3(0,.68f,0),new Vector3(4.22f,.55f,4.22f),41);
-                CeramicArc(rib, hot, new Vector3(0,-.46f,0),new Vector3(4.31f,.10f,4.31f),31);
-                if (side % 2 != 0) continue;
-                Beam(rib, insulation, new Vector3(0,-1.4f,4),new Vector3(0,3.8f,7.0f),1.05f);
-                Beam(rib, refractory, new Vector3(0,3.8f,7),new Vector3(0,4.2f,13.3f),.68f);
-                Armor(rib, Insulation, new Vector3(0,3.76f,7.03f),new Vector3(1.65f,.82f,1.61f),false);
-            }
-            SetReactorLight(mount);
         }
 
         void BuildReactor()

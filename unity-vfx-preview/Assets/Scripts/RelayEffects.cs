@@ -37,7 +37,10 @@ namespace Trias.Preview
         int telemetryRank;
         readonly AudioSource[] firingVoices = new AudioSource[4];
         int firingVoice;
-        AudioSource atmosphere, radioVoice;
+        AudioSource atmosphere, radioVoice, menuMusic;
+        AudioClip weaponPickup, powerPickup;
+        float musicGain;
+        bool menuMusicWanted;
         float ambienceGain, rhythmLevel, rhythmTarget;
         AudioClip pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue, menuClick, landing;
         AudioClip focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad, grenadeBlast;
@@ -97,6 +100,13 @@ namespace Trias.Preview
             atmosphere.playOnAwake = false;
             atmosphere.loop = true;
             atmosphere.volume = .17f;
+            menuMusic = gameObject.AddComponent<AudioSource>();
+            menuMusic.playOnAwake = false;
+            menuMusic.loop = true;
+            menuMusic.priority = 160;
+            menuMusic.volume = 0;
+            weaponPickup = Resources.Load<AudioClip>("TRIAS/Audio/weapon-pickup");
+            powerPickup = Resources.Load<AudioClip>("TRIAS/Audio/power-pickup");
             for (int i = 0; i < voices.Length; i++)
             {
                 var point = new GameObject("Positional audio", typeof(AudioSource), typeof(AudioLowPassFilter));
@@ -201,7 +211,13 @@ namespace Trias.Preview
             if (Time.unscaledTime < telemetryUntil) target *= .70f;
             if (transmitting) target *= .72f;
             reportGain = Mathf.Lerp(reportGain, target, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 18));
-            float ambienceTarget = ambienceGain * (1 + .19f * rhythmLevel) * (transmitting ? .73f : 1);
+            float musicTarget = menuMusicWanted ? musicGain * (transmitting ? .44f : 1f) : 0;
+            if (musicTarget > .001f && menuMusic.clip != null && !menuMusic.isPlaying) menuMusic.Play();
+            float speed = musicTarget < menuMusic.volume ? 11 : 4;
+            menuMusic.volume = Mathf.Lerp(menuMusic.volume,musicTarget,1-Mathf.Exp(-Time.unscaledDeltaTime*speed));
+            if (musicTarget == 0 && menuMusic.volume < .001f && menuMusic.isPlaying) menuMusic.Stop();
+            float ambienceTarget = ambienceGain * (1 + .19f * rhythmLevel) * (transmitting ? .73f : 1)
+                * (menuMusic.isPlaying ? .57f : 1f);
             atmosphere.volume = Mathf.Lerp(atmosphere.volume, ambienceTarget, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 8));
             for (int i = 0; i < voices.Length; i++)
                 if (voiceIsReport[i] && voices[i].isPlaying) voices[i].volume = voiceGain[i] * reportGain;
@@ -359,11 +375,16 @@ namespace Trias.Preview
             Play(audible, position, local ? .48f : .30f, local);
         }
 
-        public void Pickup(Vector3 position, Color tint, bool local)
+        public void Pickup(Vector3 position, Color tint, bool local, bool? weapon = null, float intensity = 1)
         {
-            Emit(arrival, position, tint, 17);
-            Ring(position, tint);
-            Play(shots.TryGetValue("pickup", out var sample) ? sample : reloadCue, position, 0.45f, local);
+            if (intensity > .01f)
+            {
+                Emit(arrival, position, tint, Mathf.CeilToInt(17*intensity));
+                Ring(position, tint);
+            }
+            var cue = weapon == true ? weaponPickup : weapon == false ? powerPickup : null;
+            if (cue == null) cue = shots.TryGetValue("pickup", out var sample) ? sample : reloadCue;
+            Play(cue, position, local ? .56f : .28f, local);
         }
 
         public void Launch(Vector3 position, Color tint, bool local = true)
@@ -532,11 +553,20 @@ namespace Trias.Preview
             ambienceGain = .22f * Mathf.Clamp01(volume) * (playing ? 1 : .50f);
         }
 
+        internal void MusicMix(float volume) => musicGain = .67f * Mathf.Clamp01(volume) * Mathf.Clamp01(volume);
+
         internal void MixArenaRhythm(float level) => rhythmTarget = Mathf.Clamp01(level);
-        internal void StopAtmosphere() => atmosphere.Stop();
+        internal void StopAtmosphere()
+        {
+            atmosphere.Stop();
+            menuMusicWanted = false;
+        }
 
         public void SetAtmosphere(string arena)
         {
+            menuMusicWanted = arena == "hangar";
+            if (menuMusicWanted && menuMusic.clip == null)
+                menuMusic.clip = Resources.Load<AudioClip>("TRIAS/Audio/hangar-loop");
             if (!beds.TryGetValue(arena, out var bed))
             {
                 bed = MatchSound.Ambience(arena);
@@ -561,6 +591,9 @@ namespace Trias.Preview
             System.Array.Clear(voiceIsReport, 0, voiceIsReport.Length);
             foreach (var voice in firingVoices) voice.Stop();
             atmosphere.Stop();
+            menuMusic.Stop();
+            menuMusic.volume = 0;
+            menuMusicWanted = false;
             rhythmLevel = rhythmTarget = 0;
             foreach (var voice in voices) voice.Stop();
             pulseLevel = 0;

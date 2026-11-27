@@ -576,20 +576,18 @@ namespace Trias.Native
             {
                 var point = nodes[i];
                 int owner = point["capture"].Int >= 0 ? point["capture"].Int : point["owner"].Int;
-                var ring = world.Zones[i].GetComponent<LineRenderer>();
-                ring.sharedMaterial = owner >= 0 && owner < 3 ? world.TeamLight[owner] : world.TeamNeutral;
-                ring.widthMultiplier = .075f + Mathf.Clamp01(point["progress"].Float) * .075f;
+                world.SetControl(i,owner,point["progress"].Float,point["contested"].Bool,point["linked"].Bool);
             }
+            const float siegeCoreCapacity = 720f;
             for (int i = 0; i < world.CoreShield.Length; i++)
             {
                 var info = frame["siege"]["cores"][i];
-                world.Cores[i].gameObject.SetActive(info["hp"].Int > 0);
-                world.CoreShield[i].gameObject.SetActive(info["hp"].Int > 0 && info["opened"].Int == 0);
+                world.SetCore(i,info["hp"].Float/siegeCoreCapacity,info["opened"].Int==0);
             }
             if (world.DefendedCore != null)
             {
-                int health = frame["horde"]["core"]["hp"].Int;
-                world.DefendedCore.gameObject.SetActive(health > 0);
+                var core = frame["horde"]["core"];
+                world.SetDefendedCore(core["hp"].Float/Mathf.Max(1f,core["maxHp"].Float));
             }
             for (int i = 0; i < world.Links.Length; i++)
             {
@@ -600,7 +598,20 @@ namespace Trias.Native
                     && first["linked"].Bool && second["linked"].Bool ? world.TeamLight[owner] : world.Dark;
             }
             for (int i = 0; i < world.Flags.Length; i++)
-                world.Flags[i].position = AtObject(frame["flags"][i]) + Vector3.up * (frame["flags"][i]["status"].Text == "carried" ? 1 : 0);
+            {
+                var flag = frame["flags"][i];
+                string status = flag["status"].Text;
+                var at = AtObject(flag);
+                float heading = 0;
+                if (status == "carried")
+                {
+                    string carrier = flag["carrier"].Text;
+                    var row = carrier==identity ? own : carrier!=null && pilots.TryGetValue(carrier,out var model) ? model.Row : null;
+                    heading = row==null ? 0 : (row[24].Float+Mathf.PI)*Mathf.Rad2Deg;
+                    at += Quaternion.Euler(0,heading,0)*new Vector3(.14f,.95f,-.35f);
+                }
+                world.SetFlag(i,at,status,heading);
+            }
             foreach (var vehicle in frame["vehicles"].Items)
             {
                 int index = vehicle[1].Int;
@@ -813,8 +824,11 @@ namespace Trias.Native
                     if (type == "core-wreck") AddNotice("Jádro " + catalog.teams[evt["team"].Int].name + " zničeno.");
                     break;
                 case "pickup":
-                    effects.Pickup(At(evt["position"]), Catalog.Tint((Catalog.Find(catalog.powerups, evt["item"].Text) ?? Catalog.Find(catalog.weapons, evt["item"].Text))?.color), local);
-                    if (local) AddNotice("Sebráno · " + (Catalog.Find(catalog.powerups, evt["item"].Text) ?? Catalog.Find(catalog.weapons, evt["item"].Text))?.label);
+                    string item = evt["item"].Text;
+                    var collectedWeapon = Catalog.Find(catalog.weapons, item);
+                    var collected = collectedWeapon ?? Catalog.Find(catalog.powerups, item);
+                    effects.Pickup(At(evt["position"]),Catalog.Tint(collected?.color),local,collectedWeapon!=null,visualEffects);
+                    if (local) AddNotice("Sebráno · " + collected?.label);
                     break;
                 case "movement":
                     string action = evt["action"].Text;
@@ -925,7 +939,9 @@ namespace Trias.Native
         {
             UpdateResult(dt);
             UpdateArenaRhythm(now);
-            world.Animate(now, visualEffects, arenaRhythm.Pulse * visualEffects);
+            float arenaClock = arenaSecond < 0 ? -1 : arenaSecond + Mathf.Clamp01(now - arenaSampleAt);
+            world.Animate(now, visualEffects, arenaRhythm.Pulse * visualEffects, view.transform.position,
+                cameraMotion, ambienceVolume * (captured ? 1f : .45f), arenaClock, arenaSeed);
             bool alive = own[6].Int > 0, driving = own[16].Int >= 0, mounted = own[15].Int >= 0;
             float travel = 1 - Mathf.Exp(-dt * 54);
             foreach (var art in projectiles.Values)

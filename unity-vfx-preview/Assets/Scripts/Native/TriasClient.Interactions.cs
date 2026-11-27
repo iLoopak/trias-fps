@@ -43,6 +43,7 @@ namespace Trias.Native
         void ReactToSurface(Vector3 at, float now, bool explosive)
         {
             if (visualEffects <= .01f || now < nextSurfacePulse || (at - display).sqrMagnitude > 55 * 55) return;
+            world.ReactMegastructure(at,now);
             if (world.Spec.id == "island")
             {
                 float height = world.Height(at.x, at.z);
