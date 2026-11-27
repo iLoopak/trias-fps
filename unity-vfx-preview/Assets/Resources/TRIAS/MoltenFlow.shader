@@ -17,6 +17,12 @@ Shader "TRIAS/MoltenFlow"
             #pragma fragment frag
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
+            // Constants below were authored in gamma space; keep their appearance in Linear projects.
+            #ifdef UNITY_COLORSPACE_GAMMA
+            #define TRIAS_SRGB(c) (c)
+            #else
+            #define TRIAS_SRGB(c) GammaToLinearSpace(c)
+            #endif
 
             float _FlowClock, _Heat, _Detail;
             float4 _Impact;
@@ -53,13 +59,13 @@ Shader "TRIAS/MoltenFlow"
                 half interior = smoothstep(.015,.39,bank + .036*sin(advection*.73));
                 half bright = smoothstep(.57,.89,heat);
                 half fissure = smoothstep(.80,.98,heat + .09*sin(advection*2.1+input.uv.x*31.0)) * _Detail;
-                half3 crust = lerp(half3(.14,.047,.034),half3(.37,.105,.047),heat);
-                half3 current = lerp(half3(.32,.065,.028),half3(.87,.285,.051),heat);
-                current = lerp(current,half3(1.0,.62,.18),bright*.75 + fissure*.16);
-                current += half3(.15,.077,.023) * (_Heat*bright);
+                half3 crust = lerp(TRIAS_SRGB(half3(.14,.047,.034)),TRIAS_SRGB(half3(.37,.105,.047)),heat);
+                half3 current = lerp(TRIAS_SRGB(half3(.32,.065,.028)),TRIAS_SRGB(half3(.87,.285,.051)),heat);
+                current = lerp(current,TRIAS_SRGB(half3(1.0,.62,.18)),bright*.75 + fissure*.16);
+                current += TRIAS_SRGB(half3(.15,.077,.023)) * (_Heat*bright);
                 float impactDistance = length(input.world-_Impact.xy);
                 half ripple = saturate(1.0-abs(impactDistance-(1.0-_Impact.z)*1.46)*4.0);
-                current += half3(.14,.08,.026)*_Impact.z*ripple;
+                current += TRIAS_SRGB(half3(.14,.08,.026))*_Impact.z*ripple;
                 half4 color = half4(lerp(crust,current,interior),1.0);
                 UNITY_APPLY_FOG(input.fogCoord,color);
                 return color;

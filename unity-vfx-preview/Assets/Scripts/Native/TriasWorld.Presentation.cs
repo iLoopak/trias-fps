@@ -118,6 +118,13 @@ namespace Trias.Native
             var filament = MaterialAt("#fff2cc", true);
             reactorRotor = Group(mount, "Axial induction column");
             BuildInductionColumn(mount, filament);
+            var crown = IsRelayArt ? new BlenderParts("TRIAS/RelayReactor/RelayReactor") : null;
+            if (crown != null && crown.Has("CrownMid"))
+            {
+                BuildReactorCrown(mount, crown);
+                SetReactorLight(mount);
+                return;
+            }
             for (int level = 0; level < 3; level++)
             {
                 float y = level == 0 ? -3.1f : level == 1 ? 2.45f : 7.8f;
@@ -158,6 +165,43 @@ namespace Trias.Native
                 CeramicArc(inner, Porcelain, Vector3.up*.51f, new Vector3(1.86f,.5f,1.86f), 70);
             }
             SetReactorLight(mount);
+        }
+
+        // Blender hero crown (tools/blender/build-relay-reactor.py): fractured ceramic blades on a
+        // continuous graphite spine replace the stacked box arcs. Stage placement and the rotor are unchanged.
+        void BuildReactorCrown(Transform mount, BlenderParts crown)
+        {
+            var glaze = CeramicFinish("#e4ded2", .02f, .74f);
+            var frame = CeramicFinish("#23272c", .25f, .42f);
+            var clamp = CeramicFinish("#9a9c9b", .78f, .58f);
+            Material Finish(string slot) => slot switch
+            {
+                "Ceramic" => glaze, "Graphite" => frame, "Alloy" => clamp, "Amber" => reactorEnergy, _ => frame
+            };
+            string[] keys = { "CrownInner", "CrownMid", "CrownOuter" };
+            for (int level = 0; level < 3; level++)
+            {
+                float y = level == 0 ? -3.1f : level == 1 ? 2.45f : 7.8f;
+                var stage = Group(mount, "Floating induction stage", new Vector3(0,y,0));
+                stage.localRotation = level == 0 ? Quaternion.Euler(4,-11,-7)
+                    : Quaternion.Euler(level == 1 ? 24 : -25, 16 + level * 25, level == 1 ? -16 : 12);
+                for (int side = 0; side < 3; side++)
+                {
+                    var shell = Group(stage, "Fractured crown blade");
+                    shell.localRotation = Quaternion.Euler(0, 120 * side, 0);
+                    crown.Bind(keys[level], shell, Finish, true);
+                }
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                var foot = Group(mount, "Anchor pedestal");
+                foot.localRotation = Quaternion.Euler(0, i * 120 + 20, 0);
+                if (crown.Has("AnchorStrut")) crown.Bind("AnchorStrut", Group(foot, "Anchor strut"), Finish, true);
+                var inner = Group(reactorRotor, "Suspended core shell");
+                inner.localRotation = Quaternion.Euler(0, 120 * i, 0);
+                CeramicArc(inner, frame, Vector3.zero, new Vector3(1.8f,1.7f,1.8f), 73);
+                CeramicArc(inner, glaze, Vector3.up*.51f, new Vector3(1.86f,.5f,1.86f), 70);
+            }
         }
 
         void SetReactorLight(Transform mount)

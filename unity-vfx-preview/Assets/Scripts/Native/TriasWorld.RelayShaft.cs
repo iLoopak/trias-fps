@@ -66,10 +66,13 @@ namespace Trias.Native
             text.font = relayStencilFont;
             text.text = title;
             text.fontSize = 72;
-            text.characterSize = .125f;
+            // Worn paint scale, not a billboard: the deck marking must not out-shout pilots and cover.
+            text.characterSize = .068f;
             text.anchor = TextAnchor.MiddleCenter;
             text.alignment = TextAlignment.Center;
-            text.color = Catalog.Tint("#e5d8c0");
+            var paint = Catalog.Tint("#d9ccb3");
+            paint.a = .42f;
+            text.color = paint;
             var renderer = text.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = shaftDeckInk;
             renderer.shadowCastingMode = ShadowCastingMode.Off;

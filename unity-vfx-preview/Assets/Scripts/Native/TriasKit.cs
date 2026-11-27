@@ -153,19 +153,22 @@ namespace Trias.Native
             var renderers = item.GetComponentsInChildren<SkinnedMeshRenderer>();
             if (renderers.Length == 0) { Object.Destroy(item.gameObject); return null; }
             if (idle != null) idle.SampleAnimation(rig, 0);
-            // The imported mesh and skeleton use different unit transforms. Size the
-            // posed character from feet to head in the wrapper's coordinate space.
-            float bottom = float.PositiveInfinity, top = float.NegativeInfinity;
+            PilotProportions.Attach(rig);
+            // The imported mesh and skeleton use different unit transforms. Size the posed character
+            // by its shoulder line (81.8 % of stature) so the Blender helmet top lands near the
+            // stature; the rig's own Head_end belongs to the oversized stylised head and is ignored.
+            float bottom = float.PositiveInfinity, shoulder = float.NegativeInfinity;
             foreach (var joint in rig.GetComponentsInChildren<Transform>())
             {
                 float y = item.InverseTransformPoint(joint.position).y;
-                if (joint.name == "Head_end") top = y;
+                if (joint.name == "LeftArm" || joint.name == "RightArm") shoulder = Mathf.Max(shoulder, y);
                 if (joint.name == "LeftToes_end" || joint.name == "RightToes_end") bottom = Mathf.Min(bottom, y);
             }
-            if (top <= bottom) { Object.Destroy(item.gameObject); return null; }
-            float height = kit == "bulwark" ? 1.77f : kit == "wraith" ? 1.62f : 1.68f;
-            float scale = height * (male ? .963f : .92f) / (top - bottom);
-            item.localScale = new Vector3(scale * (kit == "bulwark" ? 1.23f : kit == "wraith" ? .87f : 1f) * (male ? 1.045f : 1f), scale, scale);
+            if (shoulder <= bottom) { Object.Destroy(item.gameObject); return null; }
+            // Statures sit around the 1.78 m server body so the visible helmet matches the head box.
+            float height = kit == "bulwark" ? 1.84f : kit == "wraith" ? 1.79f : kit == "kestrel" ? 1.76f : 1.78f;
+            float scale = height * .818f * (male ? 1f : .965f) / (shoulder - bottom);
+            item.localScale = new Vector3(scale * (kit == "bulwark" ? 1.12f : kit == "wraith" ? .92f : 1f) * (male ? 1.03f : 1f), scale, scale);
             item.localPosition = Vector3.down * bottom * scale;
             foreach (var renderer in renderers) renderer.enabled = false;
             string suitKey = kit ?? "vector";

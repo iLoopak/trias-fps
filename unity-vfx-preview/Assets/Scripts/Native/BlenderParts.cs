@@ -171,10 +171,10 @@ namespace Trias.Native
         {
             return Build(root, key, slot => slot switch
             {
-                "Ceramic" => world.Porcelain,
+                "Ceramic" => world.WeaponCeramic,
                 "Secondary" => world.Insulation,
-                "Graphite" => world.Graphite,
-                "Alloy" => world.Hardware,
+                "Graphite" => world.WeaponGraphite,
+                "Alloy" => world.WeaponAlloy,
                 "Visor" => world.PilotVisor,
                 "Amber" => world.SafetyAmber,
                 _ => slot.EndsWith("Glow", StringComparison.Ordinal) ? accent : world.Dark,

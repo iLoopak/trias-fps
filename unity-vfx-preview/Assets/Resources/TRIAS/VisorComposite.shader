@@ -10,15 +10,21 @@ Shader "Hidden/TRIAS/VisorComposite"
         Cull Off ZWrite Off ZTest Always
         CGINCLUDE
         #include "UnityCG.cginc"
-        sampler2D _MainTex, _GlowTex, _ShaftTex;
+        sampler2D _MainTex, _GlowTex, _ShaftTex, _OcclusionTex;
         UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
-        float4 _MainTex_TexelSize;
+        float4 _MainTex_TexelSize, _CameraDepthTexture_TexelSize;
         float4 _Tone;
         float2 _Blur;
         float _Damage;
         float4 _DamageTint;
         float _Bloom, _Film;
         float4 _HeightRay, _HeightFog, _FogTint, _ShaftSource, _ShaftTint;
+        // x exposure, y contrast, z toe lift, w occlusion strength
+        float4 _Grade;
+        // rgb shadow tint, a highlight warmth
+        float4 _Split;
+        // x 1/P00, y 1/P11, z world radius, w max screen radius
+        float4 _Occlusion;
 
         float2 depthUV(float2 uv)
         {
@@ -30,17 +36,24 @@ Shader "Hidden/TRIAS/VisorComposite"
 
         float eyeAt(float2 uv)
         {
-            return LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv));
+            return LinearEyeDepth(SAMPLE_DEPTH_TEXTURE_LOD(_CameraDepthTexture, float4(uv, 0, 0)));
         }
+
+        float3 viewAt(float2 uv)
+        {
+            float eye = eyeAt(uv);
+            return float3((uv * 2 - 1) * _Occlusion.xy * eye, eye);
+        }
+
+        half luminance(half3 c) { return dot(c, half3(.2126, .7152, .0722)); }
 
         half4 extract(v2f_img input) : SV_Target
         {
-            half3 color = tex2D(_MainTex, input.uv).rgb;
+            half3 color = tex2D(_MainTex, input.uv).rgb * _Grade.x;
             half peak = max(color.r, max(color.g, color.b));
-            half chroma = peak - min(color.r, min(color.g, color.b));
-            half legacy = saturate((peak - .67) * 2.3 + chroma * .26);
-            half energy = smoothstep(.91, 1.39, peak) + chroma * smoothstep(.66, 1.03, peak) * .19;
-            return half4(color * lerp(legacy, energy, _Film), 1);
+            // Soft knee around 1.0: only genuinely bright light sources and energy bloom.
+            half knee = saturate((peak - .82) / .55);
+            return half4(color * knee * knee, 1);
         }
 
         half4 blur(v2f_img input) : SV_Target
@@ -52,11 +65,75 @@ Shader "Hidden/TRIAS/VisorComposite"
             return half4(color, 1);
         }
 
+        // Interleaved gradient noise for per-pixel sample rotation.
+        float ign(float2 pixel) { return frac(52.9829189 * frac(dot(pixel, float2(.06711056, .00583715)))); }
+
+        half4 occlusion(v2f_img input) : SV_Target
+        {
+            float2 uv = depthUV(input.uv);
+            float2 texel = _CameraDepthTexture_TexelSize.xy * 2;
+            float3 p = viewAt(uv);
+            if (p.z > 160) return 1;
+            float3 r = viewAt(uv + float2(texel.x, 0)) - p, l = p - viewAt(uv - float2(texel.x, 0));
+            float3 u = viewAt(uv + float2(0, texel.y)) - p, d = p - viewAt(uv - float2(0, texel.y));
+            float3 dx = abs(r.z) < abs(l.z) ? r : l;
+            float3 dy = abs(u.z) < abs(d.z) ? u : d;
+            float3 n = normalize(cross(dy, dx));
+            float radius = min(_Occlusion.z / p.z, _Occlusion.w);
+            float angle = ign(input.uv * _ScreenParams.xy * .5) * 6.2832;
+            float ao = 0;
+            const int count = 10;
+            [unroll]
+            for (int i = 0; i < count; i++)
+            {
+                float t = (i + .5) / count;
+                float a = angle + i * 2.39996;
+                float2 offset = float2(cos(a), sin(a)) * radius * t;
+                float3 s = viewAt(uv + offset * float2(_Occlusion.y / _Occlusion.x, 1)) - p;
+                float dist2 = dot(s, s);
+                float range = _Occlusion.z * _Occlusion.z * 1.6;
+                ao += max(0, dot(s, n) - .012 * p.z) / (dist2 + .002) * saturate(1 - dist2 / range);
+            }
+            ao = saturate(1 - ao * (1.15 / count));
+            // Fade out at distance so far silhouettes stay crisp and the sky never darkens.
+            ao = lerp(ao, 1, smoothstep(70, 150, p.z));
+            return half4(ao, p.z / 200, 0, 1);
+        }
+
+        half4 occlusionBlur(v2f_img input) : SV_Target
+        {
+            float2 step = _Blur * _MainTex_TexelSize.xy;
+            half2 c = tex2D(_MainTex, input.uv).rg;
+            half sum = c.r, weight = 1;
+            [unroll]
+            for (int i = -3; i <= 3; i++)
+            {
+                if (i == 0) continue;
+                half2 s = tex2D(_MainTex, input.uv + step * i).rg;
+                half w = exp(-abs(s.g - c.g) * 200 / max(c.g * 200, .5) * 6) * (1 - abs(i) * .18);
+                sum += s.r * w; weight += w;
+            }
+            return half4(sum / weight, c.g, 0, 1);
+        }
+
+        // Filmic response (Narkowicz ACES fit) with a gentle toe; inputs are linear HDR.
+        half3 filmic(half3 x)
+        {
+            const half a = 2.51, b = .03, c = 2.43, d = .59, e = .14;
+            return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
+        }
+
         half4 composite(v2f_img input) : SV_Target
         {
             half3 color = tex2D(_MainTex, input.uv).rgb;
             float2 uv = depthUV(input.uv);
             half3 glow = tex2D(_GlowTex, uv).rgb;
+            UNITY_BRANCH
+            if (_Grade.w > 0)
+            {
+                half ao = tex2D(_OcclusionTex, uv).r;
+                color *= lerp(1, ao, _Grade.w);
+            }
             UNITY_BRANCH
             if (_HeightFog.x > 0)
             {
@@ -77,15 +154,19 @@ Shader "Hidden/TRIAS/VisorComposite"
             }
             float2 edge = (input.uv - .5) * 2;
             half rim = smoothstep(.44, 1.58, dot(edge, edge));
-            half luma = dot(color, half3(.2126, .7152, .0722));
-            color = lerp(luma.xxx, color, _Tone.a) * _Tone.rgb;
             color += glow * _Bloom;
-            // Keep midtones and gently roll bright ceramic and the reactor into display range.
-            half peak = max(color.r, max(color.g, color.b));
-            half excess = max(0, peak - .62);
-            half shoulder = .62 + .38 * excess / (excess + .33);
-            color *= lerp(1, min(1, shoulder / max(.001,peak)), _Film);
-            color *= 1 - rim * lerp(.23,.075,_Film);
+            color *= _Grade.x * _Tone.rgb;
+            half luma = luminance(color);
+            color = lerp(luma.xxx, color, _Tone.a);
+            // Split tone: cool, slightly lifted shadows and warm highlights before the curve.
+            half shadowMask = 1 - saturate(luma * 4);
+            color = lerp(color, color * _Split.rgb, shadowMask);
+            color *= lerp(half3(1, 1, 1), half3(1 + _Split.a, 1, 1 - _Split.a), saturate(luma * 1.5));
+            color = filmic(color);
+            // Contrast around linear mid grey after the curve.
+            color = max(0, (color - .18) * _Grade.y + .18);
+            color = color + _Grade.z * (1 - color) * .02;
+            color *= 1 - rim * .16;
             color = lerp(color, _DamageTint.rgb * .64, _Damage * rim * .23);
             return half4(color, 1);
         }
@@ -111,34 +192,31 @@ Shader "Hidden/TRIAS/VisorComposite"
             return half4(scattering.xxx, 1);
         }
         ENDCG
-        Pass
-        {
-            CGPROGRAM
+        Pass { CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment extract
-            ENDCG
-        }
-        Pass
-        {
-            CGPROGRAM
+            ENDCG }
+        Pass { CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment blur
-            ENDCG
-        }
-        Pass
-        {
-            CGPROGRAM
+            ENDCG }
+        Pass { CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment composite
-            ENDCG
-        }
-        Pass
-        {
-            CGPROGRAM
+            ENDCG }
+        Pass { CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment shaft
-            ENDCG
-        }
+            ENDCG }
+        Pass { CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment occlusion
+            #pragma target 3.5
+            ENDCG }
+        Pass { CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment occlusionBlur
+            ENDCG }
     }
     Fallback Off
 }

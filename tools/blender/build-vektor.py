@@ -60,6 +60,10 @@ for side in (-1,1):
 panel("Sternum key slot",0,.031,.151,.024,.115,.023,"Alloy",bevel=.004)
 panel("Abdominal team stripe",0,-.180,.135,.238,.052,.025,"Faction",bevel=.005)
 panel("Harness release",0,-.192,.150,.049,.048,.023,"Amber",bevel=.005)
+# Abdominal armour closes the gap to the belt; the rig's longer adult spine exposed it.
+band("Abdominal flex layer",(0,-.30,0),[(-.075,.118,.092,.006),(-.02,.128,.098,.008),(.045,.118,.094,.004)],"Fabric",16)
+for i,y in enumerate((-.262,-.318)):
+    panel("Abdominal segment",0,y,.092-i*.004,.168-i*.018,.050,.044,"Graphite",bevel=.010)
 panel("Dorsal equipment bay",0,.009,-.057,.288,.313,.138,"Graphite",bevel=.016)
 for side in (-1,1):
     panel("Reactor mounting frame",side*.095,.025,-.075,.082,.258,.137,"Alloy",side*.13,.009)

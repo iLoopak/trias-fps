@@ -13,6 +13,7 @@ namespace Trias.Native
         internal readonly TriasKit Kit;
         internal readonly Transform Root, Actors;
         internal readonly Material Dark, Steel, Glass, White, TeamNeutral;
+        internal readonly Material WeaponCeramic, WeaponGraphite, WeaponAlloy;
         internal readonly Material[] Team = new Material[3];
         internal readonly Material[] TeamLight = new Material[3];
         internal readonly Transform[] Pickups, Zones, Flags, Cores, CoreShield, Turrets;
@@ -54,6 +55,14 @@ namespace Trias.Native
                 "foundry" => "#513f45", "basin" => "#625750", "island" => "#5c6952", _ => "#45545c"
             });
             RenderSettings.ambientGroundColor = Catalog.Tint(island ? "#585747" : "#43464a");
+            if (QualitySettings.activeColorSpace == ColorSpace.Linear)
+            {
+                // The trilight values were tuned for gamma lighting; in linear they over-fill shadows.
+                float fill = island ? .78f : .88f;
+                RenderSettings.ambientSkyColor *= fill;
+                RenderSettings.ambientEquatorColor *= fill;
+                RenderSettings.ambientGroundColor *= fill;
+            }
             view.backgroundColor = fog;
             ConfigureSky(view);
             var lamp = Group(Root, "Key").gameObject.AddComponent<Light>();
@@ -71,6 +80,11 @@ namespace Trias.Native
             Porcelain.mainTexture = Insulation.mainTexture = Resources.Load<Texture2D>("TRIAS/ceramic-grain");
             SafetyAmber = CeramicFinish("#cb6921", .10f, .34f);
             PilotVisor = CeramicFinish("#142731", .49f, .64f);
+            // Hand-held equipment finishes: glazed ivory, anodised graphite and bright machined alloy.
+            // Separate from architectural finishes so first-person value contrast stays fixed per arena.
+            WeaponCeramic = CeramicFinish("#cfc8ba", 0f, .58f);
+            WeaponGraphite = CeramicFinish("#1d2125", .35f, .50f);
+            WeaponAlloy = CeramicFinish("#b9bdc0", .95f, .70f);
             Dark = MaterialAt("#222631");
             Steel = MaterialAt("#8091a9", false, "armor");
             White = Porcelain;
@@ -237,6 +251,7 @@ namespace Trias.Native
             }
             foreach (var pad in spec.repairs ?? Array.Empty<Site>())
                 Ring(Root, pad.Position + Vector3.up * 0.05f, pad.radius, MaterialAt("#a0ff96", true), 0.11f);
+            ApplyArchitecture();
         }
 
         Material walls, coverPaint, earth, bark, grassCrown;

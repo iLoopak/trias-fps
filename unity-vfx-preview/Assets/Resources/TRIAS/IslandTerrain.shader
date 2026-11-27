@@ -11,6 +11,12 @@ Shader "TRIAS/Island Terrain"
         Tags { "RenderType"="Opaque" }
         CGPROGRAM
         #pragma surface surf Standard fullforwardshadows vertex:vert addshadow
+        // Constants below were authored in gamma space; keep their appearance in Linear projects.
+        #ifdef UNITY_COLORSPACE_GAMMA
+        #define TRIAS_SRGB(c) (c)
+        #else
+        #define TRIAS_SRGB(c) GammaToLinearSpace(c)
+        #endif
         #pragma target 3.0
         sampler2D _Detail, _Stone;
 
@@ -46,13 +52,13 @@ Shader "TRIAS/Island Terrain"
             float bedding = p.y * 1.94 + p.x * .21 - p.z * .135 + sin(p.z * .18) * .57;
             half strata = sin(bedding) * .5 + .5;
             strata = strata * .66 + sin(bedding * 3.08) * .12 + .18;
-            half3 grass = lerp(half3(.23, .32, .17), half3(.43, .45, .245), meadow);
+            half3 grass = lerp(TRIAS_SRGB(half3(.23,.32,.17)), TRIAS_SRGB(half3(.43,.45,.245)), meadow);
             // A low, olive-grey wet shelf gives way to drier ochre alluvium.
             half wetBank = smoothstep(.46,.87,bank + (detail - .5) * .18);
-            half3 silt = lerp(half3(.41,.335,.22), half3(.205,.225,.158), wetBank);
+            half3 silt = lerp(TRIAS_SRGB(half3(.41,.335,.22)), TRIAS_SRGB(half3(.205,.225,.158)), wetBank);
             half ledge = smoothstep(.44,.60, grade + .19 * strata + drainage * .09);
             rock = max(rock, ledge * .79);
-            half3 bedrock = lerp(half3(.28, .27, .23), half3(.47, .40, .32), strata);
+            half3 bedrock = lerp(TRIAS_SRGB(half3(.28,.27,.23)), TRIAS_SRGB(half3(.47,.40,.32)), strata);
             half dryPatch = smoothstep(.65,.96, drainage * .60 + detail * .25 + meadow * .35) * .46;
             half3 softGround = lerp(grass, silt, max(dryPatch, bank * .87)) * (.72 + detail * .35 + grain * .34);
             o.Albedo = lerp(softGround, bedrock * (.51 + stoneGrain * .78), rock);

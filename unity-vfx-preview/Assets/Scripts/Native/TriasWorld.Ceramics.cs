@@ -124,8 +124,8 @@ namespace Trias.Native
                             new Vector3(offset, y, -3.37f), new Vector3(3.61f - level*.39f, .41f, .49f), false);
                         Part(shaft, distantFrame, new Vector3(offset, y - .36f, -3.36f), new Vector3(2.67f, .14f, .41f));
                     }
-                    if (side == 1 || side == 3)
-                        Kit.Nature(shaft,"tree_oak",new Vector3(4.05f,4.6f,4.05f),new Vector3(-.2f,height*.52f,-1.7f), side*19);
+                    // Low-poly oak crowns on the piers were removed in the visual overhaul: they read as toy
+                    // assets against the orbital architecture and broke the near-field identity test.
                 }
             }
         }

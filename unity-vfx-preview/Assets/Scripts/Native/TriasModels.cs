@@ -75,8 +75,9 @@ namespace Trias.Native
             int faction = w.Mode != "ffa" && player[31].Text == null ? player[3].Int : -1;
             if (faction >= 0) shell = w.FactionPaint[faction];
             var pilot = w.Kit.Pilot(body, kit, accent, faction, player[32].Text == "male", out locomotion);
-            weapon = TriasWorld.Group(body, "Weapon", new Vector3(.18f,1.14f,.36f));
-            weapon.localScale = Vector3.one * .62f;
+            // Carried at a shouldered ready height and near true size for adult-proportioned pilots.
+            weapon = TriasWorld.Group(body, "Weapon", new Vector3(.17f,1.36f,.34f));
+            weapon.localScale = Vector3.one * .9f;
             if (pilot != null)
             {
                 var rig = pilot.GetComponentsInChildren<Transform>();

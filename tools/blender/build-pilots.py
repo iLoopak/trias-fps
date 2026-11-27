@@ -16,18 +16,24 @@ def face(name, outline, front, depth, finish, bevel=.006, side=1):
 def helmet(role):
     art.group="Helmet"
     if role=="Bulwark":
-        band("Breacher monocoque",(0,0,-.013),[
-             (-.123,.091,.068,.011),(-.084,.138,.100,.003),(.019,.151,.117,.012),
-             (.077,.142,.110,-.011),(.112,.107,.076,-.026),(.119,.067,.058,-.026)],"Ceramic",20,.52)
-        panel("Graphite jaw and impact seal",0,-.082,.141,.227,.072,.088,"Graphite",bevel=.013)
-        panel("Continuous brow beam",0,.054,.143,.274,.060,.113,"Secondary",bevel=.009)
-        panel("Recessed optics housing",0,.015,.142,.196,.057,.044,"Visor",bevel=.010)
+        # Breacher: a domed EOD-style shell, one wide recessed visor under a raked ceramic brow and a
+        # faceted graphite chin guard. Mass comes from the dome and jaw, not from stacked boxes.
+        band("Breacher dome",(0,0,-.016),[
+             (-.125,.084,.070,.010),(-.090,.124,.104,.004),(-.020,.140,.122,.006),(.045,.136,.118,-.004),
+             (.092,.112,.096,-.020),(.124,.072,.064,-.030),(.136,.034,.034,-.032)],"Ceramic",24,.74)
+        face("Raked ceramic brow",[(-.128,.030,.096),(-.120,.072,.092),(-.050,.088,.116),(.050,.088,.116),
+             (.120,.072,.092),(.128,.030,.096),(.060,.040,.128),(-.060,.040,.128)][::-1],0,.040,"Ceramic",.010)
+        face("Wide recessed visor",[(-.112,-.006,.104),(-.104,.032,.110),(.104,.032,.110),(.112,-.006,.104),
+             (.050,-.020,.126),(-.050,-.020,.126)][::-1],0,.022,"Visor",.006)
         for i in (-1,0,1):
-            panel("Three rangefinders",i*.052,.018,.149,.030,.016,.011,"Signal",bevel=.002)
+            panel("Three rangefinders",i*.040,.012,.137,.022,.010,.008,"Signal",bevel=.002)
+        face("Faceted chin guard",[(-.118,-.030,.088),(-.060,-.034,.124),(.060,-.034,.124),(.118,-.030,.088),
+             (.100,-.098,.072),(.040,-.122,.104),(-.040,-.122,.104),(-.100,-.098,.072)][::-1],0,.050,"Graphite",.012)
+        vents("Respirator slots",0,-.086,.150,4,.010,.040)
         for side in (-1,1):
-            panel("Jaw exoframe",side*.111,-.051,.109,.063,.083,.086,"Alloy",side*.34)
-            fastener("Jaw lock",side*.114,-.065,.115,.008)
-        panel("Brow faction shield",0,.076,.130,.124,.045,.086,"Faction",bevel=.009)
+            face("Jaw hinge cheek",[(.106,-.020,.040),(.132,-.008,.010),(.130,-.080,.000),(.100,-.100,.040)][::-1],0,.028,"Alloy",.006,side)
+            fastener("Jaw lock",side*.128,-.050,.036,.008)
+        panel("Crown faction stripe",0,.132,.020,.046,.016,.180,"Faction",bevel=.006)
     elif role=="Wraith":
         band("Narrow graphite cap",(0,0,-.029),[
             (-.106,.054,.071,.016),(-.039,.098,.104,.003),(.035,.104,.110,-.013),
@@ -100,6 +106,11 @@ def torso(role, scale):
         panel("Vertical core interface",0,.003,-.187,.046,.183,.044,"Alloy",bevel=.007)
         panel("Aperture marker",0,.032,-.220,.019,.102,.008,"Signal",bevel=.002)
     panel("Lower faction band",0,-.196,.134,.218*scale,.041,.031,"Faction",bevel=.005)
+    # Abdominal armour closes the gap to the belt; the rig's longer adult spine exposed it.
+    band("Abdominal flex layer",(0,-.30,0),[(-.075,.118*scale,.092,.006),(-.02,.128*scale,.098,.008),
+        (.045,.118*scale,.094,.004)],"Fabric",16)
+    for i,y in enumerate((-.262,-.318)):
+        panel("Abdominal segment",0,y,.092-i*.004,(.168-i*.018)*scale,.050,.044,"Graphite",bevel=.010)
 
 
 def limbs(role, scale):

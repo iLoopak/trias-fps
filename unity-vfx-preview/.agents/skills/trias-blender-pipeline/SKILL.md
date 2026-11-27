@@ -16,3 +16,5 @@ Use stable IDs and curated seeds. Keep silhouettes, principal axes, contact heig
 For weapon-specific source files, named assembly mounts and exploded renders, follow [the weapon identity guide](../../../WEAPON-IDENTITY.md).
 
 When art-directing cover from archived gameplay, include the short approach face in the comparison. Use the same orthographic quarter view to compare support jaws and rock shear planes at LOD0, then verify the fitted ends in the native player. Blender’s Python module can run the environment generator and CPU Cycles proofs on a headless Linux host with the repository directory layout preserved.
+
+For hand-held weapons, design a side profile and extrude it with `slab()` in `build-armory.py` rather than stacking octagon `block()`s. Give each weapon its own receiver silhouette: `grip(stock=False)` drops the shared rear block. Write `slab()` and `face()` outlines counter-clockwise, as seen from the side that faces the viewer. Pilot suit parts are authored for adult limb lengths: the rig is corrected at runtime by `PilotProportions`, so do not shrink suit parts to fit the stylised Kenney skeleton.
