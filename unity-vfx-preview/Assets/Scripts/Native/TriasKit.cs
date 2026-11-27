@@ -13,6 +13,7 @@ namespace Trias.Native
         readonly Dictionary<string, Material> landscape = new Dictionary<string, Material>();
         readonly Material crateFinish;
         readonly AnimationClip idle, run, jump;
+        VektorSuit vektor;
 
         internal TriasKit(TriasWorld world)
         {
@@ -164,7 +165,8 @@ namespace Trias.Native
             item.localScale = new Vector3(scale * (kit == "bulwark" ? 1.23f : kit == "wraith" ? .87f : 1f) * (male ? 1.045f : 1f), scale, scale);
             item.localPosition = Vector3.down * bottom * scale;
             foreach (var renderer in renderers) renderer.enabled = false;
-            PilotSuit.Build(world, parent, rig.transform, kit, accent, faction, male);
+            if (kit != "vector" || !(vektor ??= new VektorSuit()).Build(world,parent,rig.transform,accent,faction,male))
+                PilotSuit.Build(world, parent, rig.transform, kit, accent, faction, male);
             var legacy = rig.GetComponent<Animation>();
             motion = legacy != null ? legacy : rig.AddComponent<Animation>();
             motion.playAutomatically = false;

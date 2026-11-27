@@ -68,3 +68,9 @@ Výchozí záběr z úrovně očí měl přepálené pláty a málo detailu pod 
 Nejčitelnější část je osvětlený bok krytu vedle zastíněné fasády. Vhodně funguje i odstup matné keramiky a tmavého vývrtu Pulse. Pod prvním mostem zůstává v pohledu z výšky očí z reaktoru vidět hlavně horní část a pohled proti hvězdě dál zjednodušuje tmavý grafit na vzdáleném pilotovi. Delší hra proti všem frakcím je další podklad pro schválení širšího nasazení. Paletu a techniku lze znovu použít v samostatných řezech.
 
 Snímky po jednotlivých krocích, srovnání stejné kamery, herní záběr a lokální buildy jsou v `output/relay-art-direction/`. Skilly projektu jsou v [Unity projektu](.agents/skills/). Technické podklady [Directional Lights](https://docs.unity.com/en-us/engine/6000.3/manual/lighting-overview/lighting-light-sources/components/lighting) a [Reflection Probes](https://docs.unity.com/en-us/engine/6000.3/manual/lighting-overview/reflections/using-reflection-probes).
+
+## Vektor · model z Blenderu
+
+Editovatelný model je v [Art/Vektor.blend](Art/Vektor.blend). Obsahuje jednotlivé pláty, tlakový oblek, zadní stabilizační modul, plochy frakcí, materiálové sloty a scénu pro náhled. Geometrii lze znovu vytvořit skriptem [build-vektor.py](../tools/blender/build-vektor.py) spuštěným v Blenderu 4.5 přes `--background --python`. Export dává jeden FBX se 17 částmi, po jedné pro každý montážní bod. Unity očekává metry, Y nahoru a +Z vpřed. Převod je zapečený ve FBX.
+
+`VektorSuit` při načtení dílů využije původní kostru postavy a její skutečné délky končetin. Unity dosazuje sdílené materiály mapy včetně frakčních barev. Model se používá ve hře, v hangáru a při vykreslení Combat Echo. Stávající klipy, body úchopu a kolize zůstávají společné. Mužská a ženská varianta se liší stavbou původního rigu a mírným přizpůsobením dílů.
