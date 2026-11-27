@@ -24,7 +24,7 @@ namespace Trias.Native
                 "foundry" => (1f, "#190f1c", "#4c2b32", "#ff9966", "#9a513e", new Vector4(-.42f, .36f, 1, .235f)),
                 "basin" => (2f, "#14212a", "#4f493e", "#d7c99d", "#7a927e", new Vector4(.39f, .50f, 1, .33f)),
                 "island" => (0f, "#517eab", "#b0d6cf", "#fff2cb", "#385064", Vector4.zero),
-                _ => (3f, "#142035", "#6a849b", "#fff0d4", "#29739a", new Vector4(.39f,.39f,1,.43f))
+                _ => (3f, "#142035", "#6a849b", "#fff0d4", "#29739a", new Vector4(.61f,.49f,1,.46f))
             };
             var (scene, zenith, horizon, light, body, planet) = sky;
             orbitalSky.SetFloat("_SkyScene", scene);
@@ -34,7 +34,16 @@ namespace Trias.Native
             orbitalSky.SetColor("_Body", Catalog.Tint(body));
             orbitalSky.SetVector("_Planet", planet);
             if (island) orbitalSky.SetVector("_SunDirection", IslandSun);
-            if (IsRelayArt) orbitalSky.SetVector("_SunDirection", RelayStar);
+            if (IsRelayArt)
+            {
+                orbitalSky.SetVector("_SunDirection", RelayStar);
+                var cloudDeck = Resources.Load<Texture2D>("TRIAS/relay-cloud-deck");
+                if (cloudDeck != null)
+                {
+                    orbitalSky.SetTexture("_RelayCloudDeck", cloudDeck);
+                    orbitalSky.SetFloat("_RelayCloudDeckActive", 1);
+                }
+            }
             orbitalSky.SetFloat("_Daylight", island ? 1 : 0);
             RenderSettings.skybox = orbitalSky;
             view.clearFlags = CameraClearFlags.Skybox;
@@ -150,13 +159,12 @@ namespace Trias.Native
 
         void BuildReactor()
         {
-            var mount = Group(Root, "Orbitální relé", new Vector3(0, 10.1f, 0));
+            var mount = Group(Root, "Orbitální relé", new Vector3(0, Spec.Shaft ? 16.1f : 10.1f, 0));
             reactorTint = Catalog.Tint("#ffb566");
             reactorEnergy = MaterialAt("#ffb566", true);
             var filament = MaterialAt("#fff2cc", true);
             reactorRotor = Group(mount, "Axial induction column");
-            Part(mount, reactorEnergy, new Vector3(0,3.05f,0), new Vector3(.67f,5.65f,.67f), PrimitiveType.Cylinder);
-            Part(mount, filament, new Vector3(0,3.05f,0), new Vector3(.25f,5.48f,.25f), PrimitiveType.Cylinder);
+            BuildInductionColumn(mount, filament);
             for (int level = 0; level < 3; level++)
             {
                 float y = level == 0 ? -3.1f : level == 1 ? 2.45f : 7.8f;
@@ -172,6 +180,16 @@ namespace Trias.Native
                     CeramicArc(shell, Porcelain, new Vector3(0,.32f,0), new Vector3(radius,.94f,radius), 91);
                     CeramicArc(shell, relayStructure, new Vector3(0,-.07f,0), new Vector3(radius*1.008f,.19f,radius*1.008f), 71);
                     CeramicArc(shell, reactorEnergy, new Vector3(0,-.35f,0), new Vector3(radius*1.001f,.085f,radius*1.001f), 29);
+                    for (int rib = -2; rib <= 2; rib++)
+                    {
+                        var joint = Group(shell, "Reactor ring service joint");
+                        joint.localRotation = Quaternion.Euler(0, rib * 16, 0);
+                        Armor(joint, relayStructure, new Vector3(0, .20f, radius + .019f),
+                            new Vector3(.28f, .91f, .15f), false);
+                        if (rib % 2 == 0)
+                            Armor(joint, Insulation, new Vector3(.36f, -.29f, radius + .035f),
+                                new Vector3(.46f, .25f, .16f), false);
+                    }
                 }
             }
             for (int i = 0; i < 3; i++)

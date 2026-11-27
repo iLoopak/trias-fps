@@ -7,7 +7,7 @@ namespace Trias.Native
     internal sealed partial class TriasWorld
     {
         internal readonly bool IsRelayArt;
-        internal static readonly Vector3 RelayStar = new Vector3(-.91f,.51f,-.21f).normalized;
+        internal static readonly Vector3 RelayStar = new Vector3(-.76f,.64f,-.39f).normalized;
         float oldShadowDistance, oldReflectionIntensity;
         bool oldHdr;
         Camera relayCamera;
@@ -32,29 +32,31 @@ namespace Trias.Native
 
             key.name = "Relay · orbital key";
             key.transform.rotation = Quaternion.LookRotation(-RelayStar);
-            key.color = Catalog.Tint("#ffe3c3");
-            key.intensity = 1.12f;
-            key.shadowStrength = .89f;
+            key.color = Catalog.Tint("#ffe0b6");
+            key.intensity = 1.42f;
+            key.shadowStrength = .93f;
             key.shadowBias = .032f;
             key.shadowNormalBias = .23f;
             key.shadowNearPlane = .25f;
             key.renderMode = LightRenderMode.ForcePixel;
 
-            RenderSettings.ambientSkyColor = Catalog.Tint("#9bb3d5");
-            RenderSettings.ambientEquatorColor = Catalog.Tint("#657487");
-            RenderSettings.ambientGroundColor = Catalog.Tint("#58545b");
+            RenderSettings.ambientSkyColor = Catalog.Tint("#92adc9");
+            RenderSettings.ambientEquatorColor = Catalog.Tint("#54677f");
+            RenderSettings.ambientGroundColor = Catalog.Tint("#49515f");
             RenderSettings.fogColor = Catalog.Tint("#3a485a");
             RenderSettings.fogDensity = .0042f;
         }
 
         void ConfigureRelaySurfaces()
         {
-            Porcelain.color = Catalog.Tint("#e0cbb0");
+            var ceramic = Resources.Load<Texture2D>("TRIAS/RelaySurfaces/reactor-ceramic");
+            if (ceramic != null) Porcelain.mainTexture = ceramic;
+            Porcelain.color = Catalog.Tint("#eee9e0");
             Graphite.color = Catalog.Tint("#34393f");
             Hardware.color = Catalog.Tint("#a3a6a6");
             Hardware.mainTexture = null;
             relayStructure = CeramicFinish("#909698", .37f, .34f);
-            RelaySurface(Porcelain, "porcelain", .28f);
+            RelaySurface(Porcelain, "porcelain", .43f);
             RelaySurface(Graphite, "graphite", .54f);
             RelaySurface(Hardware, "alloy", .29f);
             var ambient = Group(Root, "Relay sky reflection").gameObject.AddComponent<ReflectionProbe>();
@@ -101,7 +103,7 @@ namespace Trias.Native
             var outside = new Color(inside.r,inside.g,inside.b,0);
             foreach (var box in Spec.cover)
             {
-                if (Mathf.Abs(box.bottom) > .02f) continue;
+                if (Mathf.Abs(box.bottom) > .02f || (Spec.Shaft && box.structure != "pylon")) continue;
                 float W = box.w * .5f, D = box.d * .5f;
                 var rotation = Quaternion.Euler(0,box.angle*Mathf.Rad2Deg,0);
                 var pivot = new Vector3(box.x,.012f,box.z);

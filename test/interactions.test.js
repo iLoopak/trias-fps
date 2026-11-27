@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { explosionImpulse, interactionFlags } from '../interactions.js';
 import { Match } from '../match.js';
-import { ARENAS, eyeHeight, packCover, TICK, WEAPONS } from '../public/rules.js';
+import { ARENAS, RELAY_SERVICE, eyeHeight, packCover, TICK, WEAPONS } from '../public/rules.js';
 import { NETWORK_VERSION } from '../public/netcode.js';
 
 const time = 10;
 
 function setup(interactions = {}, mode = 'tdm', layout = {}) {
-  const arena = { ...ARENAS.relay, launchPads: [], ...layout, cover: packCover(layout.cover ?? []) };
+  const arena = { ...RELAY_SERVICE, launchPads: [], ...layout, cover: packCover(layout.cover ?? []) };
   const match = new Match('W6', mode, false, arena, { interactions });
   const pilot = match.addPlayer('pilot', 'Pilot', 0, 0, 0);
   const rival = match.addPlayer('rival', 'Rival', 1, 0, 0);
@@ -152,7 +152,7 @@ test('echo recall rejects blocked space, pilot and vehicle states, expired echoe
   ]) {
     const f = setup({ recall: true }, mode, {
       cover: label === 'wall' ? [{ x: 0, z: 2, w: 2, d: .1, h: 2.2, angle: 0 }] : [],
-      points: label === 'capture' ? [...ARENAS.relay.points, { x: 0, y: 0, z: 2 }] : ARENAS.relay.points,
+      points: label === 'capture' ? [...RELAY_SERVICE.points, { x: 0, y: 0, z: 2 }] : RELAY_SERVICE.points,
       launchPads: label === 'pad' ? [{ x: 0, y: 0, z: 0, radius: 1, vx: 0, vz: 3 }] : [],
     });
     const { match, pilot, rival, signature } = f;

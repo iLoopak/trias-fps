@@ -6,6 +6,7 @@ namespace Trias.Native
     [Serializable] internal sealed class Catalog
     {
         public ArenaSpec[] maps;
+        public ArenaSpec relayService;
         public Choice[] modes, pilots, weapons, powerups, teams;
         public string[] ffaColors;
         internal static Color Tint(string value) => ColorUtility.TryParseHtmlString(value, out var color) ? color : Color.white;
@@ -52,8 +53,9 @@ namespace Trias.Native
             copy.cover = boxes;
             return copy;
         }
-        public string id, label, description;
-        public float length, edgeRadius, roadRadius, islandScale;
+        public string id, label, description, revision;
+        public float length, edgeRadius, roadRadius, islandScale, fallY;
+        internal bool Shaft => fallY < 0;
         internal float IslandScale => islandScale > 0 ? islandScale : 1;
         public BoxSpec[] cover;
         public PadSpec[] launchPads;
@@ -66,9 +68,10 @@ namespace Trias.Native
     {
         public float w, d, h, bottom, ground;
         public bool gantry, terrace, relay, strata;
-        public string nature, profile;
+        public string nature, profile, structure;
         internal bool Overlaps(float px, float pz, float radius)
         {
+            if (structure == "stair") radius = Mathf.Min(radius,.16f);
             float dx = px - x, dz = pz - z, cos = Mathf.Cos(angle), sin = Mathf.Sin(angle);
             return Mathf.Abs(dx * cos - dz * sin) < w * 0.5f + radius
                 && Mathf.Abs(dx * sin + dz * cos) < d * 0.5f + radius;

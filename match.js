@@ -1,6 +1,6 @@
 import {
   aimVector, ARENAS, ARMORY, CAPACITY, CHARACTERS, DEFAULT_CHARACTER, DEFAULT_WEAPON, distanceSquared, eyeHeight, floorBelow,
-  GRENADE, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, turretYaw, wallDistance, WEAPONS,
+  GRENADE, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RELAY_SERVICE, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, turretYaw, wallDistance, WEAPONS,
 } from './public/rules.js';
 import { botInput } from './bots.js';
 import { normalizeDifficulty } from './bot-profiles.js';
@@ -26,11 +26,11 @@ export const fireProfileData = () => ARMORY.map(key => {
 });
 
 export class Match {
-  constructor(code, mode, bots, layout = ARENAS.relay, signature = {}) {
+  constructor(code, mode, bots, layout = RELAY_SERVICE, signature = {}) {
     this.code = code;
     this.mode = mode;
     this.pace = { pilotHp: PILOT_HP, respawn: mode === 'horde' ? HORDE_RESPAWN : RESPAWN };
-    this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' ? ARENAS.relay : layout;
+    this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' ? RELAY_SERVICE : layout;
     this.bots = bots;
     this.botDifficulty = normalizeDifficulty(signature.botDifficulty);
     this.botDebug = signature.botDebug === true;
@@ -196,8 +196,11 @@ export class Match {
 
   dropFlag(player, now) {
     const flag = this.flags.find(item => item.carrier === player.id);
-    if (flag) Object.assign(flag, {
-      status: 'dropped', carrier: null, x: player.x, z: player.z, y: floorBelow(player.x, player.z, player.y, 0, this.layout), returnAt: now + 15,
+    if (!flag) return;
+    const floor = floorBelow(player.x, player.z, player.y, 0, this.layout);
+    if (!Number.isFinite(floor)) this.returnFlag(this.flags.indexOf(flag));
+    else Object.assign(flag, {
+      status: 'dropped', carrier: null, x: player.x, z: player.z, y: floor, returnAt: now + 15,
     });
   }
 
@@ -305,17 +308,18 @@ export class Match {
     noteBotHit(attacker,target.id,health,now);
     if (!target.hp) {
       this.signature.respawn(target);
-      this.streaks.kill(attacker, target, direct);
+      const falling = weapon === 'fall';
+      if (!falling) this.streaks.kill(attacker, target, direct);
       if (target.hordeType) this.horde.salvage(target);
-      attacker.kills++;
+      if (!falling) attacker.kills++;
       target.deaths++;
       target.respawnAt = now + this.pace.respawn;
       this.unmount(target);
       this.fleet.release(target, now);
       this.dropFlag(target, now);
-      if (this.mode === 'tdm') this.scores[attacker.team]++;
-      this.events.push({ type: 'kill', attacker: attacker.name, victim: target.name, team: attacker.team,
-        attackerId: attacker.id, victimId: target.id, weapon, impact,
+      if (this.mode === 'tdm' && !falling) this.scores[attacker.team]++;
+      this.events.push({ type: 'kill', attacker: falling ? 'Šachta reaktoru' : attacker.name, victim: target.name, team: falling ? -1 : attacker.team,
+        attackerId: falling ? null : attacker.id, victimId: target.id, weapon, impact,
         body: { x: target.x, y: target.y, z: target.z, vx: target.vx, vy: target.vy, vz: target.vz,
           yaw: target.yaw, crouch: target.crouch, team: target.team, slot: target.slot, character: target.character, frame: target.frame,
           weapon: target.weapon, hordeType: target.hordeType, from: [origin.x, origin.y, origin.z] },
@@ -600,7 +604,7 @@ export class Match {
     for (const [i, location] of this.layout.points.entries()) {
       const point = this.points[i];
       const present = new Set([...this.players.values()].filter(p => p.hp > 0 && !p.away && p.vehicle < 0
-        && distanceSquared(p, location) <= 3.05 ** 2 && p.y - (this.layout.terrain?.(p.x, p.z) ?? 0) < 1.6).map(p => p.team));
+        && distanceSquared(p, location) <= 3.05 ** 2 && Math.abs(p.y - (location.y ?? 0)) < 1.6).map(p => p.team));
       point.contested = present.size > 1;
       if (point.contested) continue;
       const [team] = present;
@@ -652,7 +656,7 @@ export class Match {
       const carrier = this.players.get(flag.carrier);
       if (!carrier || this.flags[carrier.team].status !== 'home') continue;
       const base = this.layout.bases[carrier.team];
-      if (carrier.y - (this.layout.terrain?.(carrier.x, carrier.z) ?? 0) >= 1.25 || distanceSquared(carrier, base) >= 2 ** 2) continue;
+      if (Math.abs(carrier.y - (base.y ?? 0)) >= 1.25 || distanceSquared(carrier, base) >= 2 ** 2) continue;
       this.scores[carrier.team]++;
       this.returnFlag(team);
       this.events.push({ type: 'notice', text: carrier.name + ' doručil vlajku pro ' + TEAMS[carrier.team].name });
@@ -739,6 +743,11 @@ export class Match {
         let signal = movePlayer(player, {
           ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest, dodge: input.dodge || player.dodgeRequest,
         }, TICK, this.combatLayout);
+        if (this.layout.fallY !== undefined && player.y < this.layout.fallY) {
+          this.damage(player, player, player.hp + player.armor, now, player, 'fall');
+          this.clearRequests(player);
+          continue;
+        }
         this.signature.movement(player, pose, signal, now);
         if (signal === 'dodge') this.practice?.dodge(player);
         if (signal === 'launch') {

@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { ARENAS, WEAPONS } from '../public/rules.js';
+import { ARENAS, RELAY_SERVICE, WEAPONS } from '../public/rules.js';
 import {
   ISLAND_CREEK_END, ISLAND_CREEK_START, ISLAND_CROSSINGS, ISLAND_GRID,
   ISLAND_TRAIL, creekCenter, creekLevel, islandGridHeight, riverCenter,
@@ -10,11 +10,12 @@ const existing = readFileSync(target,'utf8');
 const catalog = JSON.parse(existing);
 const clean = value => JSON.parse(JSON.stringify(value,(key,v) => typeof v === 'number' ? +v.toFixed(5) : v));
 const cover = ({min, max, cos, sin, radius, ...shape}) => shape;
-const coordinates = ['length','label','description','edgeRadius','islandScale','cover','launchPads','pickups','bases','points',
+const coordinates = ['length','label','description','revision','fallY','edgeRadius','islandScale','cover','launchPads','pickups','bases','points',
   'turrets','vehicles','repairs','roadRadius','siege'];
 
-for (const map of catalog.maps) {
-  const arena = ARENAS[map.id];
+catalog.relayService ??= { id: 'relay' };
+for (const map of [...catalog.maps, catalog.relayService]) {
+  const arena = map === catalog.relayService ? RELAY_SERVICE : ARENAS[map.id];
   for (const key of coordinates)
     if (arena[key] !== undefined) map[key] = clean(key === 'cover' ? arena.cover.map(cover) : arena[key]);
   if (map.id !== 'island') continue;

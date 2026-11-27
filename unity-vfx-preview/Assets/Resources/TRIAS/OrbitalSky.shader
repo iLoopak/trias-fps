@@ -9,6 +9,8 @@ Shader "TRIAS/Orbital Sky"
         _Planet("Bearing and radius", Vector) = (-.77,.31,.54,.30)
         _GalaxyTex("Galaxy", 2D) = "black" {}
         _SkyScene("Orbital vista", Float) = 0
+        _RelayCloudDeck("Relay planet surface", 2D) = "black" {}
+        _RelayCloudDeckActive("Relay planet surface active", Float) = 0
         _SunDirection("Daylight sun direction", Vector) = (-.9,.19,.41,0)
         _Daylight("Daylight", Float) = 0
     }
@@ -24,7 +26,8 @@ Shader "TRIAS/Orbital Sky"
             #include "UnityCG.cginc"
             float4 _Zenith, _Horizon, _LightColor, _Body, _Planet, _SunDirection;
             sampler2D _GalaxyTex;
-            float _Daylight, _SkyScene;
+            float _Daylight, _SkyScene, _RelayCloudDeckActive;
+            sampler2D _RelayCloudDeck;
 
             struct SkyPixel { float4 vertex : SV_POSITION; float3 direction : TEXCOORD0; };
             SkyPixel vert(float4 vertex : POSITION)
@@ -107,6 +110,14 @@ Shader "TRIAS/Orbital Sky"
                 float3 east = normalize(cross(float3(0,1,0), center));
                 float3 north = cross(center,east);
                 float2 uv = float2(dot(n,east),dot(n,north));
+                if (_RelayCloudDeckActive > .5)
+                {
+                    float3 image = tex2D(_RelayCloudDeck,saturate(.5 + uv * .47)).rgb;
+                    float day = .24 + .76 * smoothstep(-.53,.53,dot(n,sun));
+                    float limb = pow(1 - saturate(dot(-ray,n)), 3.4);
+                    float3 air = lerp(float3(.12,.34,.62),float3(.53,.75,.94),limb);
+                    return image * day + air * limb * (.13 + day * .28);
+                }
                 uv += n.yz * .092 - n.zx * .056;
                 float2 warp = float2(cloud(uv*8.6),cloud(uv*10.2+16.1)) - .5;
                 float2 landUV = uv * 7.4 + warp * 1.35;

@@ -300,12 +300,74 @@ const islandPickups = [
   { x: -9.1, z: -16.3, type: 'lance' },
 ].map(onIsland);
 
+export const RELAY_SERVICE = {
+  id: 'relay', length: MAP_SIZE, label: 'Relay Station', description: 'Servisní paluba reaktoru.',
+  cover: COVER, launchPads: LAUNCH_PADS, gantries: GANTRIES, pickups: PICKUPS, bases: BASES, points: POINTS, spawns: SPAWNS, turrets: [],
+};
+
+const RELAY_MID = 3.3;
+const RELAY_HIGH = 6.6;
+const relayPlatforms = [];
+const relaySteps = [];
+function relayDeck(angle, along, lateral, w, d, bottom, h, structure) {
+  return { ...radial(angle, along, lateral), angle, w, d, bottom, h, structure, sector: -1 };
+}
+for (let quarter = 0; quarter < 4; quarter++) {
+  const angle = quarter * Math.PI / 2;
+  // Four slabs leave a square shaft open from the roof down.
+  relayPlatforms.push(relayDeck(angle, 23.5, 0, quarter % 2 ? 26 : 68, 21, -.84, 0, 'service'));
+  relayPlatforms.push(relayDeck(angle, 17, 0, quarter % 2 ? 27 : 41, 7, 2.67, RELAY_MID, 'gallery'));
+  relayPlatforms.push(relayDeck(angle, 11.93, 0, 5.6, 16.9, 5.88, RELAY_HIGH, 'bridge'));
+  relayPlatforms.push(relayDeck(angle, 2.7, 0, quarter % 2 ? 4.2 : 7, 1.6, 5.88, RELAY_HIGH, 'hub'));
+  for (const side of [-1, 1]) {
+    relayPlatforms.push(relayDeck(angle, 16.3, side * 10.4, 2.4, 1.05, RELAY_MID, 4.45, 'baffle'));
+    relayPlatforms.push(relayDeck(angle, 31.25, side * 11.5, 2.64, 3.25, 0, 2.65, 'pylon'));
+  }
+  relayPlatforms.push(relayDeck(angle, 6.75, -2.70, .20, 6.3, RELAY_HIGH, 7.47, 'rail'));
+  relayPlatforms.push(relayDeck(angle, 17.20, -2.70, .20, 6.2, RELAY_HIGH, 7.47, 'rail'));
+  relayPlatforms.push(relayDeck(angle, 15.17, 2.70, .20, 10.1, RELAY_HIGH, 7.47, 'rail'));
+  relayPlatforms.push(relayDeck(angle, 5.49, 2.70, .20, 3.95, RELAY_HIGH, 7.47, 'rail'));
+  relayPlatforms.push(relayDeck(angle, 8.45, 4.91, 4.64, 1.4, 6.1, RELAY_HIGH, 'arrival'));
+  // Both flights gain 3.3 m without requiring jump. The second starts near the inner gallery rim.
+  for (let tread = 0; tread < 10; tread++) {
+    const rise = (tread+1) * .33;
+    relaySteps.push(relayDeck(angle, 29.55 - tread * .94, 0, 4.55, .95, 0, rise, 'stair'));
+    relaySteps.push(relayDeck(angle, 17.8 - tread * .94, 5.2, 4.55, .95, RELAY_MID, RELAY_MID + rise, 'stair'));
+  }
+}
+relayPlatforms.push({ x:0,z:0,angle:0,w:3.7,d:3.7,bottom:-16,h:14.8,structure:'spine',sector:-1 });
+
+const relayShaft = {
+  ...RELAY_SERVICE, revision: 'relay-shaft-1', fallY: -14,
+  description: 'Servisní paluba, přestupní galerie a čtyři lávky nad šachtou reaktoru.',
+  cover: packCover([...relayPlatforms, ...relaySteps]),
+  gantries: [],
+  spawns: TEAMS.map(team => [-7.2,-4.7,4.7,7.2].map(offset=>radial(team.angle,29.2,offset))),
+  launchPads: Array.from({ length:4 }, (_,i) => {
+    const angle=i*Math.PI/2;
+    return { ...radial(angle,15.9,-4.7), y:RELAY_MID, angle, sector:-1, radius:.86,
+      vx:-Math.sin(angle)*5.9+Math.cos(angle)*3.5, vz:-Math.cos(angle)*5.9-Math.sin(angle)*3.5 };
+  }),
+  points: [
+    { x:-8, z:-17, y:RELAY_MID, label:'A' },
+    { x:17, z:8, y:RELAY_MID, label:'B' },
+    { x:-17, z:8, y:RELAY_MID, label:'C' },
+  ],
+  pickups: [
+    ...TEAMS.flatMap((team,i)=>[
+      { ...radial(team.angle,25.5,5.2), y:0, type:'med' },
+      { ...radial(i*Math.PI/2,17,-10.5), y:RELAY_MID, type:ARMORY[i+1] },
+    ]),
+    { x:0,z:8.5,y:RELAY_HIGH,type:'rift' },
+    { x:0,z:-8.5,y:RELAY_HIGH,type:'surge' },
+    { x:8.6,z:0,y:RELAY_HIGH,type:'shield' },
+    { x:-8.6,z:0,y:RELAY_HIGH,type:'shield' },
+  ],
+};
+
 export const DEFAULT_ARENA = 'relay';
 export const ARENAS = {
-  relay: {
-    id: 'relay', length: MAP_SIZE, label: 'Relay Station', description: 'Prasklý reaktor a zavěšené lávky.',
-    cover: COVER, launchPads: LAUNCH_PADS, gantries: GANTRIES, pickups: PICKUPS, bases: BASES, points: POINTS, spawns: SPAWNS, turrets: [],
-  },
+  relay: relayShaft,
   foundry: {
     id: 'foundry', length: FOUNDRY_SIZE, label: 'Vanta Foundry', description: 'Otevřená slévárna s dlouhými tavicími kanály a bočními mosty.',
     cover: foundryCover, launchPads: foundryPads, gantries: foundryGantries, pickups: foundryPickups,
@@ -327,21 +389,22 @@ export const ARENAS = {
 };
 
 function coversPoint(box, x, z, radius) {
+  if (box.structure === 'stair') radius = Math.min(radius,.16);
   const dx = x - box.x;
   const dz = z - box.z;
   return Math.abs(dx * box.cos - dz * box.sin) < box.w / 2 + radius
     && Math.abs(dx * box.sin + dz * box.cos) < box.d / 2 + radius;
 }
 
-export function blocked(x, z, radius = BODY_RADIUS, y = 0, layout = ARENAS.relay, height = BODY_HEIGHT) {
+export function blocked(x, z, radius = BODY_RADIUS, y = 0, layout = RELAY_SERVICE, height = BODY_HEIGHT) {
   if (layout.edgeRadius ? x * x + z * z > (layout.edgeRadius - radius) ** 2
     : Math.abs(x) > layout.length - radius || Math.abs(z) > layout.length - radius) return true;
   return layout.cover.some(box => y < box.h - 0.0001 && y + height > box.bottom + 0.0001
     && coversPoint(box, x, z, radius));
 }
 
-export function floorBelow(x, z, y, radius = 0, layout = ARENAS.relay) {
-  let floor = layout.terrain?.(x, z) ?? 0;
+export function floorBelow(x, z, y, radius = 0, layout = RELAY_SERVICE) {
+  let floor = layout.terrain?.(x, z) ?? (layout.fallY === undefined ? 0 : -Infinity);
   for (const box of layout.cover) {
     if (y + 0.0001 >= box.h && box.h > floor && coversPoint(box, x, z, radius)) floor = box.h;
   }
@@ -352,7 +415,7 @@ export function canDodge(player) {
   return !player.crouch && (player.dodgeCooldown ?? 0) <= 0 && (player.grounded || player.airDodge);
 }
 
-export function movePlayer(player, input, dt = TICK, layout = ARENAS.relay) {
+export function movePlayer(player, input, dt = TICK, layout = RELAY_SERVICE) {
   let signal;
   player.dodgeCooldown = Math.max(0, (player.dodgeCooldown ?? 0) - dt);
   player.dodgeTime = Math.max(0, (player.dodgeTime ?? 0) - dt);
@@ -374,8 +437,9 @@ export function movePlayer(player, input, dt = TICK, layout = ARENAS.relay) {
     : null;
 
   if (pad) {
-    player.vx = pad.vx;
-    player.vz = pad.vz;
+    const alignment = layout.fallY === undefined ? 0 : 2.47;
+    player.vx = pad.vx + (pad.x - player.x) * alignment;
+    player.vz = pad.vz + (pad.z - player.z) * alignment;
     player.vy = 12.35;
     player.grounded = false;
     player.airJump = player.airDodge = true;
@@ -402,7 +466,9 @@ export function movePlayer(player, input, dt = TICK, layout = ARENAS.relay) {
 
   player.vx ??= 0;
   player.vz ??= 0;
-  if (!pad && !player.dodgeTime) {
+  // The gallery catapult keeps its authored heading until the pilot clears the bridge lip.
+  const releaseLane = layout.fallY !== undefined && player.padCooldown > 0 && player.vy > 0;
+  if (!pad && !releaseLane && !player.dodgeTime) {
     const grounded = player.grounded;
     const shallow = layout.id === 'island' && grounded && islandFord(player.x, player.z);
     const speed = (player.crouch ? 4.25 : input.sprint ? SPRINT_SPEED : 7.55) * (shallow ? 0.72 : 1);
@@ -428,12 +494,26 @@ export function movePlayer(player, input, dt = TICK, layout = ARENAS.relay) {
     }
   }
 
+  let stepHeight = currentY;
   const moveY = Math.max(currentY, nextY);
   const walkingTerrain = layout.terrain && player.grounded;
+  const mayStep = layout.fallY !== undefined && player.grounded && player.vy <= 0;
+  const stairAt = (x, z) => {
+    if (!mayStep) return stepHeight;
+    let top = stepHeight;
+    for (const box of layout.cover) {
+      if (box.structure !== 'stair' || box.h <= top || box.h > currentY + .35 || !coversPoint(box,x,z,BODY_RADIUS)) continue;
+      top = box.h;
+    }
+    return top;
+  };
   const canMove = (x, z) => {
-    const ground = layout.terrain?.(x, z) ?? 0;
+    const ground = layout.terrain?.(x, z) ?? (layout.fallY === undefined ? 0 : -Infinity);
     if (layout.terrain && !walkingTerrain && ground > moveY + 0.0001) return false;
-    return !blocked(x, z, BODY_RADIUS, Math.max(moveY, ground), layout, height);
+    const step = stairAt(x,z);
+    if (blocked(x, z, BODY_RADIUS, Math.max(moveY, ground, step), layout, height)) return false;
+    stepHeight = step;
+    return true;
   };
   const x = player.x + player.vx * dt;
   const z = player.z + player.vz * dt;
@@ -442,8 +522,8 @@ export function movePlayer(player, input, dt = TICK, layout = ARENAS.relay) {
   if (!canMove(player.x, z)) player.vz = 0;
   else player.z = z;
 
-  const floor = player.vy <= 0 ? floorBelow(player.x, player.z, currentY, BODY_RADIUS, layout) : -1;
-  const followsSlope = walkingTerrain && floor >= currentY - 0.35;
+  const floor = player.vy <= 0 ? floorBelow(player.x, player.z, stepHeight, BODY_RADIUS, layout) : -Infinity;
+  const followsSlope = (walkingTerrain || mayStep) && floor >= currentY - 0.35;
   player.grounded = nextY <= floor || Boolean(followsSlope);
   player.y = player.grounded ? floor : nextY;
   if (player.grounded) {
@@ -476,7 +556,7 @@ export function rayBox(origin, direction, min, max) {
   return entry;
 }
 
-export function wallDistance(origin, direction, limit = 65, layout = ARENAS.relay) {
+export function wallDistance(origin, direction, limit = 65, layout = RELAY_SERVICE) {
   let distance = limit;
   const horizontal = Math.hypot(direction.x, direction.z);
   const localOrigin = { x: 0, y: origin.y, z: 0 };
@@ -512,7 +592,7 @@ export function wallDistance(origin, direction, limit = 65, layout = ARENAS.rela
     }
   }
   if (layout.terrain) return islandTerrainDistance(origin, direction, distance);
-  if (direction.y < 0) distance = Math.min(distance, -origin.y / direction.y);
+  if (direction.y < 0 && layout.fallY === undefined) distance = Math.min(distance, -origin.y / direction.y);
   return distance;
 }
 

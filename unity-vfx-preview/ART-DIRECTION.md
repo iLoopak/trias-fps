@@ -98,3 +98,15 @@ Relay Station má 68 m na šířku, Vanta Foundry 76 m a Meridian Basin 128 m. O
 Po změně souřadnic, terénu nebo zbraní se katalog Unity obnovuje příkazem `node tools/export-unity-world.mjs`. Režim `--check` ověřuje, že katalog odpovídá sdíleným pravidlům.
 
 Dřevěné mosty mají různě sesazené fošny a samostatné kovové spoje. Útes používá světově promítanou texturu zvětralé horniny a skály mají odlomené vrstvy. Boční stěny Relay, Foundry a Meridianu mají tlakové uzávěry, výměníky a regály pro rudu. Čtyři opakovatelné povrchy reprodukuje `python3 tools/make-map-surfaces.py`.
+
+## Relay Station · materiály a prostor pod konstrukcí
+
+Osvětlení nasměruje teplý klíč na keramiku, zatímco odraz oblohy a měkké stíny drží chladnější tmavé tóny. Nové albedo keramiky doplňuje existující mapu normál a odezvy povrchu. Kompozici mění atmosférická textura planety, úzký zářící sloup reaktoru, členité fasády a plavidlo se samostatnými tepelnými štíty. Dvě prosklené sekce odhalují vnější příhradovinu a zavěšené servisní prvky. Původní kolizní stěny zároveň vymezují pevné zasklení. Podlahové spáry a mříže jsou sdružené do statických dávek.
+
+Šest lávek, vysoké pilíře a pěší kryty používají ručně tvarované souvislé sítě z `Art/RelayStructure.blend`. Model obsahuje profil paluby, zapuštěný servisní žlab a stupňovaný přechod z patky do pláště pilíře a souvislou tlakopřepážku pro pěší kryt. Export reprodukuje `tools/blender/build-relay-structure.py`.
+
+## Relay Station · provozní trasy a šachta
+
+Soutěžní Relay tvoří tři výškové úrovně kolem nosné páteře reaktoru. Servisní paluba v 0 m obepíná otevřenou šachtu. Galerie v 3,3 m vede kolem otvoru a drží tři stanice pro Dominanci. Ve výšce 6,6 m se čtyři lávky sbíhají na ochozu u reaktoru. Ze startu je možné projít mezi všemi úrovněmi po schodech bez skoku. Čtyři boční vrhače nabízejí rychlejší nástup na lávky. Zbraně na galerii a Rift s Overcharge na lávkách dávají důvod postupovat nahoru.
+
+Pod palubami navazují příhrady na stěny šachty a nosnou páteř. Průchozí povrchy a zábrany se exportují ze stejných dat, z nichž vychází serverový pohyb, střelba a trasy botů. Delší pád končí standardním respawnem. Zisk bodu v Dominanci je vázán také na výšku stanice. Horda a výcvik používají servisní variantu Relay s původními staveništi a cvičnou drahou.

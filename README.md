@@ -29,7 +29,7 @@ Vercel Functions podporují WebSockety, ale dvě připojení mohou skončit v r�
 
 ## Mapy a piloti
 
-- **Relay Station** je orbitální aréna s prasklým reaktorem, zavěšenými lávkami a otevřeným bojem o střed.
+- **Relay Station** má tři paluby kolem otevřené šachty. Servisní trasy vedou ke schodištím, prostřední galerie spojuje body Dominance a horní lávky nesou Rift a Overcharge.
 - **Vanta Foundry** je slévárna s tavicími kanály, bočními mosty a nízkými servisními průchody pro přikrčené piloty. Po obvodu jsou tři pevná energetická hnízda. Mají omezený úhel míření a při dlouhé střelbě se přehřívají. Klávesa **E** obsluhu přepíná.
 - **Meridian Basin** měří 112 × 112 herních metrů. Široký okruh a tři paprsky mezi doky spojují tři sektory. Barevné servisní pruhy, odpalovací podložky a horní lávky dávají pěchotě kratší cestu a přístup ke zbraním. Antény v Dominanci a vlajky v CTF řeší pěchota. Zelené opravárenské plochy opravují obsazené vozidlo po zastavení. Minimapa ukazuje okruh, cíle a spojence.
 - **Kordilera** je kulatá pěší aréna na malé plovoucí planetě. Písková pěšina vede přes jižní hřeben k vyhlídkám nad dvěma vodopády. Na hřebeni leží Rift. V údolí vede přes řeku trojice dřevěných mostků a brod, který zpomaluje běh. Na webu se na březích občas objeví zajíc.

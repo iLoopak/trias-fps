@@ -58,7 +58,8 @@ export class Signature {
 
   valid(pose) {
     const layout = this.match.combatLayout;
-    return floorBelow(pose.x, pose.z, pose.y, 0, layout) <= pose.y + .065 &&
+    const support = floorBelow(pose.x, pose.z, pose.y, 0, layout);
+    return Number.isFinite(support) && support <= pose.y + .065 &&
       !blocked(pose.x, pose.z, .19, pose.y + .065, layout, eyeHeight(pose) - .025);
   }
 

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
-import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
+import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, RELAY_SERVICE, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
 import { fireProfileData, Match } from './match.js';
 import { interactionFlags } from './interactions.js';
 import { directorOptions } from './combat-director.js';
@@ -106,7 +106,7 @@ function welcome(socket, room, message, token, resumed = false) {
   socket.botRadio = socket.protocolVersion === NETWORK_VERSION && message.botRadio === true;
   const fireProfiles = socket.protocolVersion === NETWORK_VERSION && message.predictFire === true ? fireProfileData() : undefined;
   socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: room.code, mode: room.mode, arena: room.layout.id, bots: room.bots,
-    arenaLabel: room.layout.label, worldExtent: room.layout.edgeRadius ?? room.layout.length, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion, fireProfiles, pace: room.pace,
+    arenaLabel: room.layout.label, geometry: room.layout.revision, worldExtent: room.layout.edgeRadius ?? room.layout.length, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion, fireProfiles, pace: room.pace,
     resume: token, resumeSeconds: token ? RESUME_SECONDS : undefined, resumed: resumed || undefined, training: Boolean(room.practice) }));
 }
 
@@ -172,6 +172,8 @@ wss.on('connection', (socket, request) => {
     const name = typeof message.name === 'string'
       ? Array.from(message.name.replace(/[\p{Cc}\p{Cf}]/gu, '').trim()).slice(0, 18).join('') : '';
     let room = rooms.get(code);
+    if (room?.layout.revision && message.geometry !== room.layout.revision)
+      return reject(socket, 'Tahle verze klienta nemá nové rozložení Relay Station.');
     if (message.intent === 'resume') {
       if (!native || !room?.sessions.attach(socket, message.ticket, time))
         return reject(socket, 'Místo v zápase již nelze obnovit.');
@@ -185,7 +187,9 @@ wss.on('connection', (socket, request) => {
       const mode = training ? 'tdm' : message.mode === 'horde' && native
         ? 'horde' : pick(MODES, message.mode, DEFAULT_MODE);
       const arena = training ? 'relay' : MODES[mode]?.arena ?? pick(ARENAS, message.arena, DEFAULT_ARENA);
-      room = new Match(code, mode, !training && message.bots !== false, ARENAS[arena], {
+      if (arena === 'relay' && !training && mode !== 'horde' && message.geometry !== ARENAS.relay.revision)
+        return reject(socket, 'Tahle verze klienta nemá nové rozložení Relay Station.');
+      room = new Match(code, mode, !training && message.bots !== false, training ? RELAY_SERVICE : ARENAS[arena], {
         echo: training || process.env.TRIAS_COMBAT_ECHO !== '0', momentum: process.env.TRIAS_MOMENTUM !== '0',
         botDifficulty: process.env.TRIAS_BOT_DIFFICULTY, botDebug: process.env.TRIAS_BOT_DEBUG === '1',
         interactions: training ? undefined : interactionFlags(process.env),

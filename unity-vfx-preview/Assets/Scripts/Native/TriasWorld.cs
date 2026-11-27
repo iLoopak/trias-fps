@@ -29,7 +29,7 @@ namespace Trias.Native
         float waterEffects = -1, waterWind = -1;
         readonly Color sunColor;
         readonly System.Random random = new System.Random(719);
-        internal float Height(float x, float z) => Spec.terrain?.At(x, z) ?? 0;
+        internal float Height(float x, float z) => Spec.terrain?.At(x, z) ?? (Spec.Shaft ? Spec.fallY - 2 : 0);
 
         internal TriasWorld(ArenaSpec spec, Catalog catalog, string mode, Camera view, bool hangar = false)
         {
@@ -87,7 +87,11 @@ namespace Trias.Native
             armorSection = TriasMarkings.ArmorPlate();
             meshes.Add(armorSection);
             ceramicShell = TriasMarkings.ArmorPlate(true);
-            if (IsRelayArt) ConfigureRelaySurfaces();
+            if (IsRelayArt)
+            {
+                ConfigureRelaySurfaces();
+                ConfigureRelayDepthMaterials();
+            }
             meshes.Add(ceramicShell);
             Kit = new TriasKit(this);
             if (island)
@@ -136,12 +140,14 @@ namespace Trias.Native
                 home.localRotation = Quaternion.Euler(0, box.angle * Mathf.Rad2Deg, 0);
                 float h = box.h - box.bottom;
                 if (island) IslandCover(box, home, h);
+                else if (Spec.Shaft && box.structure != null) DressShaftBox(box, home, h);
                 else
                 {
                     var alloy = IsRelayArt ? (box.gantry ? Graphite : box.relay ? Hardware : walls)
                         : box.gantry || box.relay || box.sector >= 0 ? coverPaint : walls;
                     var body = Part(home, alloy, Vector3.up * h / 2, new Vector3(box.w, h, box.d), PrimitiveType.Cube, true);
-                    if (MapProp(box.profile, home, Vector3.up * h / 2, new Vector3(box.w, h, box.d)))
+                    if ((IsRelayArt && BuildRelayStructuralCover(box, home, h)) ||
+                        MapProp(box.profile, home, Vector3.up * h / 2, new Vector3(box.w, h, box.d)))
                     {
                         body.GetComponent<Renderer>().enabled = false;
                         continue;
@@ -267,12 +273,14 @@ namespace Trias.Native
             var serviceDeck = MapSurface(basin ? "#8f7469" : foundry ? "#9a6d57" : "#79909c", "brushed-deck", .56f, .29f);
             serviceDeck.mainTextureScale = new Vector2(3, 1);
             float d = Spec.length * 2;
-            Part(Root, deck, new Vector3(0, -0.44f, 0), new Vector3(d, 0.88f, d), PrimitiveType.Cube, true);
+            if (Spec.Shaft) BuildRelayShaft();
+            else Part(Root, deck, new Vector3(0, -0.44f, 0), new Vector3(d, 0.88f, d), PrimitiveType.Cube, true);
             for (int i = 0; i < 4; i++)
             {
                 var wall = Group(Root, "Perimeter");
                 wall.rotation = Quaternion.Euler(0, 90 * i, 0);
-                Part(wall, walls, new Vector3(0, 2.15f, Spec.length + 0.25f), new Vector3(d + 1, 4.3f, 0.50f), PrimitiveType.Cube, true);
+                var boundary = Part(wall, walls, new Vector3(0, 2.15f, Spec.length + 0.25f), new Vector3(d + 1, 4.3f, 0.50f), PrimitiveType.Cube, true);
+                if (IsRelayArt) RelayPerimeter(wall, boundary, i, d + 1);
                 for (float x = -Spec.length + 4; x < Spec.length - 1; x += IsRelayArt ? 12.8f : 7.8f)
                 {
                     Part(wall, Dark, new Vector3(x, 2.82f, Spec.length - 0.11f), new Vector3(0.31f, 5.65f, 0.54f));
@@ -330,6 +338,11 @@ namespace Trias.Native
                 {
                     BuildReactor();
                     BuildRelayHorizon();
+                    if (IsRelayArt)
+                    {
+                        if (!Spec.Shaft) BuildRelayDeckJoints();
+                        BuildRelayDebris();
+                    }
                 }
             }
         }

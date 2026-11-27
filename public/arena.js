@@ -144,7 +144,7 @@ function buildMap(scene, renderer, layout) {
     new THREE.MeshStandardMaterial({ map: deck, bumpMap: deck, bumpScale: 0.016, roughness: 0.78, metalness: 0.19, color: foundry ? '#d2c8bc' : basin ? '#c4acad' : '#cbd8e2' }));
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
-  scene.add(floor);
+  if (layout.fallY === undefined) scene.add(floor);
   if (basin) {
     const outside = new THREE.Mesh(new THREE.PlaneGeometry(315, 315), new THREE.MeshStandardMaterial({ color: '#3a333e', roughness: 0.98 }));
     outside.position.y = -0.13;
@@ -167,6 +167,12 @@ function buildMap(scene, renderer, layout) {
   };
   const porcelain = new THREE.MeshStandardMaterial({ color: '#938d82', roughness: 0.61, metalness: 0.24 });
   for (const c of layout.cover) {
+    if (c.structure) {
+      const paint = c.structure === 'service' ? floor.material : c.structure === 'rail' ? steel :
+        ['spine','pylon','gallery','bridge','hub','arrival'].includes(c.structure) ? porcelain : panel;
+      add(paint,c.w,c.h-c.bottom,c.d,c.x,(c.h+c.bottom)/2,c.z,c.angle);
+      continue;
+    }
     if (c.gantry || c.duct) continue;
     const { x, z, h, w, d } = c;
     const angle = c.angle ?? 0;
@@ -241,11 +247,12 @@ function buildMap(scene, renderer, layout) {
       add(material, w, 0.009, d, offset * Math.cos(angle) + radius * Math.sin(angle),
         0.013, -offset * Math.sin(angle) + radius * Math.cos(angle), angle);
     };
+    const splitDeck = layout.fallY !== undefined;
     for (const offset of [-2.35, 2.35]) {
-      lane(black, 0.27, 22, offset, 14);
-      lane(teamGlow[i], 0.035, 21, offset, 14);
+      lane(black, .27, splitDeck ? 9 : 22, offset, splitDeck ? 25 : 14);
+      lane(teamGlow[i], .035, splitDeck ? 8 : 21, offset, splitDeck ? 25 : 14);
     }
-    for (let radius = 5; radius <= 25; radius += 2) {
+    for (let radius = splitDeck ? 21 : 5; radius <= 25; radius += 2) {
       lane(steel, 0.08, 0.56, 0, radius);
     }
   }

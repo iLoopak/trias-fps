@@ -54,7 +54,9 @@ namespace Trias.Native
             if (launch != null)
             {
                 cue = MotionCue.Launch;
-                Velocity = new Vector3(launch.vx, 12.35f, launch.vz);
+                float alignment = map.Shaft ? 2.47f : 0;
+                Velocity = new Vector3(launch.vx + (launch.x - Position.x) * alignment, 12.35f,
+                    launch.vz + (launch.z - Position.z) * alignment);
                 Grounded = false;
                 AirJump = AirDodge = true;
                 PadCooldown = 0.45f;
@@ -75,7 +77,8 @@ namespace Trias.Native
                 DodgeTime = 0.22f;
                 Grounded = AirDodge = false;
             }
-            if (launch == null && DodgeTime <= 0)
+            bool releaseLane = map.Shaft && PadCooldown > 0 && Velocity.y > 0;
+            if (launch == null && !releaseLane && DodgeTime <= 0)
             {
                 float speed = Crouch ? 4.25f : input.Has(1) ? 10.1f : 7.55f;
                 if (map.id == "island" && Grounded && Shallow(Position, map)) speed *= 0.72f;
@@ -92,21 +95,22 @@ namespace Trias.Native
                     { next = box.bottom - height; Velocity.y = 0; }
 
             bool slope = map.terrain != null && Grounded;
-            float moveY = Mathf.Max(old, next);
+            float moveY = Mathf.Max(old, next), stepHeight = old;
+            bool mayStep = map.Shaft && Grounded && Velocity.y <= 0;
             float x = Position.x + Velocity.x * Tick, z = Position.z + Velocity.z * Tick;
-            if (StepAllowed(map, x, Position.z, moveY, height, slope)) Position.x = x;
+            if (StepAllowed(map, x, Position.z, moveY, height, slope, mayStep, old, ref stepHeight)) Position.x = x;
             else Velocity.x = 0;
-            if (StepAllowed(map, Position.x, z, moveY, height, slope)) Position.z = z;
+            if (StepAllowed(map, Position.x, z, moveY, height, slope, mayStep, old, ref stepHeight)) Position.z = z;
             else Velocity.z = 0;
-            float ground = -1;
+            float ground = float.NegativeInfinity;
             if (Velocity.y <= 0)
             {
-                ground = map.terrain?.At(Position.x, Position.z) ?? 0;
+                ground = map.terrain?.At(Position.x, Position.z) ?? (map.Shaft ? float.NegativeInfinity : 0);
                 foreach (var box in map.cover)
-                    if (old + 0.0001f >= box.h && box.h > ground && box.Overlaps(Position.x, Position.z, Radius))
+                    if (stepHeight + 0.0001f >= box.h && box.h > ground && box.Overlaps(Position.x, Position.z, Radius))
                         ground = box.h;
             }
-            Grounded = next <= ground || slope && ground >= old - 0.35f;
+            Grounded = next <= ground || (slope || mayStep) && ground >= old - .35f;
             Position.y = Grounded ? ground : next;
             if (Grounded)
             {
@@ -116,10 +120,19 @@ namespace Trias.Native
             return cue;
         }
 
-        static bool StepAllowed(ArenaSpec map, float x, float z, float y, float h, bool slope)
+        static bool StepAllowed(ArenaSpec map, float x, float z, float y, float h, bool slope,
+            bool mayStep, float old, ref float stepHeight)
         {
-            float ground = map.terrain?.At(x, z) ?? 0;
-            return (map.terrain == null || slope || ground <= y + 0.0001f) && !Blocked(map, x, z, Mathf.Max(y, ground), h);
+            float ground = map.terrain?.At(x, z) ?? (map.Shaft ? float.NegativeInfinity : 0);
+            if (map.terrain != null && !slope && ground > y + .0001f) return false;
+            float support = stepHeight;
+            if (mayStep)
+                foreach (var box in map.cover)
+                    if (box.structure == "stair" && box.h > support && box.h <= old + .35f && box.Overlaps(x,z,Radius))
+                        support = box.h;
+            if (Blocked(map, x, z, Mathf.Max(y, ground, support), h)) return false;
+            stepHeight = support;
+            return true;
         }
 
         static bool Blocked(ArenaSpec map, float x, float z, float y, float h)

@@ -25,15 +25,25 @@ namespace Trias.Native
                 bool end = face % 2 != 0;
                 float width = end ? box.d : box.w;
                 float depth = (end ? box.w : box.d)*.5f;
-                if (box.gantry && end) continue;
                 var skin = Group(home, "Replaceable layered fascia");
                 skin.localRotation = Quaternion.Euler(0,face*90,0);
+                DressRelayMechanical(box, skin, face, width, depth, height);
                 if (box.gantry)
                 {
                     Armor(skin, Graphite, new Vector3(0,height*.22f,depth+.025f),new Vector3(width*.98f,height*.53f,.12f),false);
-                    Armor(skin, Porcelain, new Vector3(-width*.22f,height*.70f,depth+.08f),new Vector3(width*.49f,height*.49f,.13f),false);
-                    Armor(skin, relayStructure, new Vector3(width*.27f,height*.65f,depth+.073f),new Vector3(width*.41f,height*.36f,.12f),false);
-                    Armor(skin, SafetyAmber,new Vector3(-width*.28f,height*.43f,depth+.169f),new Vector3(width*.112f,height*.15f,.066f),false);
+                    float gap = Mathf.Min(.055f, width * .028f);
+                    int cells = end ? 2 : width >= 7 ? 4 : 3;
+                    for (int tile = 0; tile < cells; tile++)
+                    {
+                        float span = width / cells;
+                        float x = (tile + .5f) * span - width * .5f;
+                        var paint = (tile + face) % 4 == 3 ? Insulation : Porcelain;
+                        Armor(skin, paint, new Vector3(x, height * .73f, depth + .077f),
+                            new Vector3(span - gap * 2, height * .48f, .14f), true);
+                        Armor(skin, tile % 2 == 0 ? relayPaintedSteel : relayStructure,
+                            new Vector3(x - span * .19f, height * .41f, depth + .12f),
+                            new Vector3(span * .51f, height * .116f, .079f), false);
+                    }
                     continue;
                 }
                 if (end || ribbed)
@@ -45,6 +55,15 @@ namespace Trias.Native
                     new Vector3(width*(ribbed ? .78f : .84f),height*(low ? .34f : .62f),.116f),false);
                 panel.localRotation = Quaternion.Euler(0,0,ribbed ? 0f : face == 0 ? 2f : -2f);
                 if (low || end) continue;
+                if (box.profile == "pylon")
+                {
+                    float x = width * .34f;
+                    var service = Armor(skin, relayPaintedSteel, new Vector3(x, height * .72f, depth + .13f),
+                        new Vector3(width * .138f, height * .39f, .102f), true);
+                    service.localRotation = Quaternion.Euler(0, 0, -4);
+                    Part(skin, relayDrain, new Vector3(x, height * .62f, depth + .181f),
+                        new Vector3(width * .074f, .034f, .036f));
+                }
                 Armor(skin, box.sector >= 0 ? FactionPaint[box.sector] : SafetyAmber,
                     new Vector3(-width*.28f,height*.39f,depth+.093f),new Vector3(width*.22f,.078f,.044f),false);
                 if (!ribbed) continue;
@@ -96,10 +115,41 @@ namespace Trias.Native
                     Armor(shaft, distantHull, new Vector3(-.2f,height*.31f,-2.63f),new Vector3(3.9f,height*.52f,1.62f),false);
                     Armor(shaft, distantInsulation, new Vector3(-.35f,height*.51f,-2.63f),new Vector3(3.35f,1.48f,1.82f),false);
                     Armor(shaft, distantFrame,new Vector3(1.7f,height*.37f,-.6f),new Vector3(.74f,height*.69f,4.35f),false);
+                    // Intermediate floors split the exterior tower into structural masses at different depths.
+                    for (int level = 0; level < 3; level++)
+                    {
+                        float y = (level + 1) * height * .157f;
+                        float offset = level == 1 ? -.22f : .19f;
+                        Armor(shaft, level == 1 ? relayPaintedSteel : distantInsulation,
+                            new Vector3(offset, y, -3.37f), new Vector3(3.61f - level*.39f, .41f, .49f), false);
+                        Part(shaft, distantFrame, new Vector3(offset, y - .36f, -3.36f), new Vector3(2.67f, .14f, .41f));
+                    }
                     if (side == 1 || side == 3)
                         Kit.Nature(shaft,"tree_oak",new Vector3(4.05f,4.6f,4.05f),new Vector3(-.2f,height*.52f,-1.7f), side*19);
                 }
             }
+        }
+
+        void BuildRelayDebris()
+        {
+            var debris = Group(Root, "Fractured exterior mineral masses");
+            var rocks = new []
+            {
+                (new Vector3(-43, 13, 81), new Vector3(11, 20, 13), Quaternion.Euler(-12, 15, 14)),
+                (new Vector3(-56, -9, 70), new Vector3(17, 30, 14), Quaternion.Euler(-25, 28, -9)),
+                (new Vector3(35, 11, 121), new Vector3(7, 15, 9), Quaternion.Euler(9, 72, -19)),
+                (new Vector3(46, 4, 95), new Vector3(5.34f, 11.5f, 6.6f), Quaternion.Euler(-23, 93, 12))
+            };
+            for (int i = 0; i < rocks.Length; i++)
+            {
+                var (position, size, angle) = rocks[i];
+                var mount = Group(debris, "Exposed fracture", position);
+                mount.localRotation = angle;
+                MapProp(i % 2 == 0 ? "splitrock" : "shelves", mount, Vector3.zero, size);
+                MapProp("granite", mount, new Vector3(size.x * .68f, size.y * .24f, size.z * .19f), size * .23f);
+            }
+            foreach (var renderer in debris.GetComponentsInChildren<MeshRenderer>())
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         // Unit outer radius, with real thickness and exposed ends on both sides of the gap.

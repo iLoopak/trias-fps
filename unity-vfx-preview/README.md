@@ -6,7 +6,7 @@ Pro online zápas spusť z kořene repozitáře `npm ci` a `npm start`. V Unity 
 
 Postup pro server přes internet je v [Multiplayer přes internet](INTERNET.md).
 
-Online klient používá autoritativní server pro pět soutěžních režimů, čtyři arény a kooperativní Obranu jádra. Pěší pohyb se predikuje lokálně, vozidla přebírají polohu ze serveru. Tlačítko **Trénink offline** spouští samostatný místní TDM na Relay Station. Začneš se zbraní vybraného pilota a můžeš rovnou vyzkoušet všech pět zbraní a jejich sekundární střelbu.
+Online klient používá autoritativní server pro pět soutěžních režimů, čtyři arény a kooperativní Obranu jádra. Pěší pohyb se predikuje lokálně, vozidla přebírají polohu ze serveru. Pro nové soutěžní Relay spusť `npm start`, v Unity zvol **TRIAS → Open full game** a vytvoř **Týmový boj** na Relay Station se serverem `ws://127.0.0.1:3000`. Horda a samostatný offline trénink používají servisní variantu Relay. Tlačítko **Trénink offline** spouští samostatný místní TDM na Relay Station. Začneš se zbraní vybraného pilota a můžeš rovnou vyzkoušet všech pět zbraní a jejich sekundární střelbu.
 
 - **WASD** a myš ovládají pohyb a míření. **Shift** sprintuje, **C** krčí, **mezerník** skáče a **Q** provádí úskok.
 - Levé tlačítko střílí, **R** přebíjí, **1–5** volí zbraň, **pravé tlačítko** nebo **F** spustí sekundární střelbu a **G** hodí granát.
@@ -82,7 +82,7 @@ Skript `Trias.Preview.BuildTrias` nabízí metody `BuildMac`, `BuildWindows` a `
 
 Otevři projekt v Unity 6.3 LTS a vyber **TRIAS → Open Relay Station**. Při prvním spuštění nabídka vytvoří scénu v `Assets/Scenes/Relay Station.unity`. V režimu **Play** klikni do herního okna nebo stiskni **Enter**.
 
-Prototyp běží lokálně jako Team Deathmatch proti jedenácti botům rozděleným do tří týmů. Kolo končí na 35 vyřazeních nebo po 6 minutách. Trasy, kryty, lávky, skokové podložky a výchozí pozice vycházejí z dat webové Relay Station.
+Prototyp běží lokálně jako Team Deathmatch proti jedenácti botům rozděleným do tří týmů. Kolo končí na 35 vyřazeních nebo po 6 minutách. Trasy, kryty, lávky, skokové podložky a výchozí pozice vycházejí z původní servisní varianty Relay Station.
 
 - **WASD** a myš ovládají pohyb a míření. **Shift** sprintuje, **mezerník** skáče a opakovaný stisk ve vzduchu udělá dvojskok.
 - Levé tlačítko střílí a **R** přebíjí Pulse. **1** vybaví Pulse a **2** vybaví Rift. Pro snadné porovnání efektů má hráč po každém respawnu tři střely Riftu.

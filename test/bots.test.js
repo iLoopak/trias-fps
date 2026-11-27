@@ -5,10 +5,10 @@ import { chooseObjective, chooseWeapon } from '../bot-choices.js';
 import { botSound, senseBots } from '../bot-perception.js';
 import { BOT_DIFFICULTIES, brainFor, normalizeDifficulty } from '../bot-profiles.js';
 import { Match } from '../match.js';
-import { ARENAS, PILOT_HP, TICK, packCover, aimVector } from '../public/rules.js';
+import { ARENAS, RELAY_SERVICE, PILOT_HP, TICK, packCover, aimVector } from '../public/rules.js';
 
 function setup(mode = 'tdm', flags = {}) {
-  const match = new Match('bot-fixture',mode,true,{ ...ARENAS.relay,cover:[],launchPads:[],turrets:[] },flags);
+  const match = new Match('bot-fixture',mode,true,{ ...RELAY_SERVICE,cover:[],launchPads:[],turrets:[] },flags);
   const bot = match.addPlayer('bot','Scout',0,0,0,true,'vector');
   Object.assign(bot,{ x:0,y:0,z:0,yaw:0,pitch:0,safeUntil:0 });
   return { match,bot,brain:brainFor(match,bot) };

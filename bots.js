@@ -1,4 +1,4 @@
-import { PILOT_HP, TICK, TURRET, WEAPONS, aimVector, blocked, canDodge, distanceSquared, eyeHeight, radial, turretYaw, wallDistance } from './public/rules.js';
+import { PILOT_HP, TICK, TURRET, WEAPONS, aimVector, blocked, canDodge, distanceSquared, eyeHeight, floorBelow, radial, turretYaw, wallDistance } from './public/rules.js';
 import { brainFor, roll, WEAPON_ROLES } from './bot-profiles.js';
 import { bearing, inView, senseBots, visible } from './bot-perception.js';
 import { chooseObjective, chooseWeapon, retreatPoint } from './bot-choices.js';
@@ -27,6 +27,85 @@ function navigationFor(layout) {
   return grid;
 }
 
+// Layered Relay routes use the same solid footprints as movement. Adjacent cells can
+// link only across a walkable riser, even when two decks overlap in the horizontal plane.
+const shaftNavigation = new WeakMap();
+function shaftGrid(layout) {
+  if (shaftNavigation.has(layout)) return shaftNavigation.get(layout);
+  const width = Math.ceil(layout.length * 2 / .8);
+  const step = layout.length * 2 / width;
+  const support = layout.cover.filter(box => ['service','gallery','bridge','hub','arrival','stair'].includes(box.structure));
+  const cells = new Array(width * width);
+  const nodes = [];
+  for (let z = 0; z < width; z++) for (let x = 0; x < width; x++) {
+    const px = (x + .5) * step - layout.length, pz = (z + .5) * step - layout.length;
+    const band = [];
+    for (const box of support) {
+      const dx = px - box.x, dz = pz - box.z;
+      const margin = box.structure === 'stair' ? .16 : .13;
+      if (Math.abs(dx * box.cos - dz * box.sin) >= box.w / 2 + margin ||
+          Math.abs(dx * box.sin + dz * box.cos) >= box.d / 2 + margin) continue;
+      if (band.some(node=> Math.abs(node.y-box.h) < .001) || blocked(px,pz,.45,box.h,layout)) continue;
+      const node = { id:nodes.length, x:px, y:box.h, z:pz, edges:[] };
+      band.push(node);
+      nodes.push(node);
+    }
+    cells[z * width + x] = band;
+  }
+  for (let z = 0; z < width; z++) for (let x = 0; x < width; x++) {
+    const band = cells[z * width + x];
+    const near = [[x-1,z],[x+1,z],[x,z-1],[x,z+1]];
+    for (const node of band) for (const [nx,nz] of near) {
+      if (nx < 0 || nx >= width || nz < 0 || nz >= width) continue;
+      for (const next of cells[nz * width + nx]) {
+        if (Math.abs(node.y-next.y) > .351) continue;
+        const y = Math.max(node.y,next.y), tx=(node.x+next.x)/2, tz=(node.z+next.z)/2;
+        if (blocked(tx,tz,.43,y,layout) || floorBelow(tx,tz,y,.16,layout) < y - .35) continue;
+        node.edges.push(next);
+      }
+    }
+  }
+  const grid = { width,step,cells,nodes };
+  shaftNavigation.set(layout,grid);
+  return grid;
+}
+
+function shaftRoute(from, to, layout) {
+  const { width,step,cells,nodes } = shaftGrid(layout);
+  function near(position) {
+    const x = Math.floor((position.x + layout.length) / step), z = Math.floor((position.z + layout.length) / step);
+    let best = Infinity, result;
+    for (let i=Math.max(0,z-5); i<Math.min(width,z+6); i++)
+      for (let j=Math.max(0,x-5); j<Math.min(width,x+6); j++)
+        for (const node of cells[i*width+j]) {
+          if (!node.edges.length) continue;
+          const cost = distanceSquared(position,node) + ((position.y ?? 0) - node.y) ** 2 * 9;
+          if (cost < best) { best=cost; result=node; }
+        }
+    return result;
+  }
+  const start = near(from), end = near(to);
+  if (!start || !end || start === end) return [];
+  const parents=new Int32Array(nodes.length).fill(-1);
+  const queue=[start];
+  parents[start.id]=start.id;
+  for (let head=0; head<queue.length && parents[end.id] === -1; head++) {
+    const node=queue[head];
+    for (const next of node.edges) {
+      if (parents[next.id] !== -1) continue;
+      parents[next.id]=node.id;
+      queue.push(next);
+    }
+  }
+  if (parents[end.id] === -1) return [];
+  const path=[];
+  for (let index=end.id; index!==start.id; index=parents[index]) {
+    const {x,y,z} = nodes[index];
+    path.push({x,y,z});
+  }
+  return path.reverse();
+}
+
 function nearestCell(position, { cells, edges, width, step, length }) {
   const x = Math.max(0, Math.min(width - 1, Math.floor((position.x + length) / step)));
   const z = Math.max(0, Math.min(width - 1, Math.floor((position.z + length) / step)));
@@ -48,6 +127,7 @@ function nearestCell(position, { cells, edges, width, step, length }) {
 }
 
 export function route(from, to, layout) {
+  if (layout.fallY !== undefined) return shaftRoute(from,to,layout);
   const grid = navigationFor(layout);
   const { cells, edges } = grid;
   const start = nearestCell(from, grid);
@@ -244,17 +324,21 @@ export function botInput(room, player, now) {
   let goal = brain.objective.point;
   const core = brain.objective.core;
   const seesCore = core && distanceSquared(player,core)<spec.range ** 2 && visible(player,core,layout);
+  const shaft = layout.fallY !== undefined;
   if (now >= brain.routeAt) {
     brain.routeAt = now + .64 + roll(brain) * .54;
-    brain.path = directionIsClear(player,goal,layout) ? [] : route(player,goal,room.layout);
+    brain.path = !shaft && directionIsClear(player,goal,layout) ? [] : route(player,goal,room.layout);
   }
-  while (brain.path.length && distanceSquared(player,brain.path[0]) < 1.0 ** 2) brain.path.shift();
+  while (brain.path.length && distanceSquared(player,brain.path[0]) < (shaft ? .49 : 1.0) ** 2 &&
+    (!shaft || Math.abs(player.y - brain.path[0].y) < .085)) brain.path.shift();
   const inner = room.layout.gantries[player.team*2+1];
   const flight = now - player.launchAt;
   const airborneRoute = inner && (brain.traits.mobility > .57 || brain.kind === 'marksman') && !player.grounded && flight > .29 && flight < 1.57;
   if (airborneRoute) goal = inner;
   const destination = airborneRoute ? goal : brain.path[0] ?? goal;
-  const travelling = distanceSquared(player,destination) > (brain.intent === 'engage' ? 2 : 1.5) ** 2;
+  const waypoint = shaft && brain.path.length > 0;
+  const travelling = waypoint ? distanceSquared(player,destination) > .18 ** 2 || Math.abs(player.y - destination.y) > .10
+    : distanceSquared(player,destination) > (brain.intent === 'engage' ? 2 : 1.5) ** 2;
   const markedEcho = !enemy && !seesCore && brain.echoReactAt <= now ? brain.hostileEcho : null;
   const aimTarget = enemy ?? markedEcho;
   const ideal = aimTarget ? targetAim(player,brain,aimTarget.distance == null ?
@@ -269,7 +353,7 @@ export function botInput(room, player, now) {
   let x = travelling ? -Math.sin(relative) : 0;
   let z = travelling ? Math.cos(relative) : 0;
   const tactical = enemy && (brain.intent === 'engage' || brain.intent === 'flank');
-  if (tactical && !airborneRoute && (brain.intent !== 'flank' || enemy.distance < brain.traits.range * .89)) {
+  if (tactical && (!shaft || !brain.path.length) && !airborneRoute && (brain.intent !== 'flank' || enemy.distance < brain.traits.range * .89)) {
     const direct = (enemy.distance - brain.traits.range - (room.director?.rangeOffset ?? 0)) / 8;
     x = Math.sin(now * (2.5 + brain.traits.mobility) + player.slot) * .59 * brain.strafe;
     z = Math.max(-.76,Math.min(.95,direct));
@@ -280,17 +364,30 @@ export function botInput(room, player, now) {
     x = brain.strafe * .76;
     z = -.42;
   }
+  if (waypoint) {
+    const speed = Math.min(.61, Math.sqrt(distanceSquared(player,destination)) * 1.69 + .07);
+    x *= speed;
+    z *= speed;
+  }
+  if (shaft && player.grounded && (x || z)) {
+    const c = Math.cos(aim.yaw), s = Math.sin(aim.yaw);
+    const dx = x*c - z*s, dz = -x*s-z*c;
+    if (floorBelow(player.x+dx*.70,player.z+dz*.70,player.y+.35,.17,layout) < player.y-.58) {
+      x = 0;
+      z = 0;
+    }
+  }
   const carrying = brain.intent === 'return-flag';
   const dodging = now >= brain.dodgeAt && !carrying && canDodge(player)
     && (enemy && enemy.distance < 19 && (brain.intent === 'retreat' || brain.traits.mobility > .42)
       || now < brain.recoverUntil && player.grounded);
   let dodge = false;
-  if (dodging) {
+  if (dodging && !shaft) {
     brain.dodgeAt = now + .52 + roll(brain)*1.02;
     dodge = roll(brain) < brain.traits.mobility * brain.tuning.tactics + (brain.intent === 'retreat' ? .24 : 0);
   }
   let jump = false;
-  if (now >= brain.jumpAt && (player.grounded || player.airJump)) {
+  if (!shaft && now >= brain.jumpAt && (player.grounded || player.airJump)) {
     const ready = airborneRoute && player.airJump && flight > .52 && player.vy < 1.5
       || brain.recoverUntil > now && player.grounded
       || enemy && brain.kind === 'acrobat' && (player.grounded || player.airJump && player.vy < 1.4);
@@ -325,7 +422,7 @@ export function botInput(room, player, now) {
   }
   return {
     ...aim,x,z,weapon,fire: fire && !echo,echo,jump,dodge,
-    sprint: airborneRoute || !enemy && travelling || carrying || brain.intent === 'retreat' || tactical && z > .7 && brain.traits.push > .65,
+    sprint: !waypoint && (airborneRoute || !enemy && travelling || carrying || brain.intent === 'retreat' || tactical && z > .7 && brain.traits.push > .65),
     crouch: Boolean(enemy && brain.kind === 'marksman' && enemy.distance > 18 && Math.abs(z) < .2 && !dodge && player.grounded),
     use: Boolean(brain.objective.vehicle && boardingVehicle(player,room.fleet.hulls)===brain.objective.vehicle ||
       brain.objective.turret && distanceSquared(player,brain.objective.turret) < TURRET.dismountRadius ** 2),

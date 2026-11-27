@@ -5,7 +5,7 @@ import { boardingVehicle, moveVehicle, VEHICLES } from './vehicles.js';
 import { GameAudio } from './game-audio.js';
 import {
   ARENAS, ARMORY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, DODGE_COOLDOWN, GRENADE, MODES,
-  PILOT_HP, POWERUPS, TEAMS, TICK, TURRET, WEAPONS, canDodge, distanceSquared, eyeHeight, movePlayer, pilotColor, roomCode, turretYaw,
+  PILOT_HP, POWERUPS, RELAY_SERVICE, TEAMS, TICK, TURRET, WEAPONS, canDodge, distanceSquared, eyeHeight, movePlayer, pilotColor, roomCode, turretYaw,
 } from './rules.js';
 
 const $ = id => document.getElementById(id);
@@ -220,7 +220,7 @@ $('join-form').addEventListener('submit', async event => {
     if (socket === connection && !joined) endMatch('Server neodpověděl včas.');
   }, 5000);
   connection.addEventListener('open', () => connection.send(JSON.stringify({
-    type: 'join', v: NETWORK_VERSION, room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
+    type: 'join', v: NETWORK_VERSION, geometry: ARENAS.relay.revision, room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
   })));
   connection.addEventListener('message', event => {
     if (socket !== connection) return;
@@ -256,7 +256,7 @@ function inviteURL() {
 }
 
 function onJoin(message) {
-  layout = ARENAS[message.arena] ?? ARENAS[DEFAULT_ARENA];
+  layout = message.arena === 'relay' && !message.geometry ? RELAY_SERVICE : ARENAS[message.arena] ?? ARENAS[DEFAULT_ARENA];
   try {
     if (arena?.layout !== layout) {
       arena?.dispose();
@@ -638,8 +638,8 @@ function onState(message) {
     } else {
       if (event.type === 'kill') {
         const local = event.victimId === own.id;
-        arena.eliminate(event, local, joined.mode);
-        if (local && !own.hp && event.body && own.respawn > 0.4 && !message.winner) {
+        if (event.weapon !== 'fall') arena.eliminate(event, local, joined.mode);
+        if (event.weapon !== 'fall' && local && !own.hp && event.body && own.respawn > 0.4 && !message.winner) {
           const start = performance.now();
           deathReplay = { event, team: joined.mode === 'ffa' ? null : own.team, start,
             end: start + Math.min(KILL_CAM_MS, own.respawn * 430), progress: 0 };
@@ -697,7 +697,7 @@ function playShot(event) {
 function showMotion(event, local) {
   if (event.action !== 'step') {
     const player = local ? own : state.players.find(item => item.id === event.id);
-    arena.move(event, local, player ? pilotColor(player, joined.mode) : TEAMS[event.team].color);
+    arena.move(event, local, player ? pilotColor(player, joined.mode) : TEAMS[event.team]?.color ?? '#d8ccbd');
   }
   if (local) {
     if (event.action === 'step') audio.footstep();
@@ -784,7 +784,7 @@ function addFeed(event) {
   if (event.type === 'kill') {
     const attacker = node('b', event.attacker);
     const player = state.players.find(item => item.id === event.attackerId);
-    attacker.style.setProperty('--team', player ? pilotColor(player, joined.mode) : TEAMS[event.team].color);
+    attacker.style.setProperty('--team', player ? pilotColor(player, joined.mode) : TEAMS[event.team]?.color ?? '#d8ccbd');
     row.append(attacker, document.createTextNode(' › ' + event.victim));
   } else {
     row.textContent = event.text;
