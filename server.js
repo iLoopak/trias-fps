@@ -21,6 +21,7 @@ const files = new Map([
   ['/pilot.js', ['public/pilot.js', 'text/javascript']],
   ['/netcode.js', ['public/netcode.js', 'text/javascript']],
   ['/snapshot-clock.js', ['public/snapshot-clock.js', 'text/javascript']],
+  ['/death-view.js', ['public/death-view.js', 'text/javascript']],
   ['/pilot-portraits.png', ['public/pilot-portraits.png', 'image/png']],
   ['/weapon-motion.js', ['public/weapon-motion.js', 'text/javascript']],
   ['/game-audio.js', ['public/game-audio.js', 'text/javascript']],

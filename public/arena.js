@@ -1,5 +1,6 @@
 import * as THREE from '/three.module.js';
 import { installIsland } from './island.js';
+import { cameraInCover, deathFrame, followFrame } from './death-view.js';
 import { buildPilot, pilotShell, posePilot } from './pilot.js';
 import { recoilPose, reloadPose } from './weapon-motion.js';
 import { presentedPose, rememberPose, SnapshotClock } from './snapshot-clock.js';
@@ -707,6 +708,7 @@ export class Arena {
   }
 
   reset() {
+    this.followTarget = null;
     this.snapshotClock = new SnapshotClock();
     for (const corpse of this.corpses) corpse.model.root.removeFromParent();
     this.corpses.length = 0;
@@ -750,7 +752,7 @@ export class Arena {
       if (model.spawn !== player.spawn) {
         model.root.position.set(player.x, player.y, player.z);
         model.root.rotation.y = player.yaw;
-        if (model.spawn !== undefined) this.effects.pulse([player.x, player.y, player.z], color(accent), performance.now());
+        if (model.spawn !== undefined) this.respawn(player, mode);
         model.spawn = player.spawn;
         model.phase = ((player.team * 4 + player.slot) * 0.618) % 1;
         model.gait = model.pace = 0;
@@ -859,7 +861,9 @@ export class Arena {
 
   eliminate(event, local, mode) {
     const dead = event.body;
-    if (local || !dead) return;
+    if (!dead) return;
+    const time = performance.now();
+    if (!local) this.effects.elimination(event, time, color(pilotColor(dead, mode)));
     const model = buildPilot(uniform(pilotColor(dead, mode)), false, dead.character);
     model.crouch = dead.crouch ? 1 : 0;
     model.root.rotation.y = dead.yaw;
@@ -872,7 +876,7 @@ export class Arena {
     this.corpses.push({
       model, x: dead.x, y: dead.y, z: dead.z, yaw: dead.yaw,
       vx: dead.vx * 0.31 + dx / gap * 2.45, vy: Math.max(-8, dead.vy), vz: dead.vz * 0.31 + dz / gap * 2.45,
-      tilt: 0, settledAt: null, startAt: performance.now(),
+      tilt: 0, settledAt: null, startAt: time,
     });
   }
 
@@ -907,7 +911,44 @@ export class Arena {
   }
 
   wreck(event) {
-    this.effects.projectileBurst(event.position, performance.now(), 'grenade');
+    const time = performance.now();
+    if (event.type === 'core-wreck') this.effects.coreCollapse(event.position, time, color(TEAMS[event.team].color));
+    else this.effects.projectileBurst(event.position, time, 'grenade');
+  }
+
+  respawn(player, mode) {
+    this.effects.respawn([player.x, player.y, player.z], performance.now(), color(pilotColor(player, mode)));
+  }
+
+  observe(view, own, time, dt, reducedMotion) {
+    if (view?.event) {
+      this.followTarget = null;
+      const frame = deathFrame(view.event, view.progress, reducedMotion);
+      if (view.progress >= 0.18 && !view.played) {
+        view.played = true;
+        this.effects.replay(view.event, time, color(TEAMS[own.team].color));
+      }
+      const position = cameraInCover(frame, this.layout);
+      this.camera.position.set(position.x, position.y, position.z);
+      this.camera.lookAt(frame.focus.x, frame.focus.y, frame.focus.z);
+      return;
+    }
+    const target = view?.target ?? own;
+    const model = this.pilots.get(target.id);
+    const pose = model?.root.visible ? {
+      x: model.root.position.x, y: model.root.position.y, z: model.root.position.z, yaw: model.root.rotation.y,
+    } : { ...target };
+    if (this.followTarget === target.id && !reducedMotion) {
+      this.followYaw += wrapAngle(pose.yaw - this.followYaw) * (1 - Math.exp(-dt * 12));
+    } else {
+      this.followTarget = target.id;
+      this.followYaw = pose.yaw;
+    }
+    pose.yaw = this.followYaw;
+    const frame = followFrame(target, pose);
+    const position = cameraInCover(frame, this.layout);
+    this.camera.position.set(position.x, position.y, position.z);
+    this.camera.lookAt(frame.focus.x, frame.focus.y, frame.focus.z);
   }
 
   vehicleCamera(vehicle, view) {
@@ -949,7 +990,7 @@ export class Arena {
     }
   }
 
-  render(time, view, own, motion, reducedMotion, vehicle = null) {
+  render(time, view, own, motion, reducedMotion, vehicle = null, observation = null) {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     if (!width || !height) return;
@@ -989,7 +1030,8 @@ export class Arena {
     this.camera.rotation.set(active ? view.pitch : 0.14, view.yaw, roll, 'YXZ');
     if (vehicle) this.vehicleCamera(vehicle, view);
     const wantedFov = vehicle ? 75 + (!reducedMotion && vehicle.boosting ? 6 : 0)
-      : active && !reducedMotion ? 76 + Math.max(0, speed - 7.6) / SPRINT_SPEED * 5.4 + (motion.dodgeTime > 0 ? 3.5 : 0) : 76;
+      : active && !reducedMotion ? 76 + Math.max(0, speed - 7.6) / SPRINT_SPEED * 5.4 + (motion.dodgeTime > 0 ? 3.5 : 0)
+        : observation?.event ? 64 : 76;
     this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, wantedFov, blend);
     this.camera.updateProjectionMatrix();
     const yawChange = this.lookYaw === undefined ? 0 : view.yaw - this.lookYaw;
@@ -1082,7 +1124,19 @@ export class Arena {
     this.animateCorpses(time, dt);
     this.animateStation(time);
     this.siegeView?.render(time);
+    if (!active && observation) this.observe(observation, own, time, dt, reducedMotion);
+    else this.followTarget = null;
     this.effects.render(time, dt);
+    const hideOpponents = !active && observation && !observation.target;
+    const hidden = [];
+    if (hideOpponents) {
+      for (const model of [...this.pilots.values(), ...this.garage]) {
+        if (!model.root.visible || (observation.team !== null && model.target?.team === observation.team)) continue;
+        model.root.visible = false;
+        hidden.push(model.root);
+      }
+    }
     this.renderer.render(this.scene, this.camera);
+    for (const root of hidden) root.visible = true;
   }
 }
