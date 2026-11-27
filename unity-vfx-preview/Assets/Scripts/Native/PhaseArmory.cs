@@ -13,6 +13,7 @@ namespace Trias.Native
 
         internal static void Build(TriasWorld world, Transform root, string key, Material accent)
         {
+            if (world.Kit.Armory.Build(world,root,key,accent)) return;
             if (key == "pulse" && world.Spec.id == "relay")
             {
                 BuildRelayPulse(world,root,accent);

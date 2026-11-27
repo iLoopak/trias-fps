@@ -142,7 +142,7 @@ for (const [id, item] of Object.entries(CHARACTERS)) {
   button.type = 'button';
   button.dataset.pilot = id;
   const weapon = WEAPONS[item.weapon];
-  button.title = item.description + (item.rounds ? ' Startovní munice: ' + item.rounds + '. Pulse v záloze.' : '');
+  button.title = item.description + (item.weapon !== 'pulse' ? ' Plný zásobník, jedno přebití a Pulse v záloze.' : '');
   button.append(node('i'), node('b', item.label), node('small', weapon.label));
   button.setAttribute('aria-pressed', id === selectedPilot);
   button.addEventListener('click', () => {
@@ -404,7 +404,7 @@ document.addEventListener('keydown', event => {
   }
   if (!event.repeat) {
     if (event.code === 'KeyR') reloadClick = true;
-    if (event.code === 'KeyF' && own?.weapon === 'scatter' && own.turret < 0 && own.vehicle < 0) altClick = !sendTrigger(true);
+    if (event.code === 'KeyF' && WEAPONS[own?.weapon]?.alt && own.turret < 0 && own.vehicle < 0) altClick = !sendTrigger(true);
     if (event.code === 'KeyG') grenadeClick = true;
     if (event.code === 'KeyE') useClick = true;
   }
@@ -440,6 +440,8 @@ document.addEventListener('mousedown', event => {
     dragAim = true;
     previousAim = { x: event.clientX, y: event.clientY };
   }
+  if (event.button === 2 && !manualAim && WEAPONS[own.weapon]?.alt && own.turret < 0 && own.vehicle < 0)
+    altClick = !sendTrigger(true);
   if (event.button === 0) {
     isFiring = true;
     fireClick = !sendTrigger(false);
@@ -759,7 +761,7 @@ function updateHUD() {
   $('reserve').textContent = vehicle ? ' / ' + vehicleSpec.hp : turret ? ' %' : ' / ' + (reserve < 0 ? '∞' : reserve);
   $('weapon-action').textContent = vehicle ? 'TRUP · E VYSTOUPIT' : turret ? 'E · SESTOUPIT'
     : rounds === 0 && reserve === 0 && own.weapon !== 'pulse' ? '1 · ZÁLOŽNÍ PULSE'
-      : 'G · GRANÁT ' + own.grenades + (own.weapon === 'scatter' ? '  /  F · SOUSTŘEDIT (2)' : '');
+      : 'G · GRANÁT ' + own.grenades + '  /  F · ' + WEAPONS[own.weapon].alt.label.toUpperCase() + ' (' + WEAPONS[own.weapon].alt.cost + ')';
   $('weapons').hidden = $('dodge-readout').hidden = Boolean(vehicle);
   $('drive-readout').hidden = !vehicle;
   if (vehicle) $('drive-ability').textContent = vehicle.kind === 'skimmer' ? 'SHIFT · TURBO' : 'MEZERNÍK · BRZDA';

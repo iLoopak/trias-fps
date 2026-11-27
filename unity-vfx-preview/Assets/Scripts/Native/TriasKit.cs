@@ -13,7 +13,10 @@ namespace Trias.Native
         readonly Dictionary<string, Material> landscape = new Dictionary<string, Material>();
         readonly Material crateFinish;
         readonly AnimationClip idle, run, jump;
-        VektorSuit vektor;
+        readonly Dictionary<string, BlenderPilotSuit> pilotSuits = new();
+        BlenderArmory armory;
+        internal BlenderArmory Armory => armory ??= new BlenderArmory();
+        readonly Material[] pilotTeamPaint = new Material[3];
 
         internal TriasKit(TriasWorld world)
         {
@@ -165,7 +168,10 @@ namespace Trias.Native
             item.localScale = new Vector3(scale * (kit == "bulwark" ? 1.23f : kit == "wraith" ? .87f : 1f) * (male ? 1.045f : 1f), scale, scale);
             item.localPosition = Vector3.down * bottom * scale;
             foreach (var renderer in renderers) renderer.enabled = false;
-            if (kit != "vector" || !(vektor ??= new VektorSuit()).Build(world,parent,rig.transform,accent,faction,male))
+            string suitKey = kit ?? "vector";
+            if (!pilotSuits.TryGetValue(suitKey,out var suit))
+                pilotSuits[suitKey] = suit = new BlenderPilotSuit(suitKey,pilotTeamPaint);
+            if (!suit.Build(world,parent,rig.transform,accent,faction,male))
                 PilotSuit.Build(world, parent, rig.transform, kit, accent, faction, male);
             var legacy = rig.GetComponent<Animation>();
             motion = legacy != null ? legacy : rig.AddComponent<Animation>();

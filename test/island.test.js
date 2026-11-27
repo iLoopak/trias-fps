@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
 import { ARENAS, BODY_RADIUS, blocked, creekCenter, islandFord, movePlayer, riverCenter, wallDistance } from '../public/rules.js';
-import { ISLAND_TRAIL, islandHeight } from '../public/island-terrain.js';
+import { ISLAND_CROSSINGS, ISLAND_SCALE as scale, ISLAND_TRAIL, islandHeight } from '../public/island-terrain.js';
 
 const island = ARENAS.island;
 
@@ -10,8 +10,8 @@ test('Mechový ostrov keeps all match markers accessible inside a curved boundar
   for (const { x, y = 0, z } of [...island.spawns.flat(), ...island.bases, ...island.points, ...island.pickups]) {
     assert.equal(blocked(x, z, BODY_RADIUS, y, island), false, `blocked match marker at ${x}, ${z}`);
   }
-  assert.equal(blocked(24, 24, BODY_RADIUS, 4, island), true);
-  assert.equal(blocked(18, 18, BODY_RADIUS, 4, island), false);
+  assert.equal(blocked(24 * scale, 24 * scale, BODY_RADIUS, 4, island), true);
+  assert.equal(blocked(18 * scale, 18 * scale, BODY_RADIUS, 4, island), false);
   const diagonal = { x: Math.SQRT1_2, y: 0, z: Math.SQRT1_2 };
   assert(Math.abs(wallDistance({ x: 0, y: 16, z: 0 }, diagonal, 65, island) - island.edgeRadius) < 1e-10);
 });
@@ -34,14 +34,15 @@ test('pilots can run the full ridge trail in both directions without needing to 
 });
 
 test('the hillside intercepts low shots, and a pilot lands on the hillside after a double jump', () => {
-  const x = 23.9;
-  const z = -7.7;
+  const x = 23.9 * scale;
+  const z = -7.7 * scale;
   const ground = islandHeight(x, z);
   assert.equal(wallDistance({ x, y: ground + 4, z }, { x: 0, y: -1, z: 0 }, 10, island), 4);
-  const origin = { x: 14, y: 6, z: -7 };
+  const start = 14 * scale;
+  const origin = { x: start, y: (islandHeight(start, z) + ground) / 2, z };
   const east = { x: 1, y: 0, z: 0 };
-  const impact = wallDistance(origin, east, 12, island);
-  assert(impact > 2 && impact < 10);
+  const impact = wallDistance(origin, east, x - start, island);
+  assert(impact > 2 && impact < x - start);
   assert(Math.abs(islandHeight(origin.x + impact, origin.z) - origin.y) < 1e-8);
 
   const pilot = { x, z, y: ground, grounded: true, airJump: true };
@@ -55,13 +56,11 @@ test('the hillside intercepts low shots, and a pilot lands on the hillside after
 });
 
 test('the river and tributary slow pilots in water, with dry crossings over the river', () => {
-  assert.equal(islandFord(0, riverCenter(0)), false);
-  assert.equal(islandFord(-16, riverCenter(-16)), false);
-  assert.equal(islandFord(15, riverCenter(15)), false);
-  assert.equal(islandFord(8, riverCenter(8)), true);
-  assert.equal(islandFord(8, riverCenter(8) + 3), false);
-  assert.equal(islandFord(creekCenter(-13), -13), true);
-  assert.equal(islandFord(creekCenter(-13) + 2, -13), false);
+  for (const x of ISLAND_CROSSINGS) assert.equal(islandFord(x, riverCenter(x)), false);
+  assert.equal(islandFord(8 * scale, riverCenter(8 * scale)), true);
+  assert.equal(islandFord(8 * scale, riverCenter(8 * scale) + 3 * scale), false);
+  assert.equal(islandFord(creekCenter(-13 * scale), -13 * scale), true);
+  assert.equal(islandFord(creekCenter(-13 * scale) + 2 * scale, -13 * scale), false);
 });
 
 test('flags can be taken and scored at their actual hillside elevations', () => {
@@ -79,4 +78,19 @@ test('flags can be taken and scored at their actual hillside elevations', () => 
   match.updateFlags(2);
   assert.equal(match.scores[carrier.team], 1);
   assert.equal(match.flags[opponent].y, target.y);
+});
+
+test('tree canopies leave deployment sights and the first steps unobstructed', () => {
+  for (const [team, starts] of island.spawns.entries()) {
+    const target = island.points[team];
+    for (const start of starts) {
+      const length = Math.hypot(target.x - start.x, target.z - start.z);
+      for (const step of [0, 1, 2]) {
+        const x = start.x + (target.x - start.x) * step / length;
+        const z = start.z + (target.z - start.z) * step / length;
+        assert(island.cover.every(box => box.nature !== 'tree' || Math.hypot(x - box.x, z - box.z) > 2),
+          `canopy encroaches on team ${team} deployment at ${x}, ${z}`);
+      }
+    }
+  }
 });

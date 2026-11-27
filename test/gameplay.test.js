@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
-import { ARENAS, PILOT_HP, WEAPONS, GANTRIES, GRENADE, LAUNCH_PADS, PICKUPS, TICK, TURRET, blocked, eyeHeight, movePlayer, wallDistance } from '../public/rules.js';
+import { ARENAS, PILOT_HP, WEAPONS, GANTRIES, GRENADE, LAUNCH_PADS, PICKUPS, TICK, TURRET, blocked, packCover, eyeHeight, movePlayer, wallDistance } from '../public/rules.js';
 
 const neutral = { x: 0, z: 0, yaw: 0 };
 
@@ -185,4 +185,52 @@ test('Scatter focused fire consumes two rounds and uses a single ray', () => {
   assert(shot.alt);
   assert.equal(shot.ends.length, 1);
   assert.equal(shooter.player.loadout.scatter.ammo, 4);
+});
+
+test('all five alternate shots use their own cost, cooldown and shot pattern', () => {
+  for (const [key, spec] of Object.entries(WEAPONS)) {
+    const room = new Match('ALT', 'tdm', false, { ...ARENAS.relay, cover: [], launchPads: [], pickups: [] });
+    const pilot = room.addPlayer('pilot', 'Pilot', 0, 0, 0);
+    pilot.weapon = key;
+    pilot.loadout[key] = { ammo: spec.magazine, reserve: spec.magazine };
+    Object.assign(pilot, { x: 0, y: 0, z: 0 });
+    const fire = (fireId, time) => {
+      room.trigger(pilot, { fireId, spawn: pilot.spawn, weapon: key, yaw: 0, pitch: 0, alt: true }, time);
+      room.step(time);
+    };
+    fire(1, 3);
+    const shot = room.events.find(event => event.type === 'shot');
+    assert.equal(shot?.alt, true, key);
+    assert.equal(shot.ends.length, spec.alt.pattern?.length ?? 0, key);
+    assert.equal(pilot.loadout[key].ammo, spec.magazine - spec.alt.cost, key);
+    assert.equal(pilot.fireAt, 3 + spec.alt.interval, key);
+    if (spec.alt.projectile) {
+      assert.equal(room.projectiles[0].spec.projectile, spec.alt.projectile);
+      assert(room.projectiles[0].alt);
+    }
+    room.events.length = 0;
+    fire(2, 3.1);
+    assert(!room.events.some(event => event.type === 'shot'), key);
+    assert.equal(pilot.loadout[key].ammo, spec.magazine - spec.alt.cost, key);
+    pilot.loadout[key].ammo = spec.alt.cost - 1;
+    fire(3, 5);
+    assert(!room.events.some(event => event.type === 'shot'), key);
+    assert.equal(pilot.loadout[key].ammo, spec.alt.cost - 1, key);
+  }
+});
+
+test('Lance penetration is attenuated and stops at armor and arena cover', () => {
+  for (const obstacle of ['none', 'shield', 'wall']) {
+    const cover = obstacle === 'wall' ? [{ x: 0, z: -6, w: 1.6, d: .4, h: 2, angle: 0 }] : [];
+    const room = new Match('PENETRATION', 'tdm', false, { ...ARENAS.relay, cover: packCover(cover), launchPads: [] });
+    const pilot = room.addPlayer('pilot', 'Pilot', 0, 0, 0, false, 'wraith');
+    const first = room.addPlayer('first', 'First', 1, 0, 0);
+    const second = room.addPlayer('second', 'Second', 1, 1, 0);
+    Object.assign(pilot, { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+    Object.assign(first, { x: 0, y: 0, z: -4, safeUntil: 0, armor: obstacle === 'shield' ? 50 : 0 });
+    Object.assign(second, { x: 0, y: 0, z: -8, safeUntil: 0 });
+    room.shoot(pilot, 3, true);
+    assert(first.hp < PILOT_HP, obstacle);
+    assert.equal(second.hp, PILOT_HP - (obstacle === 'none' ? 38 : 0), obstacle);
+  }
 });

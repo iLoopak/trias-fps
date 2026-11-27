@@ -283,6 +283,13 @@ namespace Trias.Native
             hudText.Draw(new Rect(x + 12, y + 28, 174, 33), count, heading);
             float magazine = fireProfiles.TryGetValue(weaponName ?? string.Empty, out var profile) ? profile.Magazine :
                 weaponName == "pulse" ? 24 : weaponName == "arc" ? 36 : weaponName == "scatter" ? 6 : 4;
+            if (own[15].Int < 0 && own[16].Int < 0 && HasAlternate(weaponName ?? "pulse"))
+            {
+                string action = profile.AltName ?? "Slug";
+                int cost = Mathf.Max(2, profile.AltCost);
+                CornerPanel(new Rect(x, y - 28, 213, 23), ammo >= cost ? energy : Amber);
+                hudText.Draw(new Rect(x + 10, y - 27, 194, 19), $"F   {action.ToUpperInvariant()}   ·   {cost}", caption);
+            }
             if (own[16].Int < 0) Segments(new Rect(x + 14, y + 64, 185, 4), 12, own[15].Int >= 0 ? heat : ammo / magazine,
                 own[15].Int < 0 && ammo <= Mathf.Max(1, magazine * .18f) ? Amber : energy);
         }

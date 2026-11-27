@@ -1,5 +1,5 @@
 import { ISLAND_CROSSINGS, TEAMS, creekCenter, riverCenter } from './rules.js';
-import { ISLAND_TRAIL } from './island-terrain.js';
+import { ISLAND_CREEK_END, ISLAND_CREEK_START, ISLAND_SCALE, ISLAND_TRAIL } from './island-terrain.js';
 
 export function drawTacticalMap(canvas, layout, state, own, mode, yaw) {
   const ctx = canvas.getContext('2d');
@@ -25,22 +25,23 @@ export function drawTacticalMap(canvas, layout, state, own, mode, yaw) {
     ctx.save();
     ctx.clip();
     ctx.strokeStyle = '#7cbfcb';
-    ctx.lineWidth = 3.9 * scale;
+    ctx.lineWidth = 3.9 * ISLAND_SCALE * scale;
     ctx.beginPath();
     ctx.moveTo(...position({ x: -layout.edgeRadius, z: riverCenter(-layout.edgeRadius) }));
     for (let x = -layout.edgeRadius + 0.5; x < layout.edgeRadius + 0.5; x += 0.5) {
       ctx.lineTo(...position({ x, z: riverCenter(x) }));
     }
     ctx.stroke();
-    ctx.lineWidth = 1.2 * scale;
+    ctx.lineWidth = 1.2 * ISLAND_SCALE * scale;
     ctx.beginPath();
-    ctx.moveTo(...position({ x: creekCenter(-19), z: -19 }));
-    for (let z = -18.5; z < -2; z += 0.5) ctx.lineTo(...position({ x: creekCenter(z), z }));
+    ctx.moveTo(...position({ x: creekCenter(ISLAND_CREEK_START), z: ISLAND_CREEK_START }));
+    for (let z = ISLAND_CREEK_START + .5; z <= ISLAND_CREEK_END; z += 0.5) ctx.lineTo(...position({ x: creekCenter(z), z }));
     ctx.stroke();
     ctx.fillStyle = '#e6c293';
     for (const x of ISLAND_CROSSINGS) {
       const [px, pz] = position({ x, z: riverCenter(x) });
-      ctx.fillRect(px - 1.4 * scale, pz - 2.5 * scale, 2.8 * scale, 5 * scale);
+      const span = scale * ISLAND_SCALE;
+      ctx.fillRect(px - 1.4 * span, pz - 2.5 * span, 2.8 * span, 5 * span);
     }
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#ddbf90';

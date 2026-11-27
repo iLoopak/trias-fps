@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using Trias.Native;
 using UnityEngine;
 
 namespace Trias.Preview
@@ -29,7 +31,10 @@ namespace Trias.Preview
         float remaining = 360;
         float nextRound;
         RelayRoutes routes;
-        Transform held, pulseModel, riftModel;
+        Transform held;
+        Transform[] weaponModels;
+        internal Choice[] Arsenal { get; private set; }
+        internal int StartingWeapon { get; private set; }
         readonly HudText hudText = new HudText();
         GUIStyle text, heading, tiny, center;
         string recentKill;
@@ -43,11 +48,17 @@ namespace Trias.Preview
             public Vector3 Direction;
             public Transform Orb;
             public float Life;
+            public ShotSpec Spec;
+            public bool Alternate;
         }
 
         void Awake()
         {
             Layout = JsonUtility.FromJson<RelayLayout>(layoutJson.text);
+            var catalog = JsonUtility.FromJson<Catalog>(Resources.Load<TextAsset>("TRIAS/World").text);
+            Arsenal = catalog.weapons;
+            string selected = Catalog.Find(catalog.pilots, PlayerPrefs.GetString("trias.pilot", "vector"))?.weapon;
+            StartingWeapon = Mathf.Max(0, Array.FindIndex(Arsenal, item => item.id == selected));
             routes = new RelayRoutes(Layout);
             LoadDirector();
             BuildViewModel();
@@ -186,7 +197,7 @@ namespace Trias.Preview
             return seen ?? closest;
         }
 
-        bool Trace(RelayPilot owner, Vector3 from, Vector3 direction, float range, out RaycastHit closest, out RelayPilot target)
+        bool Trace(RelayPilot owner, Vector3 from, Vector3 direction, float range, out RaycastHit closest, out RelayPilot target, RelayPilot pierced = null)
         {
             int count = Physics.RaycastNonAlloc(from, direction, contacts, range, ~0, QueryTriggerInteraction.Ignore);
             float best = range + 1;
@@ -195,7 +206,7 @@ namespace Trias.Preview
             for (int i = 0; i < count; i++)
             {
                 var hit = contacts[i];
-                if (hit.distance >= best || hit.collider == owner.Body) continue;
+                if (hit.distance >= best || hit.collider == owner.Body || hit.collider == pierced?.Body) continue;
                 best = hit.distance;
                 closest = hit;
                 target = hit.collider.GetComponent<RelayPilot>();
@@ -203,30 +214,50 @@ namespace Trias.Preview
             return closest.collider != null;
         }
 
-        internal void ShootPulse(RelayPilot source, Vector3 origin, Vector3 direction)
+        internal void FireWeapon(RelayPilot source, Vector3 origin, Vector3 direction, ShotSpec spec, bool alternate)
         {
             DirectorShot();
-            bool contact = Trace(source, origin, direction, 60, out var hit, out var victim);
-            Vector3 end = contact ? hit.point : origin + direction * 60;
-            Color paint = victim != null ? Layout.teams[victim.Team].Tint : new Color(0.80f, 0.89f, 0.98f);
-            Vector3 tracer = origin - Vector3.up * 0.12f + Vector3.Cross(Vector3.up, direction).normalized * 0.22f;
-            if (source.Human) tracer = held.TransformPoint(new Vector3(0, 0.032f, 0.35f));
-            Effects.Shot(tracer, end, contact, source.Human, paint);
-            if (victim != null) victim.Damage(source, 23);
+            string key = source.Weapon.id;
+            Color tint = Catalog.Tint(source.Weapon.color);
+            if (alternate) tint = Color.Lerp(tint, Color.white, .4f);
+            Vector3 muzzle = source.Human ? held.TransformPoint(new Vector3(0, .04f, PhaseArmory.Muzzle(key)))
+                : origin - Vector3.up * .12f + Vector3.Cross(Vector3.up, direction).normalized * .22f;
+            if (source.Human) Effects.FireMuzzle(muzzle, tint, key, alternate, 1);
+            else Effects.FireWorld(muzzle, key, alternate, false);
+            if (spec.projectile != null && spec.projectile.speed > 0)
+            {
+                LaunchRift(source, origin, direction, spec, alternate);
+                return;
+            }
+            for (int i = 0; i < spec.pattern.Length; i++)
+            {
+                float offset = spec.pattern[i] * Mathf.Rad2Deg;
+                float elevation = spec.horizontal ? 0 : (i % 2 == 0 ? offset : -offset) * .7f;
+                Vector3 ray = Quaternion.Euler(elevation, offset, 0) * direction;
+                bool contact = Trace(source, origin, ray, spec.range, out var hit, out var victim);
+                Vector3 end = contact ? hit.point : origin + ray * spec.range;
+                Effects.Shot(muzzle, end, contact, source.Human, tint, key, false);
+                bool vulnerable = victim != null && victim.Damage(source, spec.damage);
+                if (spec.penetration <= 0 || !vulnerable) continue;
+                bool next = Trace(source, origin, ray, spec.range, out var through, out var second, victim);
+                if (next && through.distance <= hit.distance) continue;
+                Effects.Shot(end, next ? through.point : origin + ray * spec.range, next, source.Human, tint, key, false);
+                second?.Damage(source, Mathf.RoundToInt(spec.damage * spec.penetration));
+            }
         }
 
-        internal void ShootRift(RelayPilot source, Vector3 origin, Vector3 direction)
+        void LaunchRift(RelayPilot source, Vector3 origin, Vector3 direction, ShotSpec spec, bool alternate)
         {
-            DirectorShot();
             var orb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            orb.name = "Rift bolt";
+            orb.name = alternate ? "Rift heavy bolt" : "Rift bolt";
             var collision = orb.GetComponent<Collider>();
             collision.enabled = false;
             Destroy(collision);
-            orb.transform.position = origin + direction * 0.20f;
-            orb.transform.localScale = Vector3.one * 0.32f;
+            orb.transform.position = origin + direction * .20f;
+            orb.transform.localScale = Vector3.one * (alternate ? .51f : .32f);
             orb.GetComponent<Renderer>().sharedMaterial = Effects.orbMaterial;
-            flights.Add(new Flight { Owner = source, Direction = direction, Orb = orb.transform, Life = 55f / 22f });
+            flights.Add(new Flight { Owner = source, Direction = direction, Orb = orb.transform,
+                Life = spec.range / spec.projectile.speed, Spec = spec, Alternate = alternate });
         }
 
         void UpdateFlights(float dt)
@@ -234,7 +265,7 @@ namespace Trias.Preview
             for (int i = flights.Count - 1; i >= 0; i--)
             {
                 Flight flight = flights[i];
-                float step = 22 * dt;
+                float step = flight.Spec.projectile.speed * Mathf.Min(dt, flight.Life);
                 Vector3 origin = flight.Orb.position;
                 bool hit = Trace(flight.Owner, origin, flight.Direction, step, out var impact, out var direct);
                 flight.Life -= dt;
@@ -244,19 +275,20 @@ namespace Trias.Preview
                     flights[i] = flight;
                     continue;
                 }
-                Vector3 center = hit ? impact.point - flight.Direction * 0.045f : origin;
-                Effects.Detonation(center);
+                Vector3 center = hit ? impact.point - flight.Direction * .045f : origin + flight.Direction * step;
+                Effects.Blast(center, false, 1, flight.Alternate);
+                float radius = flight.Spec.projectile.radius;
                 foreach (var pilot in Pilots)
                 {
                     if (pilot == direct)
                     {
-                        pilot.Damage(flight.Owner, 72);
+                        pilot.Damage(flight.Owner, flight.Spec.damage);
                         continue;
                     }
                     Vector3 target = pilot.Eye - Vector3.up * 0.65f;
                     float distance = Vector3.Distance(center, target);
-                    if (distance < 3.2f && !Physics.Linecast(center, target, WorldMask, QueryTriggerInteraction.Ignore))
-                        pilot.Damage(flight.Owner, Mathf.Max(8, Mathf.RoundToInt(54 * (1 - distance / 3.2f))));
+                    if (distance < radius && !Physics.Linecast(center, target, WorldMask, QueryTriggerInteraction.Ignore))
+                        pilot.Damage(flight.Owner, Mathf.Max(8, Mathf.RoundToInt(flight.Spec.projectile.splash * (1 - distance / radius))));
                 }
                 Destroy(flight.Orb.gameObject);
                 flights.RemoveAt(i);
@@ -314,12 +346,13 @@ namespace Trias.Preview
                 View.transform.LookAt(focus + spectator.forward * 2.7f);
                 return;
             }
-            pulseModel.gameObject.SetActive(!Player.Rift);
-            riftModel.gameObject.SetActive(Player.Rift);
-            float recoil = Player.Kick * (Player.Rift ? 0.028f : 0.022f);
+            for (int i = 0; i < weaponModels.Length; i++)
+                if (weaponModels[i].gameObject.activeSelf != (Player.WeaponIndex == i))
+                    weaponModels[i].gameObject.SetActive(Player.WeaponIndex == i);
+            float recoil = Player.Kick * (Player.Weapon.id == "rift" ? .028f : .022f);
             float speed = Player.Velocity.magnitude;
             float sway = Mathf.Sin(Time.time * (speed > 7.6f ? 12f : 9.0f)) * Mathf.Min(speed, 8f) * 0.0012f;
-            float reloading = Player.ReloadAt > 0 ? Mathf.Sin(Mathf.PI * Mathf.Clamp01((Player.ReloadAt - Time.time) / 1.3f)) : 0f;
+            float reloading = Player.ReloadAt > 0 ? Mathf.Sin(Mathf.PI * Mathf.Clamp01((Player.ReloadAt - Time.time) / Player.Weapon.reload)) : 0f;
             held.localPosition = new Vector3(0.38f + sway, -0.32f - reloading * 0.15f, 0.63f - recoil);
             held.localRotation = Quaternion.Euler(-Player.Kick * 2.0f + reloading * 27, -3, reloading * 13);
         }
@@ -327,11 +360,21 @@ namespace Trias.Preview
         void BuildViewModel()
         {
             held = Mount(viewCamera.transform, "Weapon mount", new Vector3(0.38f, -0.32f, 0.63f));
-            pulseModel = Mount(held, "Pulse", Vector3.zero);
-            riftModel = Mount(held, "Rift", Vector3.zero);
-            Carbine(pulseModel, false, 0);
-            Carbine(riftModel, true, 2);
-            riftModel.gameObject.SetActive(false);
+            weaponModels = new Transform[Arsenal.Length];
+            var art = new BlenderArmory();
+            for (int i = 0; i < Arsenal.Length; i++)
+            {
+                var weapon = Arsenal[i];
+                var mount = weaponModels[i] = Mount(held, weapon.label, Vector3.zero);
+                int paint = weapon.id == "rift" ? 2 : 0;
+                Material Finish(string slot) => slot switch
+                {
+                    "Ceramic" => shell[paint], "Secondary" => stripe[paint], "Alloy" => shell[paint],
+                    "Amber" => glow[1], _ => slot.EndsWith("Glow", StringComparison.Ordinal) ? glow[paint] : suit
+                };
+                if (!art.Build(mount, weapon.id, Finish)) Carbine(mount, weapon.id == "rift", paint);
+                mount.gameObject.SetActive(i == StartingWeapon);
+            }
         }
 
         void BuildPilot(RelayPilot pilot)
@@ -433,7 +476,7 @@ namespace Trias.Preview
                 Panel(new Rect(x - 240, y - 109, 480, 223));
                 hudText.Draw(new Rect(x - 217, y - 93, 440, 48), "Relay Station", heading);
                 hudText.Draw(new Rect(x - 215, y - 45, 438, 32), "WASD   /   myš   /   Shift   /   dvojskok mezerníkem", tiny);
-                hudText.Draw(new Rect(x - 215, y - 20, 438, 32), "1 Pulse   /   2 Rift   /   R přebít   /   Esc pauza", tiny);
+                hudText.Draw(new Rect(x - 215, y - 20, 438, 32), "1–5 zbraně   /   F sekundární   /   R přebít   /   Esc pauza", tiny);
                 DirectorSettings(x - 215, y + 21);
                 if (GUI.Button(new Rect(x - 216, y + 61, 307, 34), "Převzít ovládání")) Begin();
                 if (UnityEngine.SceneManagement.SceneUtility.GetBuildIndexByScenePath("Assets/Scenes/TRIAS.unity") >= 0
@@ -468,9 +511,12 @@ namespace Trias.Preview
             hudText.Draw(new Rect(27, Screen.height - 78, 83, 21), "ION", tiny);
             hudText.Draw(new Rect(27, Screen.height - 59, 95, 36), Player.Health.ToString(), heading);
             Panel(new Rect(Screen.width - 182, Screen.height - 83, 165, 64));
-            hudText.Draw(new Rect(Screen.width - 169, Screen.height - 79, 142, 22), Player.Rift ? "2   RIFT" : "1   PULSE", tiny);
+            hudText.Draw(new Rect(Screen.width - 169, Screen.height - 79, 142, 22), $"{Player.WeaponIndex + 1}   {Player.Weapon.label.ToUpperInvariant()}", tiny);
             hudText.Draw(new Rect(Screen.width - 169, Screen.height - 60, 145, 38),
-                Player.Rift ? Player.RiftAmmo.ToString() : Player.Ammo + " / ∞", heading);
+                Player.Ammo + " / " + (Player.WeaponIndex == 0 ? "∞" : Player.Reserve.ToString()), heading);
+            Panel(new Rect(Screen.width - 182, Screen.height - 107, 165, 21));
+            hudText.Draw(new Rect(Screen.width - 169, Screen.height - 107, 149, 21),
+                $"F   {Player.Weapon.alt.label} · {Player.Weapon.alt.Cost}", tiny);
             if (Player.ReloadAt > 0)
                 hudText.Draw(new Rect(x - 86, Screen.height - 83, 172, 37), "Přebíjíš…", center);
         }

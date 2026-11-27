@@ -165,6 +165,7 @@ export class ArenaEffects {
         }));
         halo.scale.setScalar(1.78);
         root.add(core, orbit, halo);
+        if (shot.alt) root.scale.setScalar(1.48);
         this.projectileLayer.add(root);
         orb = { root, core, orbit, halo, target: new THREE.Vector3(), lastTrail: 0, shade: colors[shot.weapon], grenade };
         this.projectiles.set(shot.id, orb);
@@ -180,11 +181,11 @@ export class ArenaEffects {
     }
   }
 
-  projectileBurst(position, time, weapon) {
+  projectileBurst(position, time, weapon, alternate = false) {
     const tint = colors[weapon];
     const origin = new THREE.Vector3(...position);
     if (this.rings.length >= 24) this.rings.shift();
-    this.rings.push({ origin, shade: tint, time, life: 580, radius: weapon === 'grenade' ? 4 : 3.28 });
+    this.rings.push({ origin, shade: tint, time, life: 580, radius: weapon === 'grenade' ? 4 : alternate ? 4.65 : 3.28 });
     this.burst(origin, worldUp, tint, time, 36);
     this.burst(origin, worldUp, this.orbMaterial.color, time, 10);
   }

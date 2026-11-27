@@ -350,6 +350,12 @@ namespace Trias.Native
                         Disconnect("Server nemá kompatibilní verzi TRIAS.");
                         return;
                     }
+                    float worldExtent = arena.edgeRadius > 0 ? arena.edgeRadius : arena.length;
+                    if (Mathf.Abs(message["worldExtent"].Float - worldExtent) > .01f)
+                    {
+                        Disconnect("Server používá jinou geometrii map. Aktualizuj server TRIAS.");
+                        return;
+                    }
                     reconnectTicket = message["resume"].Text;
                     reconnectGrace = message["resumeSeconds"].Float;
                     practiceRoom = message["training"].Bool;
@@ -614,7 +620,7 @@ namespace Trias.Native
                 if (item[1].Text == "grenade") HintAtGrenade(target);
                 if (!projectiles.TryGetValue(id, out var art))
                 {
-                    art = AcquireProjectile(pulse, target);
+                    art = AcquireProjectile(pulse, target, item[6].Bool);
                     projectiles.Add(id, art);
                 }
                 art.Goal = target;
@@ -634,7 +640,7 @@ namespace Trias.Native
             }
         }
 
-        ProjectileArt AcquireProjectile(bool rift, Vector3 at)
+        ProjectileArt AcquireProjectile(bool rift, Vector3 at, bool alternate)
         {
             var pool = rift ? riftReserve : grenadeReserve;
             if (pool.TryPop(out var cached))
@@ -643,6 +649,7 @@ namespace Trias.Native
                 cached.Goal = at;
                 cached.Mesh.gameObject.SetActive(true);
                 cached.Trail.Clear();
+                ShapeProjectile(cached, alternate);
                 return cached;
             }
             var mesh = TriasWorld.Part(world.Actors, rift ? orb : grenade, at, Vector3.one * (rift ? .43f : .24f), PrimitiveType.Sphere);
@@ -651,13 +658,20 @@ namespace Trias.Native
             trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             trail.time = rift ? .19f : .095f;
             trail.minVertexDistance = .18f;
-            Color tint = rift ? Catalog.Tint("#fe85d0") : Catalog.Tint("#ffb863");
-            trail.startColor = tint;
-            tint.a = 0;
-            trail.endColor = tint;
-            trail.startWidth = rift ? .27f : .06f;
             trail.endWidth = 0;
-            return new ProjectileArt { Mesh = mesh, Trail = trail, Goal = at, Rift = rift };
+            var art = new ProjectileArt { Mesh = mesh, Trail = trail, Goal = at, Rift = rift };
+            ShapeProjectile(art, alternate);
+            return art;
+        }
+
+        static void ShapeProjectile(ProjectileArt art, bool alternate)
+        {
+            Color tint = Catalog.Tint(alternate ? "#ffad89" : art.Rift ? "#fe85d0" : "#ffb863");
+            art.Trail.startColor = tint;
+            tint.a = 0;
+            art.Trail.endColor = tint;
+            art.Trail.startWidth = alternate ? .42f : art.Rift ? .27f : .06f;
+            art.Mesh.localScale = Vector3.one * (alternate ? .64f : art.Rift ? .43f : .24f);
         }
 
         void GameEvent(WireValue evt, float now)
@@ -730,7 +744,8 @@ namespace Trias.Native
                         if (!tagged) PlayLocalShot(key, evt["alt"].Bool);
                     }
                     else if (!tagged) effects.FireWorld(source, key, evt["alt"].Bool, local && !echoShot);
-                    Color tint = ShotTint(key);
+                    bool alternate = evt["alt"].Bool;
+                    Color tint = ShotTint(key, alternate);
                     if (!local && !echoShot && pilots.TryGetValue(evt["id"].Text, out var firingPilot))
                     {
                         firingPilot.Fire(key);
@@ -744,14 +759,15 @@ namespace Trias.Native
                         var at = At(end);
                         string kind = end[3].Text;
                         if (kind == "wall" && world.Spec.id == "island" && at.y <= world.Height(at.x, at.z) + .11f)
-                            kind = Motor.Shallow(at) ? "water" : "soil";
+                            kind = Motor.Shallow(at, world.Spec) ? "water" : "soil";
                         effects.Shot(source, at, kind != null, local, kind == "grenade" ? Amber : tint, key, false, kind, visualEffects, i == 0);
                         if (kind is "water" or "wall") ReactToSurface(at, now, false);
+                        if (alternate && key == "lance") source = at;
                     }
                     break;
                 case "burst":
                     Vector3 blastAt = At(evt["from"]);
-                    effects.Blast(blastAt, key == "grenade", visualEffects);
+                    effects.Blast(blastAt, key == "grenade", visualEffects, evt["alt"].Bool);
                     ReactToSurface(blastAt, now, true);
                     break;
                 case "core-hit":

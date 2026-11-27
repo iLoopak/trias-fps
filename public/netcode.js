@@ -51,7 +51,7 @@ export function packSnapshot(state, frame, time) {
     vehicles: vehicles.map(hull => [
       ...VEHICLE_FIELDS.map(key => hull[key]), ...VEHICLE_MOTION.map(key => round(hull[key])),
     ]),
-    projectiles: projectiles.map(shot => [shot.id, shot.weapon, round(shot.x), round(shot.y), round(shot.z), shot.fuse == null ? null : round(shot.fuse)]),
+    projectiles: projectiles.map(shot => [shot.id, shot.weapon, round(shot.x), round(shot.y), round(shot.z), shot.fuse == null ? null : round(shot.fuse), ...(shot.alt ? [true] : [])]),
   };
 }
 
@@ -72,7 +72,7 @@ export function unpackSnapshot(packet) {
     unpackRow(hull, row, VEHICLE_MOTION, VEHICLE_FIELDS.length);
     return hull;
   });
-  const projectiles = packet.projectiles.map(([id, weapon, x, y, z, fuse]) =>
-    ({ id, weapon, x, y, z, fuse: fuse ?? undefined }));
+  const projectiles = packet.projectiles.map(([id, weapon, x, y, z, fuse, alt]) =>
+    ({ id, weapon, x, y, z, fuse: fuse ?? undefined, ...(alt ? { alt } : {}) }));
   return { ...packet, players, vehicles, projectiles };
 }

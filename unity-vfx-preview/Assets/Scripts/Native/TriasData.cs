@@ -23,7 +23,25 @@ namespace Trias.Native
     [Serializable] internal sealed class Choice
     {
         public string id, label, name, description, color, weapon, @short;
-        public float angle;
+        public float angle, reload;
+        public int magazine;
+        public ShotSpec shot, alt;
+    }
+
+    [Serializable] internal sealed class ShotSpec
+    {
+        public string label;
+        public float range, interval, penetration;
+        public int damage, cost;
+        public float[] pattern;
+        public bool horizontal;
+        public ShotProjectile projectile;
+        internal int Cost => Mathf.Max(1, cost);
+    }
+
+    [Serializable] internal sealed class ShotProjectile
+    {
+        public float speed, radius, splash;
     }
 
     [Serializable] internal sealed class ArenaSpec
@@ -35,10 +53,11 @@ namespace Trias.Native
             return copy;
         }
         public string id, label, description;
-        public float length, edgeRadius, roadRadius;
+        public float length, edgeRadius, roadRadius, islandScale;
+        internal float IslandScale => islandScale > 0 ? islandScale : 1;
         public BoxSpec[] cover;
         public PadSpec[] launchPads;
-        public Site[] pickups, bases, points, turrets, repairs, river, creek, trail;
+        public Site[] pickups, bases, points, turrets, repairs, river, creek, trail, crossings;
         public HeightData terrain;
         public SiegeSpec siege;
     }
@@ -46,8 +65,8 @@ namespace Trias.Native
     [Serializable] internal sealed class BoxSpec : Site
     {
         public float w, d, h, bottom, ground;
-        public bool gantry, terrace, relay;
-        public string nature;
+        public bool gantry, terrace, relay, strata;
+        public string nature, profile;
         internal bool Overlaps(float px, float pz, float radius)
         {
             float dx = px - x, dz = pz - z, cos = Mathf.Cos(angle), sin = Mathf.Sin(angle);

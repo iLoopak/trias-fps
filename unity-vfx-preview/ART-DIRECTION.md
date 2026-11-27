@@ -69,8 +69,30 @@ Nejčitelnější část je osvětlený bok krytu vedle zastíněné fasády. Vh
 
 Snímky po jednotlivých krocích, srovnání stejné kamery, herní záběr a lokální buildy jsou v `output/relay-art-direction/`. Skilly projektu jsou v [Unity projektu](.agents/skills/). Technické podklady [Directional Lights](https://docs.unity.com/en-us/engine/6000.3/manual/lighting-overview/lighting-light-sources/components/lighting) a [Reflection Probes](https://docs.unity.com/en-us/engine/6000.3/manual/lighting-overview/reflections/using-reflection-probes).
 
-## Vektor · model z Blenderu
+## Piloti · modely z Blenderu
 
-Editovatelný model je v [Art/Vektor.blend](Art/Vektor.blend). Obsahuje jednotlivé pláty, tlakový oblek, zadní stabilizační modul, plochy frakcí, materiálové sloty a scénu pro náhled. Geometrii lze znovu vytvořit skriptem [build-vektor.py](../tools/blender/build-vektor.py) spuštěným v Blenderu 4.5 přes `--background --python`. Export dává jeden FBX se 17 částmi, po jedné pro každý montážní bod. Unity očekává metry, Y nahoru a +Z vpřed. Převod je zapečený ve FBX.
+Editovatelné modely jsou v [Art/](Art/). Obsahují jednotlivé pláty, tlakové obleky, materiálové sloty a scénu pro náhled. [build-vektor.py](../tools/blender/build-vektor.py) vytváří Vektora a [build-pilots.py](../tools/blender/build-pilots.py) Baštu, Přízraka a Poštolku. Spouští se přes `Blender --background --python`. Export dává pro každou postavu jeden FBX se 17 částmi. Unity očekává metry, Y nahoru a +Z vpřed. Převod je zapečený ve FBX.
 
-`VektorSuit` při načtení dílů využije původní kostru postavy a její skutečné délky končetin. Unity dosazuje sdílené materiály mapy včetně frakčních barev. Model se používá ve hře, v hangáru a při vykreslení Combat Echo. Stávající klipy, body úchopu a kolize zůstávají společné. Mužská a ženská varianta se liší stavbou původního rigu a mírným přizpůsobením dílů.
+`BlenderPilotSuit` používá skutečné délky končetin původní kostry. `BlenderParts` dosazuje sdílené povrchy mapy včetně frakčních barev. Modely se používají v zápase, hangáru a při vykreslení Combat Echo. Bašta má široké břemenné pláty a zdvojený zádový modul, Přízrak jednostrannou anténu a diagonální hrudní rám, Poštolka šípové průzory a letové stabilizátory. Mužská a ženská varianta se liší stavbou původního rigu a mírným přizpůsobením dílů.
+
+## Zbrojnice · komory, závěry a manipulace
+
+[Arsenal.blend](Art/Arsenal.blend) obsahuje pět zbraní. [build-armory.py](../tools/blender/build-armory.py) exportuje čtyři samostatné skupiny pro každou zbraň. Tělo je pevnou částí, komora se odsouvá, závěr se pohybuje podle zbraně a vyměnitelný zásobník nebo článek používá stávající servisní bod. Unity sdílí stejné sítě v pohledu hráče a ve třetí osobě. Barva kontaktů vychází z herního materiálu.
+
+| Zbraň | Detail |
+| --- | --- |
+| Pulse | Otevřený vývrt ve dvou oddělených keramických objímkách, průmyslová žebra a vysouvací kazeta |
+| Scatter | Dvě vybrané hlavně, přerušované vedení a odklopný uzávěr s dvojicí nábojů |
+| Lance | Dlouhé izolované kolejnice, úzká optika, závěr a vyjímatelná jehlicová kazeta |
+| Arc | Dvě nestejně dlouhé elektrody, kontaktní žebra a výsuvný článek |
+| Rift | Jádro mezi třemi keramickými segmenty, vnitřní vložky a odklápěcí uzávěr |
+
+Ramena třetí osoby počítají úchop v souřadnicích nadřazené kosti. Rozdílné měřítko rigů a zmenšení výšky při skrčení tak nedeformují délky použité při řešení úchopu. Body výstřelu, úchopu a servisní časy zůstávají v existujícím systému.
+
+## Rozšířené arény a modely prostředí
+
+Mechový ostrov má v průměru 95,6 m. Tři dřevěné přechody propojují údolí pod hřebenem. Řeka se rozšiřuje do dvou vodopádů. Povrch kombinuje vlhký břeh, trávu, půdu a odkrytou horninu podle sklonu. Siluetu ostrova tvoří více vrstev útesu, různé skalní výchozy a skupiny jehličnanů. Fauna a dekorace používají stejný výškopis jako herní pohyb.
+
+Relay Station má 68 m na šířku, Vanta Foundry 76 m a Meridian Basin 128 m. Okrajové trasy dostaly tlakové přepážky, výpusti pecí, chladicí lože nebo bloky rudy. Klíčové body a krytí uprostřed hřišť vycházejí ze stávajícího rozvržení. `Art/MapProps.blend` obsahuje editovatelné modely a `tools/blender/build-map-props.py` reprodukuje FBX import. V Unity modely vycházejí ze stejných rozměrů krytí jako autoritativní kolize.
+
+Po změně souřadnic, terénu nebo zbraní se katalog Unity obnovuje příkazem `node tools/export-unity-world.mjs`. Režim `--check` ověřuje, že katalog odpovídá sdíleným pravidlům.

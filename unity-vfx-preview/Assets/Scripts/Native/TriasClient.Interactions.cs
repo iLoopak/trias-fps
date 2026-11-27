@@ -46,7 +46,7 @@ namespace Trias.Native
             if (world.Spec.id == "island")
             {
                 float height = world.Height(at.x, at.z);
-                if (!Motor.Shallow(at) || Mathf.Abs(at.y - height) > (explosive ? .95f : .11f)) return;
+                if (!Motor.Shallow(at, world.Spec) || Mathf.Abs(at.y - height) > (explosive ? .95f : .11f)) return;
                 float sheet = Mathf.Max(WaterSheet(at, world.Spec.river, false), WaterSheet(at, world.Spec.creek, true));
                 if (float.IsNegativeInfinity(sheet)) return;
                 at.y = Mathf.Max(height, sheet) + .065f;

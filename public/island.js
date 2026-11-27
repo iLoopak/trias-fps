@@ -1,6 +1,6 @@
 import * as THREE from '/three.module.js';
 import {
-  ISLAND_CROSSINGS, ISLAND_GRID, ISLAND_TRAIL, ISLAND_WATER_LEVEL,
+  ISLAND_CREEK_START, ISLAND_CREEK_END, ISLAND_CROSSINGS, ISLAND_GRID, ISLAND_SCALE, ISLAND_TRAIL, ISLAND_WATER_LEVEL,
   creekCenter, creekLevel, islandFord, islandGridHeight, islandHeight, islandTrailDistance, riverCenter,
 } from './island-terrain.js';
 
@@ -142,7 +142,7 @@ function ground(scene, radius) {
   const random = randomFrom(293);
   for (let i = 0; i < 32; i++) {
     const angle = i * Math.PI * 2 / 32 + random() * 0.1;
-    const distance = 31.3 + random() * 1.3;
+    const distance = (31.3 + random() * 1.3) * ISLAND_SCALE;
     const x = Math.cos(angle) * distance;
     const z = Math.sin(angle) * distance;
     if (Math.abs(z - riverCenter(x)) < 3.2) continue;
@@ -223,13 +223,13 @@ function water(scene, radius) {
   for (let i = 0; i <= 184; i++) {
     const x = -radius + i * radius * 2 / 184;
     const center = riverCenter(x);
-    if (Math.hypot(x, Math.abs(center) + 2.03) > radius + 0.06) continue;
+    if (Math.hypot(x, Math.abs(center) + 2.03 * ISLAND_SCALE) > radius + 0.06) continue;
     head ??= [x, center];
     tail = [x, center];
-    sections.push([[x, ISLAND_WATER_LEVEL, center - 1.95], [x, ISLAND_WATER_LEVEL, center + 1.95]]);
+    sections.push([[x, ISLAND_WATER_LEVEL, center - 1.95 * ISLAND_SCALE], [x, ISLAND_WATER_LEVEL, center + 1.95 * ISLAND_SCALE]]);
   }
   const outlets = [[head, -1], [tail, 1]].map(([[, z], direction]) => {
-    const lip = [-1.95, 1.95].map(offset => [
+    const lip = [-1.95 * ISLAND_SCALE, 1.95 * ISLAND_SCALE].map(offset => [
       direction * (Math.sqrt(radius * radius - (z + offset) ** 2) + 0.14), ISLAND_WATER_LEVEL, z + offset,
     ]);
     if (direction < 0) sections.unshift(lip);
@@ -238,14 +238,15 @@ function water(scene, radius) {
   });
   ribbon(scene, surface, sections);
   const creek = Array.from({ length: 70 }, (_, i) => {
-    const z = -19 + i * 16.8 / 69;
+    const z = ISLAND_CREEK_START + i * (ISLAND_CREEK_END - ISLAND_CREEK_START) / 69;
     const x = creekCenter(z);
-    const width = Math.min(0.64, 0.10 + i * 0.14);
+    const width = Math.min(0.64, 0.10 + i * 0.14) * ISLAND_SCALE;
     const y = creekLevel(z) + ISLAND_WATER_LEVEL - 0.007;
     return [[x - width, y, z], [x + width, y, z]];
   });
   ribbon(scene, surface, creek);
-  for (const [x, z, size] of [[-7.2, -19.2, 0.77], [-6.2, -19.7, 0.61], [-6.88, -20.1, 1.03], [-5.87, -17.9, 0.43]]) {
+  for (const [px, pz, size] of [[-7.2, -19.2, 0.77], [-6.2, -19.7, 0.61], [-6.88, -20.1, 1.03], [-5.87, -17.9, 0.43]]) {
+    const x = px * ISLAND_SCALE, z = pz * ISLAND_SCALE;
     mesh(scene, rock, creekStone, [x, Math.max(creekLevel(z), islandHeight(x, z)) + size * 0.24, z], [size, size * 0.59, size]);
   }
 
@@ -286,6 +287,7 @@ function water(scene, radius) {
     const center = riverCenter(crossing);
     const bridge = new THREE.Group();
     bridge.position.set(crossing, 0.085, center);
+    bridge.scale.set(ISLAND_SCALE, 1, ISLAND_SCALE);
     scene.add(bridge);
     for (let i = -8; i <= 8; i++) {
       const cross = mesh(bridge, cube, i % 4 === 0 ? clay : plank, [0, 0, i * 0.30], [2.78, 0.092, 0.276]);
@@ -411,8 +413,8 @@ function wildlife(scene) {
   return seconds => {
     for (const { body, spot, phase } of hares) {
       const age = seconds * 0.47 + phase;
-      const x = spot[0] + Math.cos(age) * 1.32;
-      const z = spot[1] + Math.sin(age) * 1.14;
+      const x = spot[0] * ISLAND_SCALE + Math.cos(age) * 1.32;
+      const z = spot[1] * ISLAND_SCALE + Math.sin(age) * 1.14;
       body.position.set(x, islandHeight(x, z) + Math.max(0, Math.sin(age * 7)) * 0.36, z);
       body.rotation.y = Math.atan2(Math.sin(age), -Math.cos(age));
     }

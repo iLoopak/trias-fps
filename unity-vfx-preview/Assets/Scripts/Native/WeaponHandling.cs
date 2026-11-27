@@ -60,27 +60,32 @@ namespace Trias.Native
             this.key = key;
             chamber = root.Find(PhaseArmory.Chamber);
             if (chamber != null) chamberAt = chamber.localPosition;
-            action = TriasWorld.Group(root, key == "scatter" ? "Hinged breech" : key == "lance" ? "Bolt carriage"
-                : key == "arc" ? "Cell sled" : key == "rift" ? "Containment gate" : "Charging handle");
-            actionAt = new Vector3(-.075f, key == "arc" ? -.018f : .07f, key == "lance" ? .19f : .12f);
+            actionAt = ActionPoint(key);
             payloadAt = ServicePoint(key);
-            payload = TriasWorld.Group(root, key == "pulse" ? "Magazine" : "Energy cartridge");
-            Part(action, world.Steel, Vector3.zero, new Vector3(.057f,.032f,key == "lance" ? .18f : .10f));
-            Part(action, accent, new Vector3(-.029f,.014f,0), new Vector3(.013f,.014f,.073f));
-            if (key == "rift")
-                Part(payload, accent, Vector3.zero, new Vector3(.093f,.069f,.073f), PrimitiveType.Sphere);
-            else if (key == "scatter")
+            action = root.Find(BlenderArmory.Action);
+            payload = root.Find(BlenderArmory.Payload);
+            if (action == null || payload == null)
             {
-                for (int i = 0; i < 2; i++)
+                action = TriasWorld.Group(root, key == "scatter" ? "Hinged breech" : key == "lance" ? "Bolt carriage"
+                    : key == "arc" ? "Cell sled" : key == "rift" ? "Containment gate" : "Charging handle");
+                payload = TriasWorld.Group(root, key == "pulse" ? "Magazine" : "Energy cartridge");
+                Part(action, world.Steel, Vector3.zero, new Vector3(.057f,.032f,key == "lance" ? .18f : .10f));
+                Part(action, accent, new Vector3(-.029f,.014f,0), new Vector3(.013f,.014f,.073f));
+                if (key == "rift")
+                    Part(payload, accent, Vector3.zero, new Vector3(.093f,.069f,.073f), PrimitiveType.Sphere);
+                else if (key == "scatter")
                 {
-                    var shell = Part(payload, accent, new Vector3(0,i * .037f,0), new Vector3(.029f,.046f,.029f), PrimitiveType.Cylinder);
-                    shell.localRotation = Quaternion.Euler(90, 0, 0);
+                    for (int i = 0; i < 2; i++)
+                    {
+                        var shell = Part(payload, accent, new Vector3(0,i * .037f,0), new Vector3(.029f,.046f,.029f), PrimitiveType.Cylinder);
+                        shell.localRotation = Quaternion.Euler(90, 0, 0);
+                    }
                 }
-            }
-            else
-            {
-                Part(payload, world.Dark, Vector3.zero, key == "pulse" ? new Vector3(.055f,.114f,.085f) : new Vector3(.037f,.047f,.104f));
-                Part(payload, accent, new Vector3(-.025f,-.015f,0), new Vector3(.012f,.026f,.061f));
+                else
+                {
+                    Part(payload, world.Dark, Vector3.zero, key == "pulse" ? new Vector3(.055f,.114f,.085f) : new Vector3(.037f,.047f,.104f));
+                    Part(payload, accent, new Vector3(-.025f,-.015f,0), new Vector3(.012f,.026f,.061f));
+                }
             }
             if (firstPerson)
             {
@@ -128,7 +133,10 @@ namespace Trias.Native
         internal Vector3 SupportGrip(Pose pose) => Vector3.Lerp(new Vector3(-.061f,-.075f,.164f),
             ServicePoint(key) + pose.PayloadTravel + new Vector3(-.039f,-.028f,0), pose.Reach);
 
-        static Vector3 ServicePoint(string key) => key switch
+        internal static Vector3 ActionPoint(string key) =>
+            new Vector3(-.075f,key == "arc" ? -.018f : .07f,key == "lance" ? .19f : .12f);
+
+        internal static Vector3 ServicePoint(string key) => key switch
         {
             "scatter" => new Vector3(-.093f,.040f,.11f), "lance" => new Vector3(-.108f,.091f,.16f),
             "arc" => new Vector3(-.107f,-.045f,.09f), "rift" => new Vector3(-.107f,.032f,.13f),
@@ -185,24 +193,34 @@ namespace Trias.Native
         internal void Reach(Vector3 target, Vector3 pole)
         {
             if (upper == null || forearm == null || hand == null) return;
-            Vector3 shoulder = upper.position;
-            float a = Vector3.Distance(shoulder, forearm.position);
-            float b = Vector3.Distance(forearm.position, hand.position);
-            if (a < .05f || b < .05f) return;
-            Vector3 path = target - shoulder;
-            if (path.sqrMagnitude < .0001f) return;
+            // The rig's parent scales the body during crouch and varies by pilot. Solve
+            // in that parent's coordinates so rotating a bone preserves its link lengths.
+            Transform frame = upper.parent;
+            if (frame == null) return;
+            Vector3 shoulder = upper.localPosition;
+            Vector3 originalElbow = frame.InverseTransformPoint(forearm.position);
+            Vector3 originalWrist = frame.InverseTransformPoint(hand.position);
+            float a = Vector3.Distance(shoulder,originalElbow);
+            float b = Vector3.Distance(originalElbow,originalWrist);
+            if (a < .00001f || b < .00001f) return;
+            Vector3 path = frame.InverseTransformPoint(target) - shoulder;
+            if (path.sqrMagnitude < 1e-10f) return;
             Vector3 forward = path.normalized;
-            float distance = Mathf.Clamp(path.magnitude, Mathf.Abs(a - b) + .002f, a + b - .002f);
-            float along = (a * a + distance * distance - b * b) / (2 * distance);
-            Vector3 bend = Vector3.ProjectOnPlane(pole - shoulder, forward).normalized;
+            float jointMargin = .004f*Mathf.Min(a,b);
+            float distance = Mathf.Clamp(path.magnitude,Mathf.Abs(a-b)+jointMargin,a+b-jointMargin);
+            float along = (a*a+distance*distance-b*b)/(2*distance);
+            Vector3 bend = Vector3.ProjectOnPlane(frame.InverseTransformPoint(pole)-shoulder,forward).normalized;
             if (bend.sqrMagnitude < .001f) return;
-            Vector3 elbow = shoulder + forward * along + bend * Mathf.Sqrt(Mathf.Max(0, a * a - along * along));
-            Vector3 wrist = shoulder + forward * distance;
+            Vector3 elbow = shoulder+forward*along + bend*Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
+            Vector3 wrist = frame.TransformPoint(shoulder+forward*distance);
             upperPose = upper.localRotation;
             forearmPose = forearm.localRotation;
             posed = true;
-            upper.rotation = Quaternion.FromToRotation(forearm.position - shoulder, elbow - shoulder) * upper.rotation;
-            forearm.rotation = Quaternion.FromToRotation(hand.position - forearm.position, wrist - forearm.position) * forearm.rotation;
+            upper.localRotation = Quaternion.FromToRotation(originalElbow-shoulder,elbow-shoulder)*upperPose;
+            Transform elbowFrame = forearm.parent;
+            Vector3 current = elbowFrame.InverseTransformPoint(hand.position)-forearm.localPosition;
+            Vector3 desired = elbowFrame.InverseTransformPoint(wrist)-forearm.localPosition;
+            forearm.localRotation = Quaternion.FromToRotation(current,desired)*forearmPose;
         }
     }
 }

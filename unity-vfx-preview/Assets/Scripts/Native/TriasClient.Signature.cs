@@ -43,7 +43,7 @@ namespace Trias.Native
                 EchoRejected("OZVĚNA NENÍ DOSTUPNÁ", now);
                 return;
             }
-            bool alt = own[9].Text == "scatter" && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+            bool alt = HasAlternate(own[9].Text ?? "pulse") && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
             SendEcho(alt, recall);
         }
 

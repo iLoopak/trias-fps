@@ -1,10 +1,10 @@
-import { ISLAND_RADIUS, islandFord, islandHeight, islandTerrainDistance } from './island-terrain.js';
+import { ISLAND_RADIUS, ISLAND_SCALE, islandFord, islandHeight, islandTerrainDistance } from './island-terrain.js';
 export { ISLAND_CROSSINGS, creekCenter, islandFord, riverCenter } from './island-terrain.js';
 
 export const TICK = 1 / 30;
 export const TEAM_SIZE = 4;
 export const CAPACITY = 12;
-export const MAP_SIZE = 30;
+export const MAP_SIZE = 34;
 export const BODY_RADIUS = 0.43;
 export const EYE = 1.58;
 export const PILOT_HP = 210;
@@ -33,14 +33,20 @@ const DODGE_DURATION = 0.22;
 const GRAVITY = 19;
 export const DEFAULT_WEAPON = 'pulse';
 export const WEAPONS = {
-  pulse: { label: 'Pulse', color: '#89fff0', magazine: 24, reserve: Infinity, interval: 0.145, reload: 1.3, range: 60, damage: 23, pattern: [0] },
+  pulse: { label: 'Pulse', color: '#89fff0', magazine: 24, reserve: Infinity, interval: 0.145, reload: 1.3, range: 60, damage: 23, pattern: [0],
+    alt: { label: 'Trojimpulz', cost: 3, interval: 0.38, range: 48, damage: 17, pattern: [0, -0.015, 0.015] } },
   scatter: { label: 'Scatter', color: '#ffad72', magazine: 6, reserve: 24, interval: 0.66, reload: 1.55, range: 22, damage: 14,
     pattern: [0, -0.06, 0.06, -0.09, 0.09, -0.025, 0.025],
-    alt: { cost: 2, interval: 0.91, range: 47, damage: 56, pattern: [0] } },
-  lance: { label: 'Lance', color: '#d8b4ff', magazine: 4, reserve: 12, interval: 0.85, reload: 1.7, range: 85, damage: 68, pattern: [0] },
-  arc: { label: 'Arc', color: '#ffed87', magazine: 36, reserve: 108, interval: 0.08, reload: 1.6, range: 43, damage: 13, pattern: [0] },
+    alt: { label: 'Slug', cost: 2, interval: 0.91, range: 47, damage: 56, pattern: [0] } },
+  lance: { label: 'Lance', color: '#d8b4ff', magazine: 4, reserve: 12, interval: 0.85, reload: 1.7, range: 85, damage: 68, pattern: [0],
+    alt: { label: 'Průstřel', cost: 2, interval: 1.05, range: 75, damage: 70, pattern: [0], penetration: 0.54 } },
+  arc: { label: 'Arc', color: '#ffed87', magazine: 36, reserve: 108, interval: 0.08, reload: 1.6, range: 43, damage: 13, pattern: [0],
+    alt: { label: 'Obloukový vějíř', cost: 8, interval: 0.53, range: 25, damage: 15,
+      pattern: [0, -0.034, 0.034, -0.069, 0.069, -0.108, 0.108], horizontal: true } },
   rift: { label: 'Rift', color: '#ff79b9', magazine: 4, reserve: 12, interval: 0.72, reload: 1.62, range: 55,
-    damage: 72, projectile: { speed: 22, radius: 3.2, splash: 54 } },
+    damage: 72, projectile: { speed: 22, radius: 3.2, splash: 54 },
+    alt: { label: 'Těžká koule', cost: 2, interval: 1.05, range: 39, damage: 78,
+      projectile: { speed: 14, radius: 4.65, splash: 68 } } },
 };
 export const ARMORY = Object.keys(WEAPONS);
 export const POWERUPS = {
@@ -75,9 +81,9 @@ export const MODES = {
 export const DEFAULT_MODE = 'tdm';
 export const CHARACTERS = {
   vector: { label: 'Vektor', weapon: 'pulse', description: 'Univerzální karabina pro střední vzdálenost.' },
-  bulwark: { label: 'Bašta', weapon: 'scatter', rounds: 4, description: 'Brokovnice pro boj zblízka.' },
-  wraith: { label: 'Přízrak', weapon: 'lance', rounds: 2, description: 'Přesná puška pro boj na dálku.' },
-  kestrel: { label: 'Poštolka', weapon: 'arc', rounds: 24, description: 'Rychlopalná zbraň pro krytí postupu.' },
+  bulwark: { label: 'Bašta', weapon: 'scatter', description: 'Brokovnice pro boj zblízka.' },
+  wraith: { label: 'Přízrak', weapon: 'lance', description: 'Přesná puška pro boj na dálku.' },
+  kestrel: { label: 'Poštolka', weapon: 'arc', description: 'Rychlopalná zbraň pro krytí postupu.' },
 };
 export const DEFAULT_CHARACTER = 'vector';
 
@@ -130,6 +136,10 @@ const relayCover = [
     { ...radial(team.angle + Math.PI / 3, 4.65), w: 2.3, d: 2.75, h: 2.38, sector, angle: team.angle + Math.PI / 3, terrace: true },
     { ...radial(team.angle + Math.PI / 3, 26.5, 3), w: 2.1, d: 3.3, h: 1.8, sector, angle: team.angle + Math.PI / 3, profile: 'baffle' },
   ]),
+  ...TEAMS.map((team,sector) => ({
+    ...radial(team.angle+Math.PI/3,29.4,-6),w: 3.2,d: 2.2,h: 1.65,
+    angle: team.angle+Math.PI/3,sector,profile:'airlock',
+  })),
   { x: 0, z: 0, w: 2.25, d: 2.25, h: 4.5, sector: -1, relay: true },
 ];
 
@@ -171,15 +181,24 @@ const foundryCover = packCover([
     { ...radial(team.angle + Math.PI / 3, 8.75), w: 1.85, d: 4.6, h: 1.85, angle: team.angle + Math.PI / 3, sector: -1, profile: 'baffle' },
     { ...radial(team.angle + Math.PI / 3, 4.1), w: 2.15, d: 2.3, h: 1.35, angle: team.angle + Math.PI / 3, sector, terrace: true },
   ]),
+  ...TEAMS.flatMap((team,sector) => [
+    {...radial(team.angle+Math.PI/3,31,-4.1),w: 4.1,d: 4.3,h: 3.4,angle: team.angle+Math.PI/3,sector,profile:'kiln'},
+    {...radial(team.angle+Math.PI/3,33,5.5),w: 3.4,d: 2.35,h: 1.8,angle: team.angle+Math.PI/3,sector,profile:'slag'},
+  ]),
   { x: 0, z: 0, w: 3.3, d: 3.3, h: 3.2, sector: -1, relay: true },
 ]);
 
+const foundryBases = TEAMS.map(team => radial(team.angle, 29));
+const foundrySpawns = TEAMS.map(team =>
+  [-3.6,-1.2,1.2,3.6].map(offset => radial(team.angle,31.8,offset))
+);
 const foundryTurrets = TEAMS.map((team, sector) => {
   const position = radial(team.angle, 17.25, 8.4);
   return { ...position, y: 0, yaw: Math.atan2(position.x, position.z), sector };
 });
 
-const BASIN_SIZE = 56;
+const FOUNDRY_SIZE = 38;
+const BASIN_SIZE = 64;
 const basinBases = TEAMS.map(team => radial(team.angle, 34));
 const basinPoints = TEAMS.map((team, i) => ({ ...radial(team.angle, 23.6), label: 'ABC'[i] }));
 const basinSpawns = TEAMS.map(team =>
@@ -200,10 +219,10 @@ const basinPickups = [
   { x: 0, y: 3.6, z: 0, type: 'surge' },
 ];
 const basinVehicles = TEAMS.flatMap((team, sector) => [
-  { ...radial(team.angle, 42.8, -8.2), heading: team.angle + Math.PI / 2, kind: 'skimmer', team: sector },
-  { ...radial(team.angle, 42.7, 9.2), heading: team.angle - Math.PI / 2, kind: 'bastion', team: sector },
+  { ...radial(team.angle, 47.8, -8.2), heading: team.angle + Math.PI / 2, kind: 'skimmer', team: sector },
+  { ...radial(team.angle, 47.7, 9.2), heading: team.angle - Math.PI / 2, kind: 'bastion', team: sector },
 ]);
-const basinRepairs = TEAMS.map(team => ({ ...radial(team.angle + Math.PI / 3, 37.5), radius: 3.65 }));
+const basinRepairs = TEAMS.map(team => ({ ...radial(team.angle + Math.PI / 3, 42.5), radius: 3.65 }));
 const basinFootZones = [...basinPoints.map(p => ({ ...p, radius: 3.95 })), ...basinBases.map(p => ({ ...p, radius: 3.35 }))];
 const basinCover = packCover([
   ...basinGantries,
@@ -217,6 +236,10 @@ const basinCover = packCover([
     { ...radial(team.angle + Math.PI / 3, 15.2), w: 3.6, d: 4.9, h: 2.2, angle: team.angle + Math.PI / 3, sector: -1, profile: 'baffle' },
     { ...radial(team.angle, 6.4), w: 2.5, d: 2.5, h: 1.56, angle: team.angle, sector, terrace: true },
   ]),
+  ...TEAMS.flatMap((team,sector) => [
+    {...radial(team.angle+Math.PI/3,55.4,-7.2),w:5.7,d:3.3,h:3.75,angle:team.angle+.52,sector,profile:'ore'},
+    {...radial(team.angle+Math.PI/3,55.2,6.6),w:3.2,d:5.1,h:2.1,angle:team.angle+1.31,sector,profile:'ore'},
+  ]),
   { x: 0, z: 0, w: 5.8, d: 5.8, h: 3.6, sector: -1, relay: true },
 ]);
 
@@ -229,7 +252,10 @@ const siegeCores = basinBases.map((base, team) => ({ ...base, y: 1.15, radius: 1
 const siegeLinks = TEAMS.flatMap((_, i) => [[i, i + 3], [i + 3, (i + 1) % TEAMS.length]]);
 export const BASIN_SIEGE = { nodes: siegeNodes, cores: siegeCores, links: siegeLinks };
 
-const onIsland = ({ x, z, y = 0, ...props }) => ({ ...props, x, z, y: islandHeight(x, z) + y });
+const onIsland = ({ x: localX, z: localZ, y = 0, ...props }) => {
+  const x = localX * ISLAND_SCALE, z = localZ * ISLAND_SCALE;
+  return { ...props, x, z, y: islandHeight(x, z) + y };
+};
 const islandBases = TEAMS.map(team => onIsland(radial(team.angle, 22.2)));
 const islandPoints = TEAMS.map((team, i) => onIsland({ ...radial(team.angle, 10.7), label: 'ABC'[i] }));
 const islandSpawns = TEAMS.map(team => [-3.0, -1.0, 1.0, 3.0].map(offset => onIsland(radial(team.angle, 25.7, offset))));
@@ -243,6 +269,9 @@ const islandTreeSites = [
   [-19, -7.1], [-21, -16], [-12, -18], [5, -20], [15, -18], [19, -12], [25.8, -13], [24, 2],
   [21, 8], [14, 19], [6, 22], [-6, 23], [-12, 19], [-19, 10], [-23, 2],
   [-10, -6], [8, -8], [6, 14], [-5, 9],
+  [-24,7], [-19.5,11.6], [-17.2,13.3], [-15.4,16.9], [-9.8,21.5], [-8.7,25.9],
+  [-3.6,21], [3.7,23.2], [9.5,24.3], [12.4,20.8], [18.3,17.4], [19.3,12.4],
+  [17.6,-17.4],[5.6,-25.2],[-5.7,-23.9],[-11.4,-24.4],
 ];
 const islandCover = packCover([
   ...islandRocks,
@@ -254,8 +283,10 @@ const islandCover = packCover([
   { x: -16.3, z: 15.4, w: 4.1, d: 2.6, h: 2.65, angle: 0.5, nature: 'rock', strata: true },
   { x: 22.2, z: -5.05, w: 2.75, d: 1.85, h: 2.6, angle: -0.30, nature: 'rock', strata: true },
 ].map(box => {
-  const ground = islandHeight(box.x, box.z);
-  return { ...box, ground, bottom: Math.max(0, ground - 1.3), h: ground + box.h };
+  const x = box.x * ISLAND_SCALE, z = box.z * ISLAND_SCALE;
+  const ground = islandHeight(x, z);
+  const spread = box.nature === 'tree' ? 1 : 1.15;
+  return { ...box, x, z, w: box.w * spread, d: box.d * spread, ground, bottom: Math.max(0, ground - 1.3), h: ground + box.h };
 }));
 const islandPickups = [
   ...TEAMS.flatMap((team, i) => [
@@ -265,6 +296,8 @@ const islandPickups = [
   ]),
   { x: 8.1, z: -14.2, type: 'rift' },
   { x: -3.6, z: 3.25, y: 0, type: 'surge' },
+  { x: 20.2, z: 16.2, type: 'shield' }, { x: -18.3, z: 14.8, type: 'med' },
+  { x: -9.1, z: -16.3, type: 'lance' },
 ].map(onIsland);
 
 export const DEFAULT_ARENA = 'relay';
@@ -274,20 +307,20 @@ export const ARENAS = {
     cover: COVER, launchPads: LAUNCH_PADS, gantries: GANTRIES, pickups: PICKUPS, bases: BASES, points: POINTS, spawns: SPAWNS, turrets: [],
   },
   foundry: {
-    id: 'foundry', length: MAP_SIZE, label: 'Vanta Foundry', description: 'Otevřená slévárna s dlouhými tavicími kanály a bočními mosty.',
+    id: 'foundry', length: FOUNDRY_SIZE, label: 'Vanta Foundry', description: 'Otevřená slévárna s dlouhými tavicími kanály a bočními mosty.',
     cover: foundryCover, launchPads: foundryPads, gantries: foundryGantries, pickups: foundryPickups,
-    bases: BASES, points: POINTS, spawns: SPAWNS, turrets: foundryTurrets,
+    bases: foundryBases, points: POINTS, spawns: foundrySpawns, turrets: foundryTurrets,
   },
   basin: {
     id: 'basin', length: BASIN_SIZE, label: 'Meridian Basin',
     description: 'Těžební údolí s vozidly, širokým okruhem a krytými cestami pro pěchotu.',
     cover: basinCover, launchPads: basinPads, gantries: basinGantries, pickups: basinPickups, bases: basinBases,
     points: basinPoints, spawns: basinSpawns, turrets: [], vehicles: basinVehicles, repairs: basinRepairs,
-    footZones: basinFootZones, roadRadius: 41.8, siege: BASIN_SIEGE,
+    footZones: basinFootZones, roadRadius: 47.8, siege: BASIN_SIEGE,
   },
   island: {
-    id: 'island', length: 32, edgeRadius: ISLAND_RADIUS, terrain: islandHeight, label: 'Mechový ostrov',
-    description: 'Zelená miniplaneta s horským hřebenem a dvěma vodopády.',
+    id: 'island', length: 50, edgeRadius: ISLAND_RADIUS, islandScale: ISLAND_SCALE, terrain: islandHeight, label: 'Mechový ostrov',
+    description: 'Zalesněná miniplaneta s horským hřebenem, říčními přechody a vodopády.',
     cover: islandCover, launchPads: [], gantries: [], pickups: islandPickups, bases: islandBases,
     points: islandPoints, spawns: islandSpawns, turrets: [],
   },

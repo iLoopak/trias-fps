@@ -1,33 +1,30 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace Trias.Native
 {
-    internal sealed class VektorSuit
+    internal sealed class BlenderPilotSuit
     {
-        const string Resource = "TRIAS/Vektor/VektorSuit";
-        readonly Dictionary<string, (Mesh Mesh, string[] Finishes)> parts = new();
-        readonly Material[] factionFinishes = new Material[3];
+        readonly BlenderParts parts;
+        readonly Material[] factionFinishes;
 
-        internal VektorSuit()
+        internal BlenderPilotSuit(string kit, Material[] factionFinishes)
         {
-            var asset = Resources.Load<GameObject>(Resource);
-            if (asset == null) return;
-            foreach (var filter in asset.GetComponentsInChildren<MeshFilter>())
+            this.factionFinishes = factionFinishes;
+            string assetPath = kit switch
             {
-                if (filter.sharedMesh == null || !filter.name.EndsWith("_Mount", System.StringComparison.Ordinal)) continue;
-                var renderer = filter.GetComponent<MeshRenderer>();
-                if (renderer == null) continue;
-                var finishes = System.Array.ConvertAll(renderer.sharedMaterials, m => m != null ? m.name : "");
-                if (filter.sharedMesh.subMeshCount == finishes.Length)
-                    parts[filter.name[..^6]] = (filter.sharedMesh, finishes);
-            }
+                "vector" => "Vektor/VektorSuit",
+                "bulwark" => "PilotModels/BulwarkSuit",
+                "wraith" => "PilotModels/WraithSuit",
+                "kestrel" => "PilotModels/KestrelSuit",
+                _ => null,
+            };
+            if (assetPath != null) parts = new BlenderParts("TRIAS/" + assetPath);
         }
 
         internal bool Build(TriasWorld world, Transform root, Transform rig, Material accent, int faction, bool male)
         {
-            if (parts.Count != 17) return false;
+            if (parts == null) return false;
             var joints = new Dictionary<string, Transform>();
             foreach (var joint in rig.GetComponentsInChildren<Transform>())
                 joints[joint.name] = joint;
@@ -51,7 +48,7 @@ namespace Trias.Native
                 _ => world.Dark,
             };
 
-            bool Has(string name) => parts.ContainsKey(name);
+            bool Has(string name) => parts.Has(name);
             if (!Has("Helmet") || !Has("Torso") || !Has("Pelvis") ||
                 !joints.ContainsKey("Head") || !joints.ContainsKey("Spine") || !joints.ContainsKey("Hips")) return false;
             mounts.Add(("Helmet", joints["Head"],Joint("Head")+new Vector3(0,male ? .179f : .162f,-.044f),Quaternion.identity,bodyScale));
@@ -85,12 +82,7 @@ namespace Trias.Native
                 joint.localRotation = mount.Rotation;
                 joint.localScale = mount.Scale;
                 joint.SetParent(mount.Bone,true);
-                joint.gameObject.layer = TriasWorld.Decor;
-                var (mesh, finishes) = parts[mount.Part];
-                joint.gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
-                var renderer = joint.gameObject.AddComponent<MeshRenderer>();
-                renderer.sharedMaterials = System.Array.ConvertAll(finishes,Finish);
-                renderer.shadowCastingMode = ShadowCastingMode.On;
+                parts.Bind(mount.Part,joint,Finish,true);
                 if (faction >= 0 && mount.Part == "Torso")
                 {
                     world.Stamp(joint,faction,accent,new Vector3(-.083f,.028f,.162f),.084f);
@@ -114,7 +106,7 @@ namespace Trias.Native
         Material FactionFinish(TriasWorld world, int faction)
         {
             if (factionFinishes[faction] != null) return factionFinishes[faction];
-            var finish = new Material(world.FactionPaint[faction]) { name = "Vektor faction armor" };
+            var finish = new Material(world.FactionPaint[faction]) { name = "Pilot faction armor" };
             Color baseColor = finish.color;
             // Keep the large marks identifiable against shaded graphite without a player outline.
             finish.SetColor("_EmissionColor", baseColor * (faction == 2 ? .42f : .33f));

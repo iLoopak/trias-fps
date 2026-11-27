@@ -839,7 +839,7 @@ export class Arena {
   }
 
   burst(event) {
-    this.effects.projectileBurst(event.from, performance.now(), event.weapon);
+    this.effects.projectileBurst(event.from, performance.now(), event.weapon, event.alt);
   }
 
   move(event, local, accent) {

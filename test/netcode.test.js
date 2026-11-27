@@ -177,3 +177,23 @@ test('pilot frame is cosmetic and uses an optional trailing snapshot field', () 
   match.damage(female.player, player, 250, 1, female.player, player.weapon, [player.x, player.y, player.z]);
   assert.equal(match.events.find(event => event.type === 'kill').body.frame, 'male');
 });
+
+test('heavy Rift keeps its alternate presentation through compact projectile snapshots and impact', () => {
+  const match = new Match('RIFT', 'tdm', false);
+  const { player, packets } = connect(match, 'pilot', NETWORK_VERSION);
+  player.weapon = 'rift';
+  player.loadout.rift = { ammo: 4, reserve: 0 };
+  player.x = 0;
+  player.z = 25;
+  match.trigger(player, { fireId: 1, spawn: player.spawn, weapon: 'rift', yaw: -Math.PI, pitch: 0, alt: true }, 2);
+  match.step(2);
+  const launch = unpackSnapshot(JSON.parse(packets.at(-1)));
+  assert.equal(launch.projectiles[0]?.alt, true);
+  assert.equal(launch.projectiles[0]?.weapon, 'rift');
+  let blast;
+  for (let i = 1; i < 29 && !blast; i++) {
+    match.step(2 + i / 30);
+    blast = JSON.parse(packets.at(-1)).events.find(event => event.type === 'burst');
+  }
+  assert.equal(blast?.alt, true);
+});

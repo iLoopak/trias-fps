@@ -40,7 +40,7 @@ namespace Trias.Native
 
             if (island)
             {
-                var observatory = Group(Root, "LIMEN / abandoned weather relay", new Vector3(4,-4.7f,33.7f));
+                var observatory = Group(Root, "LIMEN / abandoned weather relay", new Vector3(4 * Spec.IslandScale, -4.7f, 33.7f * Spec.IslandScale));
                 var ceramic = MaterialAt("#8eaaa0", false, "armor");
                 var steel = MaterialAt("#435a58", false, "bulkhead");
                 for (int side = -1; side <= 1; side += 2)
@@ -97,17 +97,22 @@ namespace Trias.Native
 
         void BuildBoundaryVapor()
         {
-            if (Spec.id != "foundry" && Spec.id != "basin") return;
+            if (!island && Spec.id != "foundry" && Spec.id != "basin") return;
             var shader = Resources.Load<Shader>("TRIAS/Vapor");
             if (shader == null || !shader.isSupported) return;
             var material = new Material(shader);
             Paint.Add(material);
             bool heat = Spec.id == "foundry";
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < (island ? 2 : 3); i++)
             {
                 Vector3 at = heat ? new Vector3((i - 1)*24, i == 1 ? 12 : 16, Spec.length + 10)
                     : new Vector3((i - 1)*27,3,Spec.length + 12);
-                var plume = Group(Root,heat ? "Cooling exhaust" : "Ore dust",at).gameObject.AddComponent<ParticleSystem>();
+                if (island)
+                {
+                    var outlet = Spec.river[i == 0 ? 0 : Spec.river.Length - 1];
+                    at = outlet.Position + new Vector3(Mathf.Sign(outlet.x) * 4.1f, -5.7f, 0);
+                }
+                var plume = Group(Root,island ? "Waterfall spray" : heat ? "Cooling exhaust" : "Ore dust",at).gameObject.AddComponent<ParticleSystem>();
                 plume.gameObject.layer = Decor;
                 plume.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                 var main = plume.main;
@@ -116,7 +121,7 @@ namespace Trias.Native
                 main.startSpeed = 0;
                 main.startRotation = new ParticleSystem.MinMaxCurve(-1f, 1f);
                 main.startSize = new ParticleSystem.MinMaxCurve(heat ? 2f : 4f,heat ? 4.1f : 6.8f);
-                main.startColor = heat ? new Color(.73f,.57f,.50f,.28f) : new Color(.77f,.60f,.39f,.20f);
+                main.startColor = island ? new Color(.83f,.93f,.94f,.29f) : heat ? new Color(.73f,.57f,.50f,.28f) : new Color(.77f,.60f,.39f,.20f);
                 main.maxParticles = 8;
                 main.simulationSpace = ParticleSystemSimulationSpace.World;
                 var shape = plume.shape;
@@ -127,8 +132,8 @@ namespace Trias.Native
                 var drift = plume.velocityOverLifetime;
                 drift.enabled = true;
                 drift.space = ParticleSystemSimulationSpace.World;
-                drift.x = new ParticleSystem.MinMaxCurve(.4f, 1.35f);
-                drift.y = new ParticleSystem.MinMaxCurve(heat ? .81f : .08f,heat ? 1.7f : .26f);
+                drift.x = new ParticleSystem.MinMaxCurve(island ? -.7f : .4f, island ? .7f : 1.35f);
+                drift.y = new ParticleSystem.MinMaxCurve(island ? -.80f : heat ? .81f : .08f, heat ? 1.7f : .26f);
                 drift.z = new ParticleSystem.MinMaxCurve(.15f, .43f);
                 var color = plume.colorOverLifetime;
                 color.enabled = true;
@@ -161,10 +166,10 @@ namespace Trias.Native
             var vertices = new List<Vector3>();
             var faces = new List<int>();
             var uv = new List<Vector2>();
-            for (int i = 0; i < 260; i++)
+            for (int i = 0; i < 535; i++)
             {
                 float angle = i * 2.399963f;
-                float radius = 4 + R(23.8f);
+                float radius = (4 + R(23.8f)) * Spec.IslandScale;
                 float x = Mathf.Cos(angle)*radius, z = Mathf.Sin(angle)*radius;
                 float y = Height(x,z);
                 if (y < .40f || Array.Exists(Spec.cover, box => box.Overlaps(x,z,.38f)) ||

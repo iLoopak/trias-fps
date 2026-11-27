@@ -22,7 +22,7 @@ const ROUND_PAUSE = 9;
 
 export const fireProfileData = () => ARMORY.map(key => {
   const spec = WEAPONS[key];
-  return [key, spec.interval, spec.magazine, spec.reload, spec.alt?.interval ?? 0, spec.alt?.cost ?? 0];
+  return [key, spec.interval, spec.magazine, spec.reload, spec.alt?.interval ?? 0, spec.alt?.cost ?? 0, spec.alt?.label];
 });
 
 export class Match {
@@ -92,7 +92,10 @@ export class Match {
     const toward = this.layout.points[team];
     const kit = CHARACTERS[player.character] ?? CHARACTERS[DEFAULT_CHARACTER];
     const loadout = { [DEFAULT_WEAPON]: { ammo: WEAPONS[DEFAULT_WEAPON].magazine, reserve: Infinity } };
-    if (kit.weapon !== DEFAULT_WEAPON) loadout[kit.weapon] = { ammo: kit.rounds, reserve: 0 };
+    if (kit.weapon !== DEFAULT_WEAPON) {
+      const magazine = WEAPONS[kit.weapon].magazine;
+      loadout[kit.weapon] = { ammo: magazine, reserve: magazine };
+    }
     Object.assign(player, start, {
       hp: this.siege && !this.siege.alive(player.team) ? 0 : PILOT_HP, armor: 0, surgeUntil: 0, y: start.y ?? 0, vx: 0, vy: 0, vz: 0, grounded: true, airJump: true,
       dodgeCooldown: 0, dodgeTime: 0, airDodge: true, padCooldown: 0, crouch: false, grenades: 1, turret: -1, vehicle: -1, vehiclePlanAt: -100, impactAt: 0,
@@ -259,11 +262,11 @@ export class Match {
 
   get combatLayout() { return this.horde?.layout ?? this.layout; }
 
-  trace(player, origin, direction, range, width = 0) {
+  trace(player, origin, direction, range, width = 0, pierced = null) {
     let distance = wallDistance(origin, direction, range, this.combatLayout);
     let target;
     for (const other of this.players.values()) {
-      if (!this.hostile(player, other)) continue;
+      if (other === pierced || !this.hostile(player, other)) continue;
       const hit = rayBox(origin, direction,
         { x: other.x - 0.44 - width, y: other.y + 0.08 - width, z: other.z - 0.44 - width },
         { x: other.x + 0.44 + width, y: other.y + hitHeight(other) + width, z: other.z + 0.44 + width });
@@ -357,15 +360,31 @@ export class Match {
     if (weapon.projectile) {
       this.projectiles.push({
         id: ++this.nextProjectile, owner: player, weapon: key, position: origin,
-        direction: mountedAim?.direction ?? aimVector(shotYaw, shotPitch), range: weapon.range, power, spec: weapon,
+        direction: mountedAim?.direction ?? aimVector(shotYaw, shotPitch), range: weapon.range, power, spec: weapon, alt,
         echo: trigger?.echo,
       });
       return;
     }
     const damage = new Map();
     const intercepts = this.interactions.intercept && !mounted && !vehicle && !trigger?.echo ? new Set() : null;
+    function recordImpact(target, distance, direction, strength = 1) {
+      const at = [origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance];
+      if (target && (target.isEcho || target.opened !== undefined || target.kind || target.safeUntil <= now)) {
+        const amount = weapon.damage * power * strength;
+        const hit = damage.get(target);
+        if (hit) hit.damage += amount;
+        else damage.set(target, { damage: amount, impact: at });
+      }
+      const impact = target?.isEcho ? 'echo' : target?.opened !== undefined
+        ? (target.opened & (1 << player.team) ? 'core' : 'shield')
+        : target ? (target.kind || target.armor || target.safeUntil > now ? 'shield' : 'pilot')
+          : distance < weapon.range ? 'wall' : null;
+      ends.push([...at, impact]);
+    }
+
     for (const [index, offset] of weapon.pattern.entries()) {
-      const direction = mountedAim?.direction ?? aimVector(shotYaw + offset, shotPitch + (index % 2 ? offset * 0.7 : -offset * 0.7));
+      const elevation = weapon.horizontal ? 0 : (index % 2 ? offset * 0.7 : -offset * 0.7);
+      const direction = mountedAim?.direction ?? aimVector(shotYaw + offset, shotPitch + elevation);
       const { target, distance } = this.trace(player, origin, direction, weapon.range);
       const cut = intercepts && grenadeOnRay(this,player,origin,direction,distance,now);
       if (cut) {
@@ -374,18 +393,12 @@ export class Match {
           origin.z + direction.z * cut.distance, 'grenade']);
         continue;
       }
-      if (target && (target.isEcho || target.opened !== undefined || target.kind || target.safeUntil <= now)) {
-        const hit = damage.get(target);
-        if (hit) hit.damage += weapon.damage * power;
-        else damage.set(target, { damage: weapon.damage * power, impact: [
-          origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance,
-        ] });
+      recordImpact(target, distance, direction);
+      if (weapon.penetration && target && !target.isEcho && !target.kind && target.opened === undefined &&
+          target.safeUntil <= now && !target.armor) {
+        const next = this.trace(player, origin, direction, weapon.range, 0, target);
+        if (next.distance > distance) recordImpact(next.target, next.distance, direction, weapon.penetration);
       }
-      const impact = target?.isEcho ? 'echo' : target?.opened !== undefined
-        ? (target.opened & (1 << player.team) ? 'core' : 'shield')
-        : target ? (target.kind || target.armor || target.safeUntil > now ? 'shield' : 'pilot')
-          : distance < weapon.range ? 'wall' : null;
-      ends.push([origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance, impact]);
     }
     for (const [target, value] of damage) {
       if (target.isEcho) {
@@ -448,7 +461,7 @@ export class Match {
     const spec = weapon === 'grenade' ? GRENADE : projectile.spec.projectile;
     const from = [position.x, position.y, position.z];
     const hits = [];
-    this.events.push({ type: 'burst', id: owner.id, weapon, from, hits, echo: projectile.echo });
+    this.events.push({ type: 'burst', id: owner.id, weapon, from, hits, alt: projectile.alt, echo: projectile.echo });
     const origin = direction ? {
       x: position.x - direction.x * 0.041,
       y: position.y - direction.y * 0.041,
@@ -837,7 +850,7 @@ export class Match {
       turrets: this.turrets.map(item => ({ user: item.user, heat: item.heat, hot: item.hot })),
       projectiles: this.projectiles.map(shot => ({
         id: shot.id, weapon: shot.weapon, x: shot.position.x, y: shot.position.y, z: shot.position.z,
-        fuse: shot.fuseAt === undefined ? undefined : Math.max(0, shot.fuseAt - now),
+        fuse: shot.fuseAt === undefined ? undefined : Math.max(0, shot.fuseAt - now), alt: shot.alt || undefined,
       })), winner: this.restartAt ? this.winner : null, restart: Math.max(0, Math.ceil(this.restartAt - now)), events: this.events,
     };
     if (modern.length) {

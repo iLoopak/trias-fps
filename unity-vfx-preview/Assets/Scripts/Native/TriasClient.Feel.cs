@@ -120,6 +120,10 @@ namespace Trias.Native
         {
             var profile = key switch
             {
+                "pulse" when alt => (.092f, 9.5f, 1.65f, .135f),
+                "lance" when alt => (.165f, 11.1f, 1.55f, .185f),
+                "arc" when alt => (.087f, 10.1f, 3.5f, .145f),
+                "rift" when alt => (.181f, 15.1f, 4.7f, .212f),
                 "scatter" when alt => (.128f, 13f, 2.5f, .145f),
                 "scatter" => (.113f, 16f, 3.2f, .132f),
                 "lance" => (.144f, 9.3f, 1.35f, .158f),
@@ -135,7 +139,7 @@ namespace Trias.Native
             cameraKick = Mathf.Min(1.7f, cameraKick + profile.Item2 * .064f * recoilStrength);
         }
 
-        int FootSurface(Vector3 at) => world.Spec.id != "island" ? 0 : Motor.Shallow(at) ? 2 : 1;
+        int FootSurface(Vector3 at) => world.Spec.id != "island" ? 0 : Motor.Shallow(at, world.Spec) ? 2 : 1;
 
         void PlayLocalMotion(MotionCue cue, Vector3 at)
         {

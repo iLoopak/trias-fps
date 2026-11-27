@@ -86,7 +86,7 @@ test('echo activation checks ownership, ammo, cooldown, reload and obstruction',
   player.loadout.pulse.ammo = 0;
   assert.equal(signature.fire(player, request(echo), 1.2), false);
   player.loadout.pulse.ammo = 3;
-  echo.x = 30;
+  echo.x = match.layout.length;
   assert.equal(signature.fire(player, request(echo), 1.2), false);
   assert.equal(player.loadout.pulse.ammo, 3);
 });

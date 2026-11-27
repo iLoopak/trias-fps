@@ -78,7 +78,7 @@ namespace Trias.Native
             if (launch == null && DodgeTime <= 0)
             {
                 float speed = Crouch ? 4.25f : input.Has(1) ? 10.1f : 7.55f;
-                if (map.id == "island" && Grounded && Shallow(Position)) speed *= 0.72f;
+                if (map.id == "island" && Grounded && Shallow(Position, map)) speed *= 0.72f;
                 float acceleration = Grounded ? (length > 0 ? 70 : 64) : (length > 0 ? 20 : 4.2f);
                 Vector2 adjusted = Vector2.MoveTowards(new Vector2(Velocity.x, Velocity.z), wish * speed, acceleration * Tick);
                 Velocity.x = adjusted.x;
@@ -131,11 +131,17 @@ namespace Trias.Native
             return false;
         }
 
-        internal static bool Shallow(Vector3 position)
+        internal static float IslandRiver(float x, float scale)
         {
-            float x = position.x, z = position.z;
+            x /= scale;
+            return scale * (1.35f + Mathf.Sin(x * .15f) * 4.72f + Mathf.Sin(x * .33f) * .48f);
+        }
+
+        internal static bool Shallow(Vector3 position, ArenaSpec map)
+        {
+            float x = position.x / map.IslandScale, z = position.z / map.IslandScale;
             if (z >= -19 && z <= -2.2f && Mathf.Abs(x - (-6.7f + Mathf.Sin((z + 19) * 0.32f) * 1.24f)) < 0.53f) return true;
-            return Mathf.Abs(z - (1.35f + Mathf.Sin(x * 0.15f) * 4.72f + Mathf.Sin(x * 0.33f) * 0.48f)) < 1.74f
+            return Mathf.Abs(z - IslandRiver(x, 1)) < 1.74f
                 && Mathf.Abs(x + 16) > 1.35f && Mathf.Abs(x) > 1.35f && Mathf.Abs(x - 15) > 1.35f;
         }
     }

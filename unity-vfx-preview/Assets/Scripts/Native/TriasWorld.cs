@@ -141,7 +141,12 @@ namespace Trias.Native
                 {
                     var alloy = IsRelayArt ? (box.gantry ? Graphite : box.relay ? Hardware : walls)
                         : box.gantry || box.relay || box.sector >= 0 ? coverPaint : walls;
-                    Part(home, alloy, Vector3.up * h / 2, new Vector3(box.w, h, box.d), PrimitiveType.Cube, true);
+                    var body = Part(home, alloy, Vector3.up * h / 2, new Vector3(box.w, h, box.d), PrimitiveType.Cube, true);
+                    if (MapProp(box.profile, home, Vector3.up * h / 2, new Vector3(box.w, h, box.d)))
+                    {
+                        body.GetComponent<Renderer>().enabled = false;
+                        continue;
+                    }
                     if (Spec.id == "relay")
                     {
                         DressRelayCover(box, home, h);
@@ -333,75 +338,91 @@ namespace Trias.Native
             grassCrown = MaterialAt("#599b62");
             var ground = MaterialAt("#dedcc2", false, "meadow-macro");
             ground.SetFloat("_Glossiness", .13f);
+            var terrainShader = Resources.Load<Shader>("TRIAS/IslandTerrain");
+            if (terrainShader != null)
+            {
+                ground.shader = terrainShader;
+                ground.SetTexture("_Detail", Resources.Load<Texture2D>("TRIAS/meadow-macro"));
+                earth.shader = terrainShader;
+                earth.SetTexture("_Detail", Resources.Load<Texture2D>("TRIAS/meadow-macro"));
+            }
+            float scale = Spec.IslandScale;
             var hill = Spec.terrain;
             var vertices = new List<Vector3>(hill.heights.Length);
             var uv = new List<Vector2>(hill.heights.Length);
             var grid = new List<int>();
+            var soilWeights = new List<Color>(hill.heights.Length);
             for (int z = 0; z < hill.count; z++)
             for (int x = 0; x < hill.count; x++)
             {
                 float px = hill.start + hill.step * x, pz = hill.start + hill.step * z;
                 vertices.Add(new Vector3(px, hill.heights[z * hill.count + x], pz));
                 uv.Add(new Vector2((float)x / hill.count, (float)z / hill.count));
+                float bank = Mathf.Abs(pz - Motor.IslandRiver(px, scale)) / scale;
+                soilWeights.Add(new Color(1 - Mathf.SmoothStep(0, 1, (bank - 1.65f) / 3), 0, 0));
                 if (x == 0 || z == 0 || px * px + pz * pz > Spec.edgeRadius * Spec.edgeRadius) continue;
                 if ((px - hill.step) * (px - hill.step) + (pz - hill.step) * (pz - hill.step) > Spec.edgeRadius * Spec.edgeRadius) continue;
                 int i = z * hill.count + x;
                 grid.AddRange(new[] { i - hill.count - 1, i - 1, i - hill.count, i - 1, i, i - hill.count });
             }
-            MeshAt("Mossy hills", vertices, grid, uv, ground, true);
+            MeshAt("Mossy hills", vertices, grid, uv, ground, true, colors: soilWeights);
             var rim = new List<Vector3>();
             var rimIndices = new List<int>();
-            float[] layers = {1.01f,0.98f,0.89f,0.72f,0.38f,0.01f};
-            float[] depths = {0,-2.3f,-6,-12,-18,-23};
+            var cliffWeights = new List<Color>();
+            float[] layers = { .968f, 1f, 1.007f, .982f, .96f, .89f, .75f, .61f, .38f, .01f };
+            float[] depths = { -.065f, -.09f, -.4f, -2.35f, -4.7f, -7.2f, -12.8f, -15.5f, -21f, -28f };
             for (int i = 0; i < layers.Length; i++)
             for (int j = 0; j < 144; j++)
             {
                 float a = j * Mathf.PI / 72;
-                float rad = Spec.edgeRadius * layers[i] + Mathf.Sin(a * 19 + i * .4f) * i * 0.10f;
+                float rad = Spec.edgeRadius * layers[i] + (i <= 1 ? 0 : 1) * (Mathf.Sin(a * 19 + i * .4f) + .5f * Mathf.Cos(a * 31 + i)) * i * .15f;
                 float x = Mathf.Sin(a) * rad, z = Mathf.Cos(a) * rad;
-                rim.Add(new Vector3(x, depths[i] + Height(x, z) * layers[i], z));
+                rim.Add(new Vector3(x, depths[i] + Height(x, z) * (i <= 1 ? 1 : layers[i]), z));
+                float bank = Mathf.Abs(z - Motor.IslandRiver(x, scale)) / scale;
+                cliffWeights.Add(new Color(1 - Mathf.SmoothStep(0, 1, (bank - 1.65f) / 3), Mathf.Clamp01((i - 1) * .32f), 0));
                 if (i == 0) continue;
                 int v = i * 144 + j;
                 int w = i * 144 + (j + 1) % 144;
                 rimIndices.AddRange(new[] { v - 144, v, w, v - 144, w, w - 144 });
             }
-            MeshAt("Cliff strata", rim, rimIndices, null, earth);
+            MeshAt("Cliff strata", rim, rimIndices, null, earth, colors: cliffWeights);
             int midstream = Spec.river.Length / 2;
             var upstream = new Site[midstream + 1];
             var downstream = new Site[Spec.river.Length - midstream];
             Array.Copy(Spec.river, upstream, upstream.Length);
             Array.Copy(Spec.river, midstream, downstream, 0, downstream.Length);
             Array.Reverse(upstream);
-            WaterRibbon(upstream, 1.83f, false);
-            WaterRibbon(downstream, 1.83f, false);
-            WaterRibbon(Spec.creek, 0.49f, true);
-            foreach (int x in new[] { -16, 0, 15 })
+            WaterRibbon(upstream, 1.83f * scale, false);
+            WaterRibbon(downstream, 1.83f * scale, false);
+            WaterRibbon(Spec.creek, 0.49f * scale, true);
+            foreach (var point in Spec.crossings ?? Array.Empty<Site>())
             {
-                var point = Array.Find(Spec.river, p => Mathf.Approximately(p.x, x));
-                if (point == null) continue;
+                float x = point.x;
                 if (x != 0)
                 {
                     var sluice = Group(Root, "Ceramic water regulation sill", new Vector3(x,0,point.z));
                     for (int bank = -1; bank <= 1; bank += 2)
                     {
-                        var abutment = Group(sluice, "Weathered flow deflector", new Vector3(0, Height(x, point.z+bank*2.7f)-.15f, bank*2.7f));
+                        var abutment = Group(sluice, "Weathered flow deflector", new Vector3(0, Height(x, point.z+bank*2.7f*scale)-.15f, bank*2.7f*scale));
                         abutment.localRotation = Quaternion.Euler(0, bank*23, 0);
                         Armor(abutment, Insulation, new Vector3(0,.47f,0),new Vector3(.80f,1.08f,1.10f),false);
                         Armor(abutment, Porcelain, new Vector3(0,1.12f,0),new Vector3(.66f,.30f,.93f),false);
                         Armor(abutment, Graphite, new Vector3(0,.66f,-bank*.56f),new Vector3(.37f,.16f,.09f),false);
                     }
                 }
-                for (int k = -9; k <= 9; k++)
-                    Part(Root, bark, new Vector3(x, 0.091f, point.z + k * 0.27f), new Vector3(2.58f, 0.085f, 0.24f));
+                if (!MapProp("bridge", Root, new Vector3(x, .043f, point.z), new Vector3(2.58f * scale, .10f, 5.38f * scale)))
+                    for (int k = -9; k <= 9; k++)
+                        Part(Root, bark, new Vector3(x, .043f, point.z + k * .27f * scale), new Vector3(2.58f * scale, .085f, .24f * scale));
             }
             foreach (var tip in new[] { Spec.river[0], Spec.river[Spec.river.Length - 1] })
             {
                 float sign = Mathf.Sign(tip.x);
                 var cascade = new[] { tip, new Site { x = tip.x + sign * 2.4f, y = -2.5f, z = tip.z },
                     new Site { x = tip.x + sign * 6.9f, y = -10, z = tip.z }, new Site { x = tip.x + sign * 11.5f, y = -22f, z = tip.z } };
-                WaterRibbon(cascade, 1.65f, false);
+                WaterRibbon(cascade, 1.65f * scale, false);
             }
-            var soil = MaterialAt("#b7956e", false, "basin");
+            var soil = MaterialAt("#a28a62", false, "meadow-macro");
+            soil.SetFloat("_Glossiness", .09f);
             var trail = new List<Vector3>();
             var trailUv = new List<Vector2>();
             var trailFaces = new List<int>();
@@ -409,11 +430,16 @@ namespace Trias.Native
             for (int i = 1; i < Spec.trail.Length; i++)
             {
                 Vector3 a = Spec.trail[i - 1].Position, b = Spec.trail[i].Position;
-                Vector3 left = Vector3.Cross(Vector3.up, (b - a).normalized) * .62f;
+                Vector3 previous = i > 1 ? Spec.trail[i - 2].Position : a;
+                Vector3 next = i < Spec.trail.Length - 1 ? Spec.trail[i + 1].Position : b;
+                Vector3 leftA = Vector3.Cross(Vector3.up, (b - previous).normalized);
+                Vector3 leftB = Vector3.Cross(Vector3.up, (next - a).normalized);
                 int sections = Mathf.CeilToInt(Vector3.Distance(a, b) / .20f);
-                for (int t = 0; t <= sections; t++)
+                for (int t = i == 1 ? 0 : 1; t <= sections; t++)
                 {
-                    Vector3 p = Vector3.Lerp(a, b, (float)t / sections);
+                    float progress = (float)t / sections;
+                    Vector3 p = Vector3.Lerp(a, b, progress);
+                    Vector3 left = Vector3.Slerp(leftA, leftB, progress) * ((.53f + .07f * Mathf.Sin((traveled + t * .17f) * .63f)) * Mathf.Sqrt(scale));
                     int vertex = trail.Count;
                     for (int lateral = -1; lateral <= 1; lateral++)
                     {
@@ -432,9 +458,9 @@ namespace Trias.Native
                 traveled += sections * .17f;
             }
             MeshAt("Ridge trail", trail, trailFaces, trailUv, soil);
-            for (int i = 0; i < 46; i++)
+            for (int i = 0; i < 76; i++)
             {
-                float a = i * 2.399963f, rad = 13f + R(15.3f);
+                float a = i * 2.399963f, rad = (13f + R(15.3f)) * scale;
                 float x = Mathf.Sin(a) * rad, z = Mathf.Cos(a) * rad;
                 float y = Height(x, z);
                 if (y < .35f || Array.Exists(Spec.cover, box => box.Overlaps(x, z, .4f))) continue;
@@ -466,6 +492,9 @@ namespace Trias.Native
             float foot = tree ? box.ground - box.bottom - .16f : Mathf.Max(0, box.ground - box.bottom - .6f);
             Vector3 size = new Vector3(tree ? Mathf.Max(box.w * 1.18f, 2.6f) : box.w * 1.18f,
                 h - foot, tree ? Mathf.Max(box.d * 1.18f, 2.6f) : box.d * 1.18f);
+            int variant = Mathf.Abs(Mathf.RoundToInt(box.x + box.z * 1.7f)) % 3;
+            string sculpture = tree ? (variant == 0 ? null : "spruce") : box.strata ? "shelves" : variant == 1 ? "splitrock" : "granite";
+            if (MapProp(sculpture, parent, Vector3.up * (foot + size.y * .5f), size)) return;
             if (Kit.Nature(parent, asset, size, Vector3.up * foot, R(360))) return;
             if (box.nature == "tree")
             {
@@ -502,12 +531,13 @@ namespace Trias.Native
             MeshAt(creek ? "Creek" : "River", verts, tris, uv, water, doubleSided: !ribbonShader);
         }
 
-        void MeshAt(string label, List<Vector3> vertices, List<int> triangles, List<Vector2> uv, Material paint, bool solid = false, bool doubleSided = false)
+        void MeshAt(string label, List<Vector3> vertices, List<int> triangles, List<Vector2> uv, Material paint, bool solid = false, bool doubleSided = false, List<Color> colors = null)
         {
             var target = Group(Root, label).gameObject;
             var mesh = new Mesh { name = label };
             mesh.SetVertices(vertices); mesh.SetTriangles(triangles, 0);
             if (uv != null) mesh.SetUVs(0, uv);
+            if (colors != null) mesh.SetColors(colors);
             if (doubleSided)
             {
                 var normals = new Vector3[vertices.Count];
@@ -557,8 +587,8 @@ namespace Trias.Native
                 else water.mainTextureOffset = new Vector2(0, -time * .12f * effects % 1);
                 for (int i = 0; i < animals.Count; i++)
                 {
-                    float x = 3.7f + Mathf.Sin(time * 0.40f + i * 0.23f) * 3f + i * 2f;
-                    float z = 1.35f + Mathf.Sin(x * 0.15f) * 4.72f + Mathf.Sin(x * 0.33f) * 0.48f;
+                    float x = (3.7f + Mathf.Sin(time * .40f + i * .23f) * 3f + i * 2f) * Spec.IslandScale;
+                    float z = Motor.IslandRiver(x, Spec.IslandScale);
                     animals[i].position = new Vector3(x, Mathf.Sin(time * 3 + i) * (0.04f + .015f * arenaPulse) + 0.017f, z - 0.33f);
                     animals[i].rotation = Quaternion.Euler(0, Mathf.Cos(time * .4f + i * .23f) > 0 ? 66 : -114, 0);
                 }

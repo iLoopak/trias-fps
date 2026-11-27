@@ -6,10 +6,10 @@ Pro online zápas spusť z kořene repozitáře `npm ci` a `npm start`. V Unity 
 
 Postup pro server přes internet je v [Multiplayer přes internet](INTERNET.md).
 
-Online klient používá autoritativní server pro pět soutěžních režimů, čtyři arény a kooperativní Obranu jádra. Pěší pohyb se predikuje lokálně, vozidla přebírají polohu ze serveru. Tlačítko **Trénink offline · Relay Station** spouští samostatný místní TDM na Relay Station.
+Online klient používá autoritativní server pro pět soutěžních režimů, čtyři arény a kooperativní Obranu jádra. Pěší pohyb se predikuje lokálně, vozidla přebírají polohu ze serveru. Tlačítko **Trénink offline** spouští samostatný místní TDM na Relay Station. Začneš se zbraní vybraného pilota a můžeš rovnou vyzkoušet všech pět zbraní a jejich sekundární střelbu.
 
 - **WASD** a myš ovládají pohyb a míření. **Shift** sprintuje, **C** krčí, **mezerník** skáče a **Q** provádí úskok.
-- Levé tlačítko střílí, **R** přebíjí, **1–5** volí zbraň, **F** použije alternativní střelbu Scatteru a **G** hodí granát.
+- Levé tlačítko střílí, **R** přebíjí, **1–5** volí zbraň, **pravé tlačítko** nebo **F** spustí sekundární střelbu a **G** hodí granát.
 - **E** obsluhuje vozidla a věže. Při čekání na respawn přepíná spoluhráče. **Tab** zobrazí skóre a **Esc** uvolní kurzor.
 
 Mířidlo mění tvar podle zbraně, zobrazuje postup přebití a odlišuje běžný zásah, zásah do štítu a vyřazení. Červený oblouk ukazuje směr příchozího zásahu. Radar se otáčí spolu s pohledem a značky ukazují spoluhráče a cíle režimu.
@@ -18,7 +18,17 @@ Sluchátka pomáhají určit směr kroků a výstřelů. Kryt je tlumí. Každá
 
 V nabídce **Esc** můžeš upravit zorné pole, citlivost myši, pohyb kamery, celkovou hlasitost, hlasitost prostředí a intenzitu světelných efektů. Nastavení se ukládá na daném počítači. Zpětný ráz se liší podle zbraně. Tvrdý dopad doprovází tlumený zvuk magnetických bot.
 
-Na aktuálním serveru reagují pěchotní zbraně okamžitě lokálním výšlehem, zvukem a pohybem zbraně. Server potvrzuje munici, trajektorii, zásah a poškození. **Pulse** a **Arc** střílí držením tlačítka, **Scatter**, **Lance** a **Rift** po jednotlivých stiscích. Stisk **F** spustí soustředěnou střelu Scatteru, pokud zbývají aspoň dva náboje.
+Na aktuálním serveru reagují pěchotní zbraně okamžitě lokálním výšlehem, zvukem a pohybem zbraně. Server potvrzuje munici, trajektorii, zásah a poškození. **Pulse** a **Arc** střílí držením tlačítka, **Scatter**, **Lance** a **Rift** po jednotlivých stiscích. Sekundární střelba se spouští jednotlivými stisky. HUD u zbraně ukazuje její název a spotřebu munice.
+
+| Zbraň | Sekundární střelba | Spotřeba |
+| --- | --- | ---: |
+| Pulse | Trojimpulz, tři paprsky s malým rozptylem | 3 |
+| Scatter | Slug, soustředěný projektil na střední vzdálenost | 2 |
+| Lance | Průstřel, zeslabený druhý zásah za prvním nechráněným pilotem | 2 |
+| Arc | Obloukový vějíř, sedm paprsků do šířky | 8 |
+| Rift | Těžká koule, pomalejší projektil s větším výbuchem | 2 |
+
+Bašta, Přízrak a Poštolka startují s plným zásobníkem, jedním přebitím a rezervním Pulsem. Vektor má Pulse s plným zásobníkem a neomezenou rezervou. Další zbraně a munice jsou na stanovištích v aréně. Unity klient s rozšířenými mapami vyžaduje současný server se stejnou geometrií.
 
 Přebití animuje obě ruce a mechanismus zbraně. Pulse mění zásobník, Scatter otevírá komoru, Lance zatahuje závěr, Arc vysune článek a Rift odklopí uzávěr energetického jádra. Křivky a kontaktní body lze ladit v `WeaponHandling.cs`. Pohyb kostí je vizuální a nezasahuje do serverových hitboxů ani délky přebití.
 

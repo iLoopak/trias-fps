@@ -266,6 +266,10 @@ namespace Trias.Preview
             var profile = weapon switch
             {
                 "scatter" => (alternate ? 13 : 23, 4.8f, 1.3f),
+                "arc" when alternate => (18, 4.4f, 1.06f),
+                "lance" when alternate => (16, 5.3f, 1.3f),
+                "rift" when alternate => (28, 6.4f, 1.35f),
+                "pulse" when alternate => (15, 3.8f, 1.08f),
                 "lance" => (9, 3.5f, .68f),
                 "arc" => (5, 1.7f, .62f),
                 "rift" => (20, 5.6f, 1.15f),
@@ -288,6 +292,7 @@ namespace Trias.Preview
             float scale = weapon == "arc" ? .76f : weapon == "scatter" || weapon == "rift" ? 1f : .91f;
             int voiceIndex = firingVoice++ & 3;
             float pitch = new Vector4(.965f, 1.02f, .99f, 1.035f)[voiceIndex];
+            if (alternate) pitch *= weapon == "arc" ? 1.21f : weapon == "lance" ? .79f : .87f;
             if (!local) { Play(cue, origin, .25f * scale, false, pitch, true); return; }
             var voice = firingVoices[voiceIndex];
             voice.Stop();
@@ -309,18 +314,18 @@ namespace Trias.Preview
             Play(riftCue, position, 0.70f);
         }
 
-        public void Blast(Vector3 position, bool grenade, float intensity)
+        public void Blast(Vector3 position, bool grenade, float intensity, bool alternate = false)
         {
-            Color color = grenade ? Matter : Rift;
+            Color color = grenade ? Matter : alternate ? Color.Lerp(Rift, Matter, .64f) : Rift;
             if (intensity > .01f)
             {
-                Emit(rift, position, color, Mathf.CeilToInt((grenade ? 28 : 44) * intensity), grenade ? .61f : .91f);
+                Emit(rift, position, color, Mathf.CeilToInt((grenade ? 28 : alternate ? 62 : 44) * intensity), grenade ? .61f : .91f);
                 Emit(impact, position, Matter, Mathf.CeilToInt(11 * intensity), 1.2f);
                 if (intensity > .30f) Ring(position, color);
                 if (listener == null || (listener.position - position).sqrMagnitude < 380)
                     Illuminate(position, color, (grenade ? 5.4f : 7.3f) * intensity);
             }
-            Play(grenade ? grenadeBlast : riftCue, position, grenade ? .46f : .57f);
+            Play(grenade ? grenadeBlast : riftCue, position, grenade ? .46f : .57f, false, alternate ? .84f : 1);
         }
 
         public void OrbitalImpact(Vector3 position)
