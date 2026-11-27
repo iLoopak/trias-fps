@@ -6,6 +6,7 @@ namespace Trias.Native
     internal sealed partial class TriasWorld
     {
         Material shaftFloor, shaftBridge, stairTread, shaftSteel, shaftSignal, shaftRailing;
+        Material shaftDeckInk;
 
         void BuildRelayShaft()
         {
@@ -18,6 +19,14 @@ namespace Trias.Native
             shaftRailing = CeramicFinish("#5e666c", .40f, .26f);
             shaftSignal = new Material(Shader.Find("Unlit/Color")) { color = new Color(1f,.58f,.27f) };
             Paint.Add(shaftSignal);
+            var stencil = Resources.Load<Shader>("TRIAS/DeckStencil");
+            if (relayStencilFont != null && stencil != null && stencil.isSupported)
+            {
+                shaftDeckInk = new Material(stencil);
+                Paint.Add(shaftDeckInk);
+                Font.textureRebuilt += UpdateDeckFontAtlas;
+                UpdateDeckFontAtlas(relayStencilFont);
+            }
 
             var machinery = Group(Root, "Reactor shaft · foundation and load paths");
             var dark = MaterialAt("#252b31");
@@ -49,7 +58,7 @@ namespace Trias.Native
 
         void BuildDeckSign(Transform root, string title, Vector3 position)
         {
-            if (relayStencilFont == null) return;
+            if (shaftDeckInk == null) return;
             var plaque = Group(root, title, position);
             plaque.localRotation = Quaternion.Euler(90,0,0);
             var text = plaque.gameObject.AddComponent<TextMesh>();
@@ -62,8 +71,13 @@ namespace Trias.Native
             text.alignment = TextAlignment.Center;
             text.color = Catalog.Tint("#e5d8c0");
             var renderer = text.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = relayStencilFont.material;
+            renderer.sharedMaterial = shaftDeckInk;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
+        }
+
+        void UpdateDeckFontAtlas(Font font)
+        {
+            if (font == relayStencilFont) shaftDeckInk.mainTexture = font.material.mainTexture;
         }
 
         void DressShaftBox(BoxSpec box, Transform frame, float h)

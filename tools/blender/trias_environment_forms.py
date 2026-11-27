@@ -217,10 +217,11 @@ def deck(style, detail):
         return
     for side in (-1,1):
         x=side*w*.41
-        block("Compression rail",x,0,0,w*.18,h*.70,d*.98,"Graphite",.060,.013 if detail else 0)
+        # The deck, cassette and rail overlap vertically. Give each its own side planes.
+        block("Compression rail",x,0,0,w*.153,h*.70,d*.98,"Graphite",.060,.013 if detail else 0)
         if style!="Exposed":
             for i in (-1,1):
-                block("Separated edge cassette",x,h*.22,i*d*.249,w*.18,h*.63,d*.46,
+                block("Separated edge cassette",x,h*.22,i*d*.249,w*.17,h*.63,d*.46,
                       "Secondary" if style=="Edge" else "Ceramic",.12,.015 if detail else 0)
         for i in (-1,1):
             beam("Diagonal web",(x,0,i*d*.40),(side*w*.16,h*.69,i*d*.16),w*.11,h*.31,"Graphite")

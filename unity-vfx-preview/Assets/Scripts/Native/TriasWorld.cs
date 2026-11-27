@@ -644,6 +644,7 @@ namespace Trias.Native
 
         public void Dispose()
         {
+            if (shaftDeckInk != null) Font.textureRebuilt -= UpdateDeckFontAtlas;
             if (IsRelayArt && RenderSettings.sun == relaySun) RestoreRelayLight();
             if (orbitalSky != null && RenderSettings.skybox == orbitalSky) RenderSettings.skybox = null;
             if (Root != null)
