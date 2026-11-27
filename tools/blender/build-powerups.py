@@ -1,0 +1,65 @@
+"""Model the TRIAS power-up cells (med, shield, surge). Run with Blender --background --python.
+
+Each cell is centred on the pickup's suspended mark (Unity metres, y up). "Glow" maps to the
+pickup's catalogue tint in Unity, so colour identity and availability logic are unchanged.
+"""
+import math
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import trias_mesh as art
+from trias_mesh import band, panel, plate
+
+art.MATERIALS["Glow"] = ((.6, .9, .7), 0, .3)
+
+
+def round_band(name, sections, finish, sides=28):
+    band(name, (0, 0, 0), sections, finish, sides, 1.0)
+
+
+def turned(points, angle):
+    c, s = math.cos(angle), math.sin(angle)
+    return [(x * c + z * s, y, -x * s + z * c) for x, y, z in points]
+
+
+art.reset()
+
+art.group = "Med"
+# A field-medic canister: graphite caps, a split ceramic sleeve and a window onto the glowing medium.
+round_band("Lower cap", [(-.27, .110, .110, 0), (-.25, .140, .140, 0), (-.19, .140, .140, 0), (-.17, .126, .126, 0)], "Graphite")
+round_band("Upper cap", [(.17, .126, .126, 0), (.19, .140, .140, 0), (.25, .140, .140, 0), (.27, .110, .110, 0)], "Graphite")
+round_band("Lower ceramic sleeve", [(-.18, .132, .132, 0), (-.07, .132, .132, 0)], "Ceramic")
+round_band("Upper ceramic sleeve", [(.07, .132, .132, 0), (.18, .132, .132, 0)], "Ceramic")
+round_band("Medium window", [(-.075, .112, .112, 0), (.075, .112, .112, 0)], "Glow", 24)
+for y in (-.072, .072):
+    round_band("Window ring", [(y - .008, .142, .142, 0), (y + .008, .142, .142, 0)], "Alloy")
+panel("Cross bar", 0, .125, .137, .10, .026, .012, "Glow", 0, .002)
+panel("Cross stem", 0, .125, .137, .026, .10, .012, "Glow", 0, .002)
+round_band("Carry handle", [(.27, .04, .04, 0), (.31, .05, .05, 0), (.33, .03, .03, 0)], "Alloy", 16)
+
+art.group = "Shield"
+# Three curved ceramic petals around a hexagonal core: the shield folds closed around its source.
+petal = [(-.13, -.24, .26), (.13, -.24, .26), (.17, .02, .30), (.10, .26, .27), (-.10, .26, .27), (-.17, .02, .30)]
+for i in range(3):
+    plate("Ceramic shield petal", turned(petal, i * math.tau / 3), 0, .045, "Ceramic", .008)
+    plate("Petal backing", turned([(x * .86, y * .9, z - .045) for x, y, z in petal], i * math.tau / 3), 0, .03, "Graphite", .006)
+    plate("Petal edge light", turned([(-.012, -.18, .31), (.012, -.18, .31), (.012, .20, .30), (-.012, .20, .30)], i * math.tau / 3),
+          0, .01, "Glow", .002)
+band("Hexagonal core", (0, 0, 0), [(-.17, .0, .0, 0), (-.08, .10, .10, 0), (.10, .10, .10, 0), (.19, .0, .0, 0)], "Glow", 6, 1.0)
+
+art.group = "Surge"
+# Overcharge: a split crystal held apart by three alloy clamps above a graphite collar.
+band("Lower crystal", (0, 0, 0), [(-.24, .0, .0, 0), (-.10, .11, .10, .01), (-.01, .12, .11, 0)], "Glow", 5, 1.0)
+band("Upper crystal", (0, .035, 0), [(.0, .115, .105, 0), (.12, .09, .08, -.01), (.26, .0, .0, 0)], "Glow", 5, 1.0)
+round_band("Graphite collar", [(-.30, .10, .10, 0), (-.27, .15, .15, 0), (-.23, .15, .15, 0), (-.21, .11, .11, 0)], "Graphite")
+for i in range(3):
+    clamp = [(-.022, -.24, .15), (.022, -.24, .15), (.022, .16, .17), (-.022, .16, .17)]
+    plate("Alloy clamp", turned(clamp, i * math.tau / 3 + .5), 0, .03, "Alloy", .005)
+    plate("Ceramic clamp shoe", turned([(-.03, .14, .19), (.03, .14, .19), (.03, .22, .15), (-.03, .22, .15)], i * math.tau / 3 + .5),
+          0, .04, "Ceramic", .006)
+
+art.finish("PowerCells", "PowerCells/PowerCells.fbx", {"Med": (-.6, 0, 0), "Shield": (0, 0, 0), "Surge": (.6, 0, 0)},
+           camera_at=(1.6, -3.2, 1.0), camera_target=(0, 0, 0), camera_width=2.0, resolution=(1200, 700))
+print("POWERCELLS EXPORT", len(art.parts), "mounts")

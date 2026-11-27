@@ -113,10 +113,15 @@ Shader "TRIAS/Orbital Sky"
                 if (_RelayCloudDeckActive > .5)
                 {
                     float3 image = tex2D(_RelayCloudDeck,saturate(.5 + uv * .47)).rgb;
-                    float day = .24 + .76 * smoothstep(-.53,.53,dot(n,sun));
+                    // Recessive backdrop: the planet must not out-shout the playable architecture.
+                    // Desaturate the photographic plate, compress its clouds and pull it below the ceramics.
+                    float lum = dot(image, float3(.2126,.7152,.0722));
+                    image = lerp(lum.xxx, image, .42) * float3(.86,.92,1.0);
+                    image = image / (1 + image * .9) * .82;
+                    float day = .16 + .84 * smoothstep(-.45,.6,dot(n,sun));
                     float limb = pow(1 - saturate(dot(-ray,n)), 3.4);
-                    float3 air = lerp(float3(.12,.34,.62),float3(.53,.75,.94),limb);
-                    return image * day + air * limb * (.13 + day * .28);
+                    float3 air = lerp(float3(.10,.22,.38),float3(.42,.56,.70),limb);
+                    return image * day + air * limb * (.10 + day * .22);
                 }
                 uv += n.yz * .092 - n.zx * .056;
                 float2 warp = float2(cloud(uv*8.6),cloud(uv*10.2+16.1)) - .5;

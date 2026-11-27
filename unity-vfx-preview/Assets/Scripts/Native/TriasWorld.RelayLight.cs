@@ -40,9 +40,11 @@ namespace Trias.Native
             key.shadowNearPlane = .25f;
             key.renderMode = LightRenderMode.ForcePixel;
 
-            RenderSettings.ambientSkyColor = Catalog.Tint("#92adc9");
-            RenderSettings.ambientEquatorColor = Catalog.Tint("#54677f");
-            RenderSettings.ambientGroundColor = Catalog.Tint("#49515f");
+            // Cool but desaturated sky fill; the ground term is warm bounce from the sunlit ivory decks,
+            // so gantry undersides read as shaded ceramic instead of saturated navy (linear lighting).
+            RenderSettings.ambientSkyColor = Catalog.Tint("#a2adb9");
+            RenderSettings.ambientEquatorColor = Catalog.Tint("#646c75");
+            RenderSettings.ambientGroundColor = Catalog.Tint("#6f675d");
             RenderSettings.fogColor = Catalog.Tint("#3a485a");
             RenderSettings.fogDensity = .0042f;
         }
@@ -68,7 +70,7 @@ namespace Trias.Native
             ambient.center = Vector3.up * 10;
             ambient.clearFlags = ReflectionProbeClearFlags.Skybox;
             ambient.cullingMask = 0;
-            ambient.intensity = .72f;
+            ambient.intensity = .58f;
             ambient.RenderProbe();
         }
 

@@ -82,7 +82,11 @@ namespace Trias.Native
                 joint.localRotation = mount.Rotation;
                 joint.localScale = mount.Scale;
                 joint.SetParent(mount.Bone,true);
-                parts.Bind(mount.Part,joint,Finish,true);
+                // Colour hierarchy: faction paint identifies the helmet, chest and shoulders only.
+                // On limbs, boots and belt the same inserts become anodised graphite, so the suit
+                // reads as armour with a team identity rather than a body covered in colour stickers.
+                bool identity = mount.Part == "Helmet" || mount.Part == "Torso" || mount.Part.EndsWith("Shoulder");
+                parts.Bind(mount.Part,joint,slot => !identity && slot == "Faction" ? world.WeaponGraphite : Finish(slot),true);
                 if (faction >= 0 && mount.Part == "Torso")
                 {
                     world.Stamp(joint,faction,accent,new Vector3(-.083f,.028f,.162f),.084f);

@@ -60,8 +60,21 @@ namespace Trias.Native
             pickupBeacons[index]=beacon;
         }
 
+        BlenderParts powerCells;
+
         void BuildPowerCell(Transform mark,string type,Material accent)
         {
+            // Blender cells (tools/blender/build-powerups.py); the block assembly below is the fallback.
+            powerCells ??= new BlenderParts("TRIAS/PowerCells/PowerCells");
+            string key = type == "med" ? "Med" : type == "shield" ? "Shield" : "Surge";
+            if (powerCells.Has(key))
+            {
+                powerCells.Bind(key, Group(mark, key + " cell"), slot => slot switch
+                {
+                    "Glow" => accent, "Ceramic" => WeaponCeramic, "Graphite" => WeaponGraphite, "Alloy" => WeaponAlloy, _ => Dark
+                }, false);
+                return;
+            }
             var art=new PlantBatch();
             if(type=="med")
             {

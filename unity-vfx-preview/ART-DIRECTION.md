@@ -140,3 +140,73 @@ Zblízka má být poznat, jak zařízení přenáší sílu. Ve Vantě krátkou 
 V první nativní zkoušce se pruhy obří planety překryly s žilami kamene. Ve druhé verzi patří severní horizont geodě, menší planeta leží na opačné straně a jádro výbrusu má krystalické plošky. Porovnej `output/fault-observatory/after/meridian-shelf.jpg` a `output/fault-observatory/final/meridian-shelf.jpg` ze stejné pozice. Obě jsou z nativního klienta s 12 účastníky včetně botů.
 
 Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivních kolizí Meridianu proti výchozímu exportu. Na přístupové kameře byl při 179 snímcích medián času snímku 14,91 ms před změnou a 15,58 ms po ní, p95 16,82 a 19,97 ms. Medián GPU byl 5,39 a 6,75 ms. Obě zkoušky běžely s 12 účastníky, pořadí načítání map a stav živého zápasu se lišily. Snímky i surová data jsou v `output/fault-observatory/repeat-before/` a `output/fault-observatory/final/`.
+
+## Vizuální přestavba · vertikální řez Relay (listopad 2026)
+
+**Kritika výchozího stavu.** Hra působila jako procedurálně složený prototyp z pěti hlavních důvodů:
+1. **Hračkové proporce pilotů.** Kostra Kenney má nohy na 35 % výšky a hlavu na 27 %. Končetiny z Blenderu modelované pro stehno 0,35 m kostra mačkala na 0,24 m. Helma končila kolem 1,5 m, zatímco hitbox hlavy na serveru je mezi 1,53 a 1,78 m.
+2. **Pět variant jedné pušky.** Všechny zbraně sdílely zadní blok s pažbou a lišily se jen předkem. Hmotu tvořily osmiúhelníkové kvádry.
+3. **Plošný rastr spár.** Atlas plátů se 4 m periodou a černými spárami byl na každé stěně, podlaze i podhledu. Krabice tím čtou jako obkladačky a jejich krabicovost se ještě zdůraznila.
+4. **Sytě modrý stín.** V Linear měl modrý ambient a odraz oblohy na podhledech hodnotu námořnické modři. Tvary se v něm ztrácely.
+5. **Samolepková barevnost.** Frakční barva byla na každé končetině a botě. Hračkovitě působily i růžové koule Riftu a oranžové hlavně Scatteru.
+
+**Hypotéza.** Kvalitu nejvíc ničí nesoulad měřítek a hodnot: lidské tělo v dětských proporcích, ruční zbraně z kvádrů a velké plochy rozdrobené jedním rastrem. Oprava proporcí a hierarchie hodnot dá víc než přidávání detailu.
+
+**Co platí (ověřeno v `tools/unity/art-review.sh`, záběry v `output/visual-overhaul/`):**
+- **Monolitní keramika.** Fasády mají periodu 8,8 m a spáru v tónu plátu (`SeamTone`, `SeamStrength` v `TRIAS/Architecture`). Paluba má desky 5,2 m s proměnnou hladkostí, takže odraz oblohy čte jako opotřebená glazura. Varianta r1 porazila původní rastr i variantu se samotnou desaturací.
+- **Neutrální stín s teplým odrazem.** Ambient Relay je `#a2adb9 / #646c75 / #6f675d` a odrazová sonda má intenzitu 0,58. Podhledy čtou jako zastíněná keramika, ne jako modrá plocha. Snížení `reflectionIntensity` samo nic nezměnilo, protože rozhoduje intenzita sondy.
+- **Zbraně z profilů.** `slab()` v `build-armory.py` vytahuje navrženou boční siluetu se zkosenými boky. Sdílený zadní blok je volitelný (`grip(stock=False)`).
+  - Pulse je nízká klínová karabina se třemi keramickými „údery“ a svítícími mezerami.
+  - Scatter je vysoký hranatý blok se štítem a hlavněmi nad sebou.
+  - Lance má jehlové tělo a kostrovou pažbu.
+  - Arc má rozeklaný keramický hřbet.
+  - Rift má tělo roztržené na dvě poloviny s úlomky v trhlině a tmavé fasetované jádro.
+- **Keramika na zbraních** má hodnotu `#cfc8ba` a hladkost 0,58. Původní `#e5e0d6` s hladkostí 0,80 se v první osobě přepalovala do bílé.
+- **Proporce pilotů.** `PilotProportions` po animaci prodlužuje stehno a holeň (×1,41), paži (×1,30) a předloktí (×1,15) a zkracuje krk (×0,45). Výška se normalizuje podle ramen (81,8 % postavy), postava měří 1,76–1,84 m. Zbraň ve třetí osobě je ve výšce 1,36 m v měřítku 0,9. Hitbox se nemění.
+- **Hierarchie barvy pilota.** Frakční barva zůstává na helmě, hrudi a ramenou, na končetinách se mění v grafit. Bašta má kopulovitou helmu s jedním hledím. Všechny obleky mají břišní segment.
+
+**Zamítnuto.**
+- Pulse s pružinovými prstenci na hlavni působil jako hračka.
+- Štíhlý Pulse s dlouhou holou hlavní vypadal jako „puška na tyči“.
+- Rastr 4 m s černými spárami.
+- Samotné snížení sytosti ambientu bez teplého odrazu zespodu.
+- Svítící koule jako jádro Riftu.
+- Měřítko zbraně 0,62 ve třetí osobě, které vycházelo z malých pilotů.
+
+**Druhá vlna (Relay, helmy, další arény).**
+- **Paluby a lávky** nesou palubní desky jen na pochozí ploše (`_SideSeams`). Normála, okluze i spáry atlasu na bocích slábnou, takže hrana čte jako jeden litý blok.
+- **Grafit architektury** má hodnotu `#353a40`, aby zastíněný parapet nečetl jako černá díra.
+- **Bašta** má místo tří oranžových „očí“ jeden boční dálkoměr. **Přízrak** má zaoblenou čepici a nízký přijímač místo krabice s anténou.
+- **Vanta a Meridian** dostaly stejný konstrukční jazyk jako Relay (`ArenaArchitecture`), ale v barvách svých dosavadních povrchů.
+  - Zrnitou `refractory` texturu na keramice kitu ve Vantě (četla jako korek) nahradila matná žáruvzdorná keramika s usazenou špínou.
+  - Podlahy a lité paluby tras jsou desky. Meridian má podlahu ztmavenou na `#6a5d56`, protože čistý tint bez textury byl příliš bledý.
+  - Achátové výbrusy Meridianu, kámen a dřevo zůstávají beze změny.
+- **Kordilera:** textura kamene je jemnější (×3,2) a má teplejší šedý tón. Pomohlo to jen málo.
+- Sonda `TRIAS_ART_PICK=1` zapíše do `review.txt` objekt a materiál pod mřížkou 5×4 bodů. Rychle tak zjistíš, co v záběru opravit.
+
+**Třetí vlna (vozidla, power-upy, Horda).** Kontrolní záběry: `relay-vehicles`, `relay-pickup-a/b` a `relay-horde`.
+- **Vozidla** (`tools/blender/build-vehicles.py` → `Vehicles/Vehicles.fbx`, svazuje `TriasModels.Vehicle`):
+  - Skimmer je nízký grafitový klín s keramickým zadním krytem, kokpitem a podstavcem věže ve fázové mezeře.
+  - Bastion je šestikolový transportér s rozlámanými bočními pláty a keramickým čelním pancířem.
+  - Týmová barva je jen jako pruh. Montážní bod zbraně se nemění.
+  - Původní syté krabice na válcích zůstávají jako záloha.
+- **Power-upy** (`build-powerups.py` → `PowerCells/PowerCells.fbx`):
+  - Lékárnička je keramický kanystr se svítícím průzorem a křížem.
+  - Štít tvoří tři zakřivené keramické lístky kolem šestibokého jádra.
+  - Přebití je rozštípnutý krystal ve třech kovových sponách.
+  - `Glow` dostává barvu podle katalogu.
+- **Horda jsou porouchaní servisní roboti** (`build-horde.py` → `Horde/Horde.fbx`, `HordeBody.Sculpt`). Díly sedí na původních kloubech, takže chůze, nápřah i úder zůstávají.
+  - Tělo tvoří grafitová kostra, popraskané keramické kryty, kovové písty a klepeta. Mají jedno živé a jedno mrtvé oko.
+  - Crusher nese demoliční pancíř ramen se žhnoucími prasklinami, Spitter protržený kanystr s chladivem.
+  - Jiskry jsou protáhlé záblesky v kloubech. Bliká deterministicky podle času a pořadí robota.
+- **Zamítnuto:** organičtí „nakažení“ s anatomií z loftů. Světlá kůže splývala s keramikou pilotů a postavy působily jako dřevění manekýni (`output/visual-overhaul/z1`, `z2`). Zamítnutá je i původní plastelína z koulí.
+
+**Zbývající slabiny.**
+- Pozadí Relay a Vanty tvoří hranaté bloky (megastruktury, komíny).
+- Zastíněná strana krytů v Meridianu je skoro černá.
+- Kordilera potřebuje nové modely skal a terénu: fasetované skály s pruhy mechu, hladké kopce a krabicová bouda s nápisem.
+- Plochá maska Přízraka je nejslabší hlavou mezi piloty.
+- Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
+- Herní texty mohou Hordu dál nazývat „nakažení“.
+- Vozidla jsou tvarově jednodušší než zbraně. Kanystr lékárničky je z boku hladký.
+- Nativní build, hra s boty a měření snímkové frekvence po přestavbě nebyly ověřeny.

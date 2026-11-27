@@ -8,9 +8,26 @@ namespace Trias.Native
         internal static void Gun(TriasWorld world, Transform root, string weapon, Material accent)
             => PhaseArmory.Build(world, root, weapon, accent);
 
+        static BlenderParts vehicleParts;
+
         internal static Transform Vehicle(TriasWorld w, bool heavy, int team, out Transform turret)
         {
             Transform root = TriasWorld.Group(w.Actors, heavy ? "Bastion" : "Skimmer");
+            // Blender hulls (tools/blender/build-vehicles.py): graphite and fired ceramic, team colour as one stripe.
+            vehicleParts ??= new BlenderParts("TRIAS/Vehicles/Vehicles");
+            string key = heavy ? "Bastion" : "Skimmer";
+            if (vehicleParts.Has(key))
+            {
+                vehicleParts.Bind(key, TriasWorld.Group(root, key + " hull"), slot => slot switch
+                {
+                    "Ceramic" => w.WeaponCeramic, "Graphite" => w.WeaponGraphite, "Alloy" => w.WeaponAlloy,
+                    "Visor" => w.PilotVisor, "Faction" => w.Team[team], "Signal" => w.TeamLight[team], _ => w.Dark
+                }, true);
+                turret = TriasWorld.Group(root, "Weapon housing", Vector3.up * (heavy ? 1.72f : 1.43f));
+                turret.localScale = Vector3.one * (heavy ? 1.94f : 1.52f);
+                Gun(w, turret, heavy ? "rift" : "arc", w.TeamLight[team]);
+                return root;
+            }
             float width = heavy ? 2.80f : 2.00f, length = heavy ? 4.68f : 3.25f;
             TriasWorld.Part(root, w.Dark, new Vector3(0, .49f, 0), new Vector3(width, .55f, length));
             TriasWorld.Part(root, w.Team[team], new Vector3(0, .93f, -0.28f), new Vector3(width * .74f, .66f, length * .8f));
@@ -75,8 +92,9 @@ namespace Trias.Native
             int faction = w.Mode != "ffa" && player[31].Text == null ? player[3].Int : -1;
             if (faction >= 0) shell = w.FactionPaint[faction];
             var pilot = w.Kit.Pilot(body, kit, accent, faction, player[32].Text == "male", out locomotion);
-            weapon = TriasWorld.Group(body, "Weapon", new Vector3(.18f,1.14f,.36f));
-            weapon.localScale = Vector3.one * .62f;
+            // Carried at a shouldered ready height and near true size for adult-proportioned pilots.
+            weapon = TriasWorld.Group(body, "Weapon", new Vector3(.17f,1.36f,.34f));
+            weapon.localScale = Vector3.one * .9f;
             if (pilot != null)
             {
                 var rig = pilot.GetComponentsInChildren<Transform>();
