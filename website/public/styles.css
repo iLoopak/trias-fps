@@ -64,7 +64,7 @@ p{color:var(--muted)}
 .weapon-list{list-style:none;margin:13px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px 17px;font-size:15px;font-weight:650}
 .game-frame{position:relative;min-width:0;border-top:2px solid var(--accent);padding-top:8px}
 .game-picture{background:var(--surface);overflow:hidden}
-.game-picture img{width:100%;height:auto;aspect-ratio:480/269;object-fit:contain}
+.game-picture img{width:100%;height:auto;aspect-ratio:16/9;object-fit:contain}
 figcaption{display:flex;justify-content:space-between;gap:14px;font-size:13px;color:var(--quiet);margin-top:12px}
 figcaption span{color:var(--quiet)}
 .experimental{display:grid;grid-template-columns:minmax(0,1.25fr) repeat(2,minmax(0,1fr));gap:28px;margin-top:clamp(42px,6vw,80px);padding-block:28px;border-block:1px solid var(--line)}
@@ -161,3 +161,17 @@ dd{font-size:15px;color:var(--muted)}
  .footer .text-link{font-size:13px}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero-art,.arena-art,.pilot-bg,.pilot-stage img{transform:none!important}.button{transition:none}}
+
+/* Authentic gameplay gallery: preserve the complete HUD and original frame. */
+.arena-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(20px,3vw,40px);list-style:none;margin:0;padding:0}
+.arena-gallery li{min-width:0}
+.arena-shot{margin:0;background:var(--bg);border:1px solid var(--line)}
+.arena-shot a{display:block;overflow:hidden;outline-offset:4px}
+.arena-shot img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;transition:filter .2s ease}
+.arena-shot a:hover img{filter:brightness(1.08)}
+.arena-shot figcaption{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:16px 18px;border-top:1px solid var(--line)}
+.arena-shot figcaption h3{margin:0;font-size:clamp(1.1rem,2vw,1.5rem)}
+.arena-shot figcaption p{margin:4px 0 0;color:var(--quiet);font-size:.9rem}
+.arena-shot figcaption>span{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--quiet);white-space:nowrap}
+@media(max-width:680px){.arena-gallery{grid-template-columns:1fr}.arena-shot figcaption{padding:12px}}
+@media(prefers-reduced-motion:reduce){.arena-shot img{transition:none}}
