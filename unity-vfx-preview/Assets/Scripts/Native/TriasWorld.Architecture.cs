@@ -24,7 +24,7 @@ namespace Trias.Native
             internal float Scale = 4, Normal = 1, Edge = .35f, Grime = .25f, Bevel = .045f;
             // Seams take the plate's own darkened value unless SeamTone is 0, so large ceramic
             // fields read as one glazed mass with fine joints rather than a black-lined tile grid.
-            internal float SeamStrength = 1, SeamTone;
+            internal float SeamStrength = 1, SeamTone, SideSeams = .12f;
         }
 
         bool PrepareArchitecture()
@@ -43,9 +43,79 @@ namespace Trias.Native
             if (source != null) architectureFinishes[source] = finish;
         }
 
+        static string Hex(Material m) => "#" + ColorUtility.ToHtmlStringRGB(m.color);
+
+        // Vanta and Meridian keep their own palette (taken from the arena's existing finishes) but
+        // receive the same construction language as Relay: monolithic ceramic with plate-toned joints,
+        // graphite load frames and machined deck alloy. Textured identity finishes (refractory,
+        // Meridian's polished section, stone) are not in the map and stay untouched.
+        void ArenaArchitecture()
+        {
+            bool foundry = Spec.id == "foundry";
+            foreach (var source in new[] { Porcelain, coverPaint, Insulation })
+                if (source != null)
+                    ArchitectureFor(source, new ArchitectureFinish { Color = Hex(source), Alt = Hex(source), AltRate = 0,
+                        Gloss = foundry ? .38f : .5f, GlossVar = .12f, PlateVar = .03f, Scale = 7.6f, Edge = .3f,
+                        Grime = foundry ? .45f : .2f, SeamStrength = .55f, SeamTone = 1 });
+            foreach (var source in new[] { Graphite, walls })
+                if (source != null)
+                    ArchitectureFor(source, new ArchitectureFinish { Color = Hex(source), Alt = Hex(source), AltRate = 0,
+                        Seam = "#0b0c0d", Gloss = .32f, PlateVar = .12f, Scale = 6, Normal = .8f, Edge = .55f, Grime = 0,
+                        SeamStrength = .7f, SeamTone = .6f });
+            // Arena floor: cast slabs in the arena's own tone replace the stretched noise texture.
+            // Meridian's untextured tint is far lighter than its old textured floor read; keep the dusk.
+            string floor = Spec.id == "basin" ? "#7d6e66" : Hex(arenaDeck);
+            if (arenaDeck != null)
+                ArchitectureFor(arenaDeck, new ArchitectureFinish { Deck = true, Color = floor, Alt = floor, AltRate = .14f,
+                    Gloss = foundry ? .3f : .38f, GlossVar = .22f, PlateVar = .07f, Scale = 6.4f, Edge = .4f, Grime = 0, Bevel = .03f,
+                    SeamStrength = .75f, SeamTone = .65f });
+            // Linked-route casting decks and their frames (brushed noise stretched across 30 m spans).
+            if (routeTread != null && !island)
+                ArchitectureFor(routeTread, new ArchitectureFinish { Deck = true, Color = foundry ? Hex(routeTread) : "#6a5d56",
+                    Alt = foundry ? Hex(routeTread) : "#5e534d", AltRate = .18f,
+                    Metal = .35f, Gloss = .4f, GlossVar = .22f, PlateVar = .08f, Scale = 4.8f, Edge = .45f, Grime = 0, Bevel = .025f,
+                    SeamStrength = .8f, SeamTone = .6f });
+            if (routeFrame != null && !island)
+                ArchitectureFor(routeFrame, new ArchitectureFinish { Color = Hex(routeFrame), Alt = Hex(routeFrame), Seam = "#0b0c0d",
+                    Metal = .3f, Gloss = .34f, PlateVar = .1f, Scale = 6, Normal = .8f, Edge = .55f, Grime = 0, SeamStrength = .7f, SeamTone = .6f });
+            if (foundry)
+            {
+                // The speckled "refractory" brush texture read as cork at cover scale: replace it with
+                // matte fired refractory plates in the same warm tone, grime settling toward the floor.
+                var refractory = new ArchitectureFinish { Color = "#b09479", Alt = "#9c8068", AltRate = .12f, Gloss = .26f, GlossVar = .08f,
+                    PlateVar = .06f, Scale = 5.2f, Edge = .45f, Grime = .6f, SeamStrength = .65f, SeamTone = .8f };
+                if (environmentFinishes.TryGetValue("Ceramic", out var kitCeramic)) ArchitectureFor(kitCeramic, refractory);
+                if (mapFinishes.TryGetValue("Refractory", out var propRefractory)) ArchitectureFor(propRefractory, refractory);
+            }
+            if (mapFinishes.TryGetValue("Alloy", out var kitAlloy))
+                ArchitectureFor(kitAlloy, new ArchitectureFinish { Deck = true, Color = Hex(kitAlloy), Alt = Hex(kitAlloy), AltRate = .15f,
+                    Metal = .55f, Gloss = .44f, GlossVar = .2f, PlateVar = .08f, Scale = 4.4f, Edge = .45f, Grime = 0, Bevel = .02f,
+                    SeamStrength = .7f, SeamTone = .7f });
+        }
+
         void ApplyArchitecture()
         {
-            if (!IsRelayArt || !PrepareArchitecture()) return;
+            if (!PrepareArchitecture()) return;
+            if (island)
+            {
+                // Kordilera stone: the fractured-stone map at 1:1 read as half-metre camouflage blotches.
+                // At 3.2x it reads as grain; values move from olive toward warm weathered granite.
+                foreach (var (slot, tint) in new[] { ("DryStone", "#9a968a"), ("DarkStone", "#6c6e66"), ("Moss", "#71824f") })
+                    if (mapFinishes.TryGetValue(slot, out var stone))
+                    {
+                        stone.mainTextureScale *= 3.2f;
+                        stone.color = Catalog.Tint(tint);
+                    }
+                if (environmentFinishes.TryGetValue("Secondary", out var shelf)) shelf.mainTextureScale *= 3.2f;
+                return;
+            }
+            if (!IsRelayArt)
+            {
+                if (Spec.id != "foundry" && Spec.id != "basin") return;
+                ArenaArchitecture();
+                RemapArchitecture();
+                return;
+            }
             // Relay: bright glazed ceramic over very dark graphite, mid-dark deck tiles underfoot.
             // Identity comes from seams and phase plates, not from a checkerboard of plate values.
             // Monolith treatment (review r1): large plates (8.8 m period) with plate-toned joints. The 4 m
@@ -56,7 +126,7 @@ namespace Trias.Native
             ArchitectureFor(coverPaint, ceramic);
             ArchitectureFor(Insulation, new ArchitectureFinish { Color = "#b4a690", Alt = "#d4cdbf", AltRate = .06f, Gloss = .42f,
                 PlateVar = .05f, Scale = 7.2f, SeamStrength = .6f, SeamTone = 1 });
-            var graphite = new ArchitectureFinish { Color = "#2b2f34", Alt = "#383d43", AltRate = .25f, Seam = "#0b0c0d",
+            var graphite = new ArchitectureFinish { Color = "#353a40", Alt = "#40454b", AltRate = .25f, Seam = "#0b0c0d",
                 Gloss = .34f, PlateVar = .22f, Scale = 6, Normal = .8f, Edge = .55f, Grime = 0 };
             ArchitectureFor(Graphite, graphite);
             ArchitectureFor(shaftSteel, graphite);
@@ -75,6 +145,11 @@ namespace Trias.Native
             ArchitectureFor(shaftBridge, new ArchitectureFinish { Deck = true, Color = "#a59d8f", Alt = "#7a7c7c", AltRate = .18f,
                 Gloss = .42f, PlateVar = .12f, Scale = 3.2f, Edge = .5f, Grime = 0, Bevel = .03f });
 
+            RemapArchitecture();
+        }
+
+        void RemapArchitecture()
+        {
             var skip = new HashSet<Transform>();
             if (Pickups != null) foreach (var p in Pickups) if (p != null) skip.Add(p);
             foreach (var renderer in Root.GetComponentsInChildren<MeshRenderer>(true))
@@ -126,6 +201,7 @@ namespace Trias.Native
             made.SetFloat("_BevelWidth", f.Bevel);
             made.SetFloat("_SeamStrength", f.SeamStrength);
             made.SetFloat("_SeamTone", f.SeamTone);
+            made.SetFloat("_SideSeams", f.Deck ? f.SideSeams : 1);
             Paint.Add(made);
             architecture[(source, box, large)] = made;
             return made;

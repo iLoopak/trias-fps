@@ -12,6 +12,7 @@ Shader "TRIAS/Architecture"
         _SeamColor("Seam", Color) = (.05,.055,.06,1)
         _SeamStrength("Seam strength", Range(0,1)) = 1
         _SeamTone("Seam follows plate value", Range(0,1)) = 0
+        _SideSeams("Plate pattern on vertical faces", Range(0,1)) = 1
         _HardwareColor("Fasteners", Color) = (.45,.46,.47,1)
         _DataTex("Plate data (id, ao, edge, height)", 2D) = "gray" {}
         [Normal] _NormalTex("Plate normal", 2D) = "bump" {}
@@ -40,7 +41,7 @@ Shader "TRIAS/Architecture"
         sampler2D _DataTex, _NormalTex;
         half4 _Color, _AltColor, _SeamColor, _HardwareColor, _PhaseTint;
         half _AltRate, _Scale, _NormalStrength, _Glossiness, _GlossVar, _Metallic, _PlateVar, _EdgeWear, _AOStrength;
-        half _BoxEdge, _BevelWidth, _Grime, _SeamStrength, _SeamTone;
+        half _BoxEdge, _BevelWidth, _Grime, _SeamStrength, _SeamTone, _SideSeams;
 
         struct Input
         {
@@ -109,11 +110,18 @@ Shader "TRIAS/Architecture"
             float3 nY = float3(tY.x + n.x, abs(n.y) * tY.z * sign(n.y), tY.y + n.z);
             float3 nZ = float3(tZ.x + n.x, tZ.y + n.y, abs(n.z) * tZ.z * sign(n.z));
             float3 local = normalize(nX * w.x + nY * w.y + nZ * w.z);
+            // Decks keep their slab pattern on walkable faces only; slab edges read as one cast edge.
+            half pattern = lerp(_SideSeams, 1, saturate(abs(n.y) * 1.5 - .3));
+            local = normalize(lerp(n, local, pattern));
 
             half id = data.r, ao = data.g, chamfer = data.b, height = data.a;
             half hardware = 1 - step(.045, id);
             half phase = step(.9, id);
             half seam = 1 - smoothstep(.06, .42, height);
+            seam *= pattern;
+            hardware *= pattern;
+            phase *= pattern;
+            id = lerp(.47, id, pattern);
 
             // Rounded bevel on the real edges of primitive boxes.
             half bevel = 0;
@@ -153,7 +161,7 @@ Shader "TRIAS/Architecture"
             o.Albedo = albedo;
             o.Metallic = lerp(_Metallic, .85, hardware);
             o.Smoothness = saturate(gloss);
-            o.Occlusion = lerp(1, ao * ao, _AOStrength) * (1 - seam * .5 * _SeamStrength);
+            o.Occlusion = lerp(1, ao * ao, _AOStrength * pattern) * (1 - seam * .5 * _SeamStrength);
         }
         ENDCG
     }

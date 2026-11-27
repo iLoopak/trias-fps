@@ -21,6 +21,8 @@ namespace Trias.Native
             internal Func<TriasWorld, Vector3> Eye, Aim;
             internal (string Kit, int Team, Func<TriasWorld, Vector3> At, float Yaw)[] Pilots = Array.Empty<(string, int, Func<TriasWorld, Vector3>, float)>();
             internal bool Weaponless;
+            // Spawns review props (Horde bodies, vehicles) under the given parent.
+            internal Action<TriasWorld, Transform> Extras;
             internal float Fov = 70;
         }
 
@@ -35,6 +37,34 @@ namespace Trias.Native
             new Shot { Key = "relay-pilots", Arena = "relay", Weaponless = true, Fov = 38, Eye = P(-.3f, 7.75f, -15.9f), Aim = P(-.3f, 7.4f, -10.5f),
                 Pilots = new[] { ("vector", 0, P(-2.4f, 6.6f, -11f), 195f), ("bulwark", 1, P(-.95f, 6.6f, -11f), 185f),
                     ("wraith", 2, P(.45f, 6.6f, -11f), 175f), ("kestrel", 0, P(1.85f, 6.6f, -11f), 165f) } },
+            // Horde lineup on the transfer deck: runner, crusher, spitter, thrower.
+            new Shot { Key = "relay-horde", Arena = "relay", Weaponless = true, Fov = 38, Eye = P(-.3f, 7.75f, -15.9f), Aim = P(-.3f, 7.3f, -10.5f),
+                Extras = (w, home) =>
+                {
+                    string[] kinds = { "runner", "crusher", "spitter", "thrower" };
+                    for (int i = 0; i < kinds.Length; i++)
+                    {
+                        var at = TriasWorld.Group(home, kinds[i]);
+                        at.SetPositionAndRotation(new Vector3(-2.5f + i * 1.45f, 6.6f, -11f), Quaternion.Euler(0, 180 + (i - 1.5f) * 12, 0));
+                        new HordeBody(w, at, kinds[i], i).Pose(40, 2.2f, .3f + i * .2f, i, 0);
+                    }
+                } },
+            // Vehicles: skimmer and heavy bastion, three-quarter view across the deck.
+            new Shot { Key = "relay-vehicles", Arena = "relay", Weaponless = true, Fov = 50, Eye = P(4.5f, 8.6f, -18.5f), Aim = P(-.5f, 7.2f, -10.5f),
+                Extras = (w, home) =>
+                {
+                    for (int i = 0; i < 2; i++)
+                    {
+                        var v = TriasModels.Vehicle(w, i == 1, i, out _);
+                        v.SetParent(home, false);
+                        v.SetPositionAndRotation(new Vector3(i == 0 ? 2.2f : -3.4f, 6.6f, i == 0 ? -12.6f : -9.8f), Quaternion.Euler(0, i == 0 ? 215 : 160, 0));
+                    }
+                } },
+            // Equipment stations: the two nearest pickups to the transfer deck, framed at eye height.
+            new Shot { Key = "relay-pickup-a", Arena = "relay", Weaponless = true, Fov = 34,
+                Eye = w => w.Pickups[0].position + new Vector3(1.6f, .75f, -1.6f), Aim = w => w.Pickups[0].position + Vector3.up * .85f },
+            new Shot { Key = "relay-pickup-b", Arena = "relay", Weaponless = true, Fov = 34,
+                Eye = w => w.Pickups[w.Pickups.Length - 1].position + new Vector3(1.6f, .75f, -1.6f), Aim = w => w.Pickups[w.Pickups.Length - 1].position + Vector3.up * .85f },
             new Shot { Key = "relay-gallery", Arena = "relay", Weapon = "rift", Eye = P(7.5f, 4.88f, -14.75f), Aim = P(-.2f, 4.2f, -1.95f),
                 Pilots = new[] { ("kestrel", 2, P(1.9f, 3.3f, -9.4f), 200f) } },
             new Shot { Key = "relay-deck", Arena = "relay", Weapon = "scatter", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 2.2f, -9f) },
@@ -140,6 +170,12 @@ namespace Trias.Native
                         hands.Update(WeaponHandling.At(shot.Weapon, 0), 0);
                         props.Add(grip.gameObject);
                     }
+                    if (shot.Extras != null)
+                    {
+                        var home = TriasWorld.Group(world.Actors, "Review extras " + shot.Key);
+                        shot.Extras(world, home);
+                        props.Add(home.gameObject);
+                    }
                     foreach (var pilot in shot.Pilots)
                     {
                         var root = TriasWorld.Group(world.Actors, "Review pilot " + pilot.Kit);
@@ -155,6 +191,24 @@ namespace Trias.Native
                     {
                         world.Animate(40 + frame / 60f, 1, 0, eye, 1, 1, 40 + frame / 60f, 719);
                         yield return null;
+                    }
+                    // TRIAS_ART_PICK=1 logs the nearest renderer (by bounds) under a 5x4 screen grid.
+                    if (Environment.GetEnvironmentVariable("TRIAS_ART_PICK") == "1")
+                    {
+                        var all = FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None);
+                        for (int gy = 0; gy < 4; gy++)
+                        for (int gx = 0; gx < 5; gx++)
+                        {
+                            var ray = view.ViewportPointToRay(new Vector3(.1f + gx * .2f, .12f + gy * .25f, 0));
+                            MeshRenderer best = null; float near = float.MaxValue;
+                            foreach (var r in all)
+                                if (r.enabled && r.bounds.IntersectRay(ray, out var d) && d < near && d > .3f && (r.bounds.size.magnitude < 60 || gy == 0)) { near = d; best = r; }
+                            if (best != null)
+                            {
+                                string path = best.name; for (var t = best.transform.parent; t != null && path.Length < 160; t = t.parent) path = t.name + "/" + path;
+                                log.Add($"  pick {shot.Key} ({gx},{gy}) d={near:F1} {path} mat={best.sharedMaterial?.name} scale={(best.sharedMaterial != null && best.sharedMaterial.HasProperty("_Scale") ? best.sharedMaterial.GetFloat("_Scale") : -1):F1} col={(best.sharedMaterial != null && best.sharedMaterial.HasProperty("_Color") ? ColorUtility.ToHtmlStringRGB(best.sharedMaterial.color) : "-")} mesh={(best.TryGetComponent<MeshFilter>(out var mf) && mf.sharedMesh != null ? mf.sharedMesh.name : "-")}");
+                            }
+                        }
                     }
                     var started = System.Diagnostics.Stopwatch.StartNew();
                     view.targetTexture = target;

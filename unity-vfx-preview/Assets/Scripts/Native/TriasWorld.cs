@@ -254,7 +254,7 @@ namespace Trias.Native
             ApplyArchitecture();
         }
 
-        Material walls, coverPaint, earth, bark, grassCrown;
+        Material walls, coverPaint, earth, bark, grassCrown, arenaDeck;
         readonly Transform[] pickupMotion;
         void Station()
         {
@@ -266,6 +266,7 @@ namespace Trias.Native
             var deck = MaterialAt(basin ? "#b8a498" : foundry ? "#b67660" : "#828c9d", false,
                 basin ? "basin" : foundry ? "foundry-deck" : "deck");
             deck.mainTextureScale = Vector2.one * (basin ? 22 : 15);
+            arenaDeck = deck;
             var serviceDeck = MapSurface(basin ? "#8f7469" : foundry ? "#9a6d57" : "#79909c", "brushed-deck", .56f, .29f);
             serviceDeck.mainTextureScale = new Vector2(3, 1);
             float d = Spec.length * 2;

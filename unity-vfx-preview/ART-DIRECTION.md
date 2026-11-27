@@ -173,11 +173,40 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - Svítící koule jako jádro Riftu.
 - Měřítko zbraně 0,62 ve třetí osobě, které vycházelo z malých pilotů.
 
+**Druhá vlna (Relay, helmy, další arény).**
+- **Paluby a lávky** nesou palubní desky jen na pochozí ploše (`_SideSeams`). Normála, okluze i spáry atlasu na bocích slábnou, takže hrana čte jako jeden litý blok.
+- **Grafit architektury** má hodnotu `#353a40`, aby zastíněný parapet nečetl jako černá díra.
+- **Bašta** má místo tří oranžových „očí“ jeden boční dálkoměr. **Přízrak** má zaoblenou čepici a nízký přijímač místo krabice s anténou.
+- **Vanta a Meridian** dostaly stejný konstrukční jazyk jako Relay (`ArenaArchitecture`), ale v barvách svých dosavadních povrchů.
+  - Zrnitou `refractory` texturu na keramice kitu ve Vantě (četla jako korek) nahradila matná žáruvzdorná keramika s usazenou špínou.
+  - Podlahy a lité paluby tras jsou desky. Meridian má podlahu ztmavenou na `#6a5d56`, protože čistý tint bez textury byl příliš bledý.
+  - Achátové výbrusy Meridianu, kámen a dřevo zůstávají beze změny.
+- **Kordilera:** textura kamene je jemnější (×3,2) a má teplejší šedý tón. Pomohlo to jen málo.
+- Sonda `TRIAS_ART_PICK=1` zapíše do `review.txt` objekt a materiál pod mřížkou 5×4 bodů. Rychle tak zjistíš, co v záběru opravit.
+
+**Třetí vlna (vozidla, power-upy, Horda).** Kontrolní záběry: `relay-vehicles`, `relay-pickup-a/b` a `relay-horde`.
+- **Vozidla** (`tools/blender/build-vehicles.py` → `Vehicles/Vehicles.fbx`, svazuje `TriasModels.Vehicle`):
+  - Skimmer je nízký grafitový klín s keramickým zadním krytem, kokpitem a podstavcem věže ve fázové mezeře.
+  - Bastion je šestikolový transportér s rozlámanými bočními pláty a keramickým čelním pancířem.
+  - Týmová barva je jen jako pruh. Montážní bod zbraně se nemění.
+  - Původní syté krabice na válcích zůstávají jako záloha.
+- **Power-upy** (`build-powerups.py` → `PowerCells/PowerCells.fbx`):
+  - Lékárnička je keramický kanystr se svítícím průzorem a křížem.
+  - Štít tvoří tři zakřivené keramické lístky kolem šestibokého jádra.
+  - Přebití je rozštípnutý krystal ve třech kovových sponách.
+  - `Glow` dostává barvu podle katalogu.
+- **Horda jsou porouchaní servisní roboti** (`build-horde.py` → `Horde/Horde.fbx`, `HordeBody.Sculpt`). Díly sedí na původních kloubech, takže chůze, nápřah i úder zůstávají.
+  - Tělo tvoří grafitová kostra, popraskané keramické kryty, kovové písty a klepeta. Mají jedno živé a jedno mrtvé oko.
+  - Crusher nese demoliční pancíř ramen se žhnoucími prasklinami, Spitter protržený kanystr s chladivem.
+  - Jiskry jsou protáhlé záblesky v kloubech. Bliká deterministicky podle času a pořadí robota.
+- **Zamítnuto:** organičtí „nakažení“ s anatomií z loftů. Světlá kůže splývala s keramikou pilotů a postavy působily jako dřevění manekýni (`output/visual-overhaul/z1`, `z2`). Zamítnutá je i původní plastelína z koulí.
+
 **Zbývající slabiny.**
-- Primitivní kvádry parapetů a krytů vlevo ve hlavním záběru.
-- Pozadí z hranatých bloků.
-- Šachta a sloup reaktoru mají v galerii stále jemný rastr (materiál mimo mapování architektury).
+- Pozadí Relay a Vanty tvoří hranaté bloky (megastruktury, komíny).
+- Zastíněná strana krytů v Meridianu je skoro černá.
+- Kordilera potřebuje nové modely skal a terénu: fasetované skály s pruhy mechu, hladké kopce a krabicová bouda s nápisem.
+- Plochá maska Přízraka je nejslabší hlavou mezi piloty.
 - Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
-- Vanta, Meridian a Kordilera přestavbu povrchů a světla zatím nemají.
-- Power-upy, vozidla a zombie Hordy zatím nebyly posouzeny.
-- Nativní build a hra s boty po této přestavbě nebyly ověřeny.
+- Herní texty mohou Hordu dál nazývat „nakažení“.
+- Vozidla jsou tvarově jednodušší než zbraně. Kanystr lékárničky je z boku hladký.
+- Nativní build, hra s boty a měření snímkové frekvence po přestavbě nebyly ověřeny.

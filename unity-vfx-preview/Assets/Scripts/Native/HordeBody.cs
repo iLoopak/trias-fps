@@ -81,6 +81,79 @@ namespace Trias.Native
                     new Vector3(.14f,.38f,.16f)*girth, PrimitiveType.Sphere);
                 TriasWorld.Part(knees[i], dark, new Vector3(0,-.37f,.051f), new Vector3(.15f,.11f,.26f)*girth, PrimitiveType.Sphere);
             }
+            Sculpt(world, frame, skin, cloth, dark, spitter ? spit : infected, bone, spit, breadth, girth, thrower);
+        }
+
+        static BlenderParts hordeParts;
+
+        // Blender anatomy (tools/blender/build-horde.py) replaces the sphere mannequin on the same joints,
+        // so gait, wind-up and strike poses are unchanged. The sphere build stays as the fallback.
+        void Sculpt(TriasWorld world, Transform frame, Material skin, Material cloth, Material dark, Material glow,
+            Material bone, Material spit, float breadth, float girth, bool thrower)
+        {
+            hordeParts ??= new BlenderParts("TRIAS/Horde/Horde");
+            if (!hordeParts.Has("Torso") || !hordeParts.Has("Shin")) return;
+            foreach (var renderer in frame.GetComponentsInChildren<MeshRenderer>())
+            {
+                renderer.enabled = false;
+                Object.Destroy(renderer.gameObject);
+            }
+            Material Finish(string slot) => slot switch
+            {
+                "Shell" or "Skin" => skin, "Frame" or "Cloth" => cloth, "Dark" => dark, "Alloy" or "Bone" => bone,
+                "Spark" or "Infected" => glow, "Coolant" or "Spit" => spit, _ => dark
+            };
+            void Mount(string key, Transform joint, Vector3 scale)
+            {
+                if (!hordeParts.Has(key)) return;
+                var at = TriasWorld.Group(joint, key + " · Blender");
+                at.localScale = scale;
+                hordeParts.Bind(key, at, Finish, true);
+            }
+            Mount("Torso", torso, new Vector3(breadth / .45f, 1, girth > 1 ? 1.12f : 1));
+            Mount("Head", head, Vector3.one * girth);
+            Mount("Jaw", jaw, Vector3.one * girth);
+            for (int i = 0; i < 2; i++)
+            {
+                float arm = thrower && i == 1 ? 1.32f : girth;
+                Mount("UpperArm", shoulders[i], Vector3.one * arm);
+                Mount("Forearm", elbows[i], Vector3.one * arm);
+                Mount("Thigh", hips[i], Vector3.one * girth);
+                Mount("Shin", knees[i], Vector3.one * girth);
+            }
+            if (kind == "crusher") Mount("CrusherShards", torso, Vector3.one * girth);
+            if (kind == "spitter") Mount("SpitterSac", head, Vector3.one);
+            // Fault sparks at the shoulder bearings, the neck actuator and the chest fracture.
+            var sparkAt = new (Transform Joint, Vector3 At)[]
+            {
+                (torso, new Vector3(-.17f, .50f, .09f)), (torso, new Vector3(.17f, .50f, .09f)),
+                (head, new Vector3(0, -.03f, .05f)), (torso, new Vector3(0, .40f, .19f))
+            };
+            sparks = new Transform[sparkAt.Length];
+            for (int i = 0; i < sparks.Length; i++)
+            {
+                sparks[i] = TriasWorld.Part(sparkAt[i].Joint, glow, sparkAt[i].At, Vector3.one * .03f);
+                if (sparks[i].TryGetComponent<Renderer>(out var r)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                sparks[i].localScale = Vector3.zero;
+            }
+        }
+
+        Transform[] sparks;
+
+        static float Noise(float x) => Mathf.Repeat(Mathf.Sin(x * 12.9898f) * 43758.547f, 1);
+
+        void Spark(float now, int slot)
+        {
+            if (sparks == null) return;
+            for (int i = 0; i < sparks.Length; i++)
+            {
+                float tick = Mathf.Floor(now * 14 + i * 3.7f + slot * 5.3f);
+                bool on = Noise(tick) > .62f;
+                float size = on ? .04f + Noise(tick + .5f) * .06f : 0;
+                // A thin streak rather than a cube: reads as an arc flash at gameplay distance.
+                sparks[i].localScale = new Vector3(size * .18f, size * (1.2f + Noise(tick + .9f) * 1.6f), size * .18f);
+                sparks[i].localRotation = Quaternion.Euler(Noise(tick + .2f) * 360, Noise(tick + .4f) * 360, 0);
+            }
         }
 
         internal void Windup(float now, float duration)
@@ -98,6 +171,7 @@ namespace Trias.Native
             float wind = attackDuration > 0 && elapsed < attackDuration ? Mathf.SmoothStep(0, 1, elapsed / attackDuration) : 0;
             float strike = attackDuration > 0 && elapsed >= attackDuration ? Mathf.Max(0,1 - (elapsed-attackDuration)/.22f) : 0;
             bool ranged = kind is "spitter" or "thrower";
+            Spark(now, slot);
             torso.localRotation = Quaternion.Euler((kind == "crusher" ? 11 : 19) + sway*5*moving - wind*19 + strike*18 - stun,
                 sway*7*moving, sway*6*moving);
             head.localRotation = Quaternion.Euler(-12 + (kind == "spitter" ? -wind*24 + strike*9 : wind*7), sway * 5, -9);
@@ -120,9 +194,11 @@ namespace Trias.Native
         Material[] infectedMaterials;
         internal Material[] InfectedMaterials => infectedMaterials ??= new[]
         {
-            MapSurface("#8b8b68", "refractory", 0, .17f), MapSurface("#a09675", "refractory", 0, .16f),
-            MapSurface("#484b46", "brushed-deck", 0, .13f), MapSurface("#726650", "refractory", 0, .12f),
-            MaterialAt("#342b28"), MaterialAt("#b97a5f", true), MaterialAt("#b2a585"), MaterialAt("#889653", true)
+            // Malfunctioning service robots: soiled fired-ceramic covers, graphite frames, machined alloy
+            // pistons, an orange fault glow and a green coolant leak for the spitter.
+            CeramicFinish("#a39b88", 0, .42f), CeramicFinish("#8f887a", 0, .36f),
+            CeramicFinish("#2c2f33", .3f, .45f), CeramicFinish("#3b3732", .25f, .38f),
+            MaterialAt("#1d1b1a"), MaterialAt("#ff8a3d", true), CeramicFinish("#9a9c9e", .85f, .5f), MaterialAt("#889653", true)
         };
     }
 }
