@@ -1,7 +1,5 @@
-import { guideBotAim, route, visible } from './bots.js';
-import { brainFor } from './bot-profiles.js';
-import { senseBots } from './bot-perception.js';
-import { distanceSquared, eyeHeight, packCover, PILOT_HP, TEAM_SIZE, wallDistance, WEAPONS } from './public/rules.js';
+import { route } from './bots.js';
+import { distanceSquared, packCover, PILOT_HP, rayBox, TEAM_SIZE, TICK, wallDistance, WEAPONS } from './public/rules.js';
 
 const WAVES = 8;
 const MAX_ACTIVE = 8;
@@ -13,17 +11,27 @@ const STRUCTURES = {
   barricade: { cost: 30, hp: 220, w: 2.9, d: .8, h: 1.2 },
   turret: { cost: 65, hp: 130, w: 1.15, d: 1.15, h: .89 },
 };
-const SALVAGE = { runner: 8, striker: 11, crusher: 17, sentinel: 23 };
+const SALVAGE = { runner: 8, spitter: 11, crusher: 17, thrower: 23 };
 const TYPES = {
-  runner: { name: 'Lovec', character: 'kestrel', hp: 64, armor: 0, reach: 1.85, damage: 13, pace: 1.0, delay: .9 },
-  striker: { name: 'Střelec', character: 'vector', hp: 100, armor: 10, reach: 14, damage: 13, pace: .82, delay: 1.2, weapon: 'arc' },
-  crusher: { name: 'Drtič', character: 'bulwark', hp: 218, armor: 25, reach: 2.6, damage: 39, pace: .55, delay: 1.5 },
-  sentinel: { name: 'Strážce', character: 'wraith', hp: 270, armor: 45, reach: 17, damage: 30, pace: .64, delay: 1.45, weapon: 'lance' },
+  runner: { name: 'Nakažený', character: 'kestrel', hp: 72, armor: 0, reach: 1.65, damage: 17, pace: 0.88, delay: 1.06, windup: .35 },
+  spitter: { name: 'Plivač', character: 'vector', hp: 82, armor: 0, reach: 12, damage: 22, pace: .61, delay: 2.45, windup: .66,
+    shot: 'spore', speed: 13.5, gravity: 0 },
+  crusher: { name: 'Drtič', character: 'bulwark', hp: 214, armor: 20, reach: 2.20, damage: 42, pace: .53, delay: 1.77, windup: .61 },
+  thrower: { name: 'Vrhač', character: 'wraith', hp: 178, armor: 0, reach: 15, damage: 35, pace: .54, delay: 3.15, windup: .88,
+    shot: 'rubble', speed: 9.5, gravity: 7.3 },
 };
 const UNLOCK = { scatter: 2, arc: 3, surge: 4, lance: 5, rift: 6 };
 const REWARDS = ['Doplňte munici', 'Scatter a granát', 'Arc a oprava jádra', 'Overcharge a léčení',
   'Lance a štít', 'Rift a granáty', 'Overcharge a oprava jádra', 'Veškeré zásoby'];
 const SUPPORT = ['repair', 'armor', 'scrap'];
+
+function attackLine(enemy, target, height, layout) {
+  const from = { x: enemy.x, y: enemy.y + 1.34, z: enemy.z };
+  const x = target.x - from.x, y = height - from.y, z = target.z - from.z;
+  const length = Math.hypot(x, y, z);
+  return length < .01 || wallDistance(from, { x: x / length, y: y / length, z: z / length },
+    length, layout) >= length - .04;
+}
 
 export class Horde {
   constructor(room) { this.room = room; }
@@ -175,9 +183,9 @@ export class Horde {
     const index = Array.from({ length: MAX_ACTIVE }, (_, i) => i).find(i => !active.some(pilot => pilot.hordeSlot === i));
     const team = 1 + Math.floor(index / TEAM_SIZE);
     const slot = index % TEAM_SIZE;
-    const variant = this.wave >= 5 && this.remaining % 6 === 1 ? 'sentinel'
-      : this.wave >= 3 && this.remaining % 4 === 0 ? 'crusher'
-        : this.wave >= 2 && this.remaining % 3 === 0 ? 'striker' : 'runner';
+    const variant = this.wave >= 5 && this.remaining % 8 === 1 ? 'thrower'
+      : this.wave >= 3 && this.remaining % 5 === 0 ? 'crusher'
+        : this.wave >= 3 && this.remaining % 7 === 0 ? 'spitter' : 'runner';
     const type = TYPES[variant];
     const id = 'horde-' + ++this.nextEnemy;
     const enemy = this.room.addPlayer(id, type.name, team, slot, now, true, type.character, this.nextEnemy % 2 === 0 ? 'male' : undefined);
@@ -185,8 +193,7 @@ export class Horde {
     const flank = director?.hordeFlank(this.wave, this.remaining) ?? 1 + (this.remaining + this.wave) % 2;
     Object.assign(enemy, this.room.layout.spawns[flank][slot], { hordeType: variant, hordeSlot: index,
       hp: Math.round(type.hp * (1 + (this.wave - 1) * .10)),
-      armor: type.armor, safeUntil: now + .35, strikeAt: now + .8, routeAt: now, weapon: type.weapon ?? 'pulse' });
-    enemy.loadout[enemy.weapon] = { ammo: WEAPONS[enemy.weapon].magazine, reserve: Infinity };
+      armor: type.armor, safeUntil: now + .35, strikeAt: now + .8, routeAt: now, weapon: null, loadout: {} });
     this.remaining--;
     const interval = Math.max(.43, 1.25 - this.wave * .10);
     this.deployAt = now + (director?.hordeInterval(interval, this.wave, this.remaining) ?? interval);
@@ -195,48 +202,111 @@ export class Horde {
   input(enemy, now) {
     const type = TYPES[enemy.hordeType];
     const core = this.core;
-    const brain = brainFor(this.room,enemy);
-    senseBots(this.room,enemy,brain,now);
-    const observed = brain.target;
-    const candidate = observed && observed.distance <= type.reach ? this.room.players.get(observed.id) : null;
-    const player = candidate?.hp > 0 && candidate.safeUntil <= now && visible(enemy,candidate,this.layout) ? candidate : null;
-    const nearCore = distanceSquared(enemy, core) <= (type.weapon ? type.reach * .69 : type.reach) ** 2
-      && visible(enemy, core, this.layout);
-    const barrier = this.structures.find(site => site.kind
-      && distanceSquared(enemy, site) <= Math.max(type.reach * (type.weapon ? .55 : 1), 2.25) ** 2
-      && visible(enemy, { ...site, y: 0 }, this.room.layout));
-    const focus = player ?? barrier ?? (nearCore ? core : null);
-    const firingYaw = focus ? Math.atan2(enemy.x-focus.x,enemy.z-focus.z) : enemy.yaw;
-    const attack = focus && now >= enemy.strikeAt && (!player || brain.reactionAt <= now &&
-      (!type.weapon || Math.abs(Math.atan2(Math.sin(firingYaw-enemy.yaw),Math.cos(firingYaw-enemy.yaw))) < .16));
-    const from = { x: enemy.x, y: enemy.y + eyeHeight(enemy), z: enemy.z };
-    if (attack) {
-      enemy.strikeAt = now + type.delay;
-      if (focus === barrier) {
-        this.damageStructure(barrier, Math.round(type.damage * (1 + (this.wave - 1) * .06)));
-        this.room.events.push({ type: 'core-hit', from: [from.x, from.y, from.z],
-          position: [barrier.x, .72, barrier.z], weapon: type.weapon ?? 'scatter' });
-      } else if (!player) {
-        this.core.hp = Math.max(0, core.hp - Math.round(type.damage * (1 + (this.wave - 1) * .06)));
-        this.room.events.push({ type: 'core-hit', from: [enemy.x, from.y, enemy.z], position: [core.x, core.y, core.z], weapon: type.weapon ?? 'scatter' });
-      } else if (!type.weapon) {
-        const hit = this.room.damage(enemy, player, type.damage, now, from, 'scatter');
-        this.room.events.push({ type: 'damage', id: enemy.id, from: [from.x, from.y, from.z], hits: [hit] });
+    const around = (enemy.hordeSlot / MAX_ACTIVE) * Math.PI * 2;
+    const approach = { x: core.x + Math.cos(around) * 1.05, z: core.z + Math.sin(around) * 1.05 };
+    const position = target => ({ x: target.x, y: target === core ? core.y : target.y ?? 0, z: target.z });
+    let focus;
+    if (enemy.attack) {
+      focus = enemy.attack.at;
+      if (now >= enemy.attack.release) this.release(enemy, type, now);
+    } else {
+      const inReach = target => distanceSquared(enemy, target) <= type.reach ** 2 && Math.abs(enemy.y - (target.y ?? 0)) <= 1.25;
+      const barricade = this.structures.find(site => site.kind && inReach(site)
+        && attackLine(enemy, site, .72, this.room.layout));
+      const coreInReach = inReach(core) && attackLine(enemy, core, core.y, this.layout);
+      const defender = [...this.room.players.values()].find(pilot => this.room.hostile(enemy, pilot)
+        && !pilot.away && pilot.safeUntil <= now && inReach(pilot) && attackLine(enemy, pilot, pilot.y + .8, this.layout));
+      const victim = barricade ?? (coreInReach ? core : defender);
+      if (victim) {
+        focus = position(victim);
+        if (now >= enemy.strikeAt) {
+          enemy.attack = { target: victim, at: focus, release: now + type.windup };
+          this.room.events.push({ type: 'horde-windup', id: enemy.id, from: [enemy.x, enemy.y, enemy.z],
+            attack: enemy.hordeType, duration: type.windup });
+        }
       }
     }
     if (now >= enemy.routeAt) {
       enemy.routeAt = now + .48 + enemy.slot * .07;
-      enemy.path = route(enemy, core, this.room.layout);
+      enemy.path = route(enemy, approach, this.room.layout);
     }
     while (enemy.path.length && distanceSquared(enemy, enemy.path[0]) < 1.1 ** 2) enemy.path.shift();
-    const target = focus ?? enemy.path[0] ?? core;
+    const target = focus ?? enemy.path[0] ?? approach;
     const yaw = Math.atan2(enemy.x - target.x, enemy.z - target.z);
-    const pitch = player ? Math.atan2(player.y + eyeHeight(player) - .43 - from.y,Math.sqrt(distanceSquared(enemy,player)))
-      + Math.sin(now*6+enemy.slot)*brain.tuning.error*.42 : 0;
-    const aim = focus ? guideBotAim(brain,yaw,pitch) : { yaw,pitch: 0 };
-    if (!focus) brain.lookYaw = yaw;
-    return { x: 0, z: focus ? 0 : type.pace, ...aim,
-      fire: Boolean(attack && player && type.weapon), sprint: !focus && enemy.hordeType === 'runner', reload: true };
+    return { x: 0, z: focus ? 0 : type.pace, yaw, pitch: 0 };
+  }
+
+  release(enemy, type, now) {
+    const { target, at } = enemy.attack;
+    enemy.attack = null;
+    enemy.strikeAt = now + type.delay;
+    const from = { x: enemy.x, y: enemy.y + 1.34, z: enemy.z };
+    const damage = Math.round(type.damage * (1 + (this.wave - 1) * .06));
+    if (type.shot) {
+      const dx = at.x - from.x, dz = at.z - from.z;
+      const time = Math.max(.12, Math.hypot(dx, dz) / type.speed);
+      const height = target === this.core ? at.y : at.y + .8;
+      this.room.projectiles.push({ id: ++this.room.nextProjectile, owner: enemy, weapon: type.shot,
+        position: from, velocity: { x: dx / time, y: (height - from.y) / time + type.gravity * time * .5, z: dz / time },
+        gravity: type.gravity, fuseAt: now + time + .18, damage, hordeAttack: true });
+      this.room.events.push({ type: 'horde-release', id: enemy.id, attack: enemy.hordeType, from: [from.x, from.y, from.z] });
+      return;
+    }
+    const structure = target === this.structures[target.id] && target.kind;
+    const valid = target === this.core || structure || (this.room.hostile(enemy, target) && !target.away && target.safeUntil <= now);
+    const inReach = valid && distanceSquared(enemy, target) <= type.reach ** 2
+      && Math.abs(enemy.y - (target.y ?? 0)) <= 1.25;
+    const aim = inReach && Math.hypot(target.x-at.x, target.z-at.z) <= 1.2;
+    const aimHeight = target === this.core ? target.y : (target.y ?? 0) + .76;
+    if (!aim || !attackLine(enemy, target, aimHeight, structure ? this.room.layout : this.layout)) {
+      this.room.events.push({ type: 'horde-release', id: enemy.id, attack: enemy.hordeType, from: [from.x, from.y, from.z] });
+      return;
+    }
+    this.impact(enemy, target, from, { x: target.x, y: aimHeight, z: target.z },
+      damage, 'claw', now);
+  }
+
+  impact(enemy, target, from, at, damage, weapon, now) {
+    const hits = [];
+    if (target === this.core) target.hp = Math.max(0, target.hp - damage);
+    else if (target && this.structures[target.id] === target && target.kind) this.damageStructure(target, damage);
+    else if (target && this.room.hostile(enemy, target) && !target.away && target.safeUntil <= now)
+      hits.push(this.room.damage(enemy, target, damage, now, from, weapon, [at.x, at.y, at.z]));
+    this.room.events.push({ type: 'horde-impact', id: enemy.id, weapon, attack: enemy.hordeType,
+      from: [from.x, from.y, from.z], position: [at.x, at.y, at.z], objective: target === this.core, hits });
+  }
+
+  advanceShot(shot, now) {
+    const { position: origin, velocity } = shot;
+    const vertical = velocity.y - shot.gravity * TICK * .5;
+    const speed = Math.hypot(velocity.x, vertical, velocity.z);
+    if (speed < .001) return true;
+    const direction = { x: velocity.x / speed, y: vertical / speed, z: velocity.z / speed };
+    const travel = speed * TICK;
+    let { target, distance } = this.room.trace(shot.owner, origin, direction, travel, .09);
+    // Constructed cover participates in trace; intersecting its box again identifies the structure that was hit.
+    for (const site of this.structures) {
+      if (!site.kind) continue;
+      const { box } = site;
+      const x = origin.x - site.x, z = origin.z - site.z;
+      const local = { x: x * box.cos - z * box.sin, y: origin.y, z: x * box.sin + z * box.cos };
+      const heading = { x: direction.x * box.cos - direction.z * box.sin, y: direction.y,
+        z: direction.x * box.sin + direction.z * box.cos };
+      const struck = rayBox(local, heading, box.min, box.max);
+      if (struck <= distance && struck < travel) { target = site; distance = struck; }
+    }
+    const { x, z, y } = this.core;
+    const coreHit = rayBox(origin, direction, { x: x - .61, y: y - .68, z: z - .61 },
+      { x: x + .61, y: y + .68, z: z + .61 });
+    if (coreHit < distance) { target = this.core; distance = coreHit; }
+    const at = { x: origin.x + direction.x * distance, y: origin.y + direction.y * distance, z: origin.z + direction.z * distance };
+    if (target || distance < travel - 0.00001 || now >= shot.fuseAt) {
+      this.impact(shot.owner, target, origin, at, shot.damage, shot.weapon, now);
+      return true;
+    }
+    shot.position = at;
+    velocity.y -= shot.gravity * TICK;
+    return false;
   }
 
   step(now) {

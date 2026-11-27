@@ -16,7 +16,8 @@ namespace Trias.Native
             internal Transform Mesh;
             internal TrailRenderer Trail;
             internal Vector3 Goal;
-            internal bool Rift;
+            internal bool Grenade;
+            internal Renderer Surface;
         }
 
         readonly Dictionary<int, ProjectileArt> projectiles = new Dictionary<int, ProjectileArt>();
@@ -46,7 +47,7 @@ namespace Trias.Native
         float replayUntil;
         Vector3 replayOrigin, replayPoint;
         Color teamTint;
-        Material orb, grenade;
+        Material orb, grenade, spores, rubble;
 
         public string serverAddress = "ws://127.0.0.1:3000/play";
         public string roomCode = "";
@@ -394,6 +395,11 @@ namespace Trias.Native
                     sceneFade = 0;
                     orb = world.MaterialAt("#ff62c5", true);
                     grenade = world.MaterialAt("#ffd28e");
+                    if (mode == "horde")
+                    {
+                        spores = world.MaterialAt("#a8cb6a", true);
+                        rubble = world.MaterialAt("#80664c", false, "SurfaceDetail/fractured-stone");
+                    }
                     grip = TriasWorld.Group(view.transform, "First person arms");
                     status = null;
                     sendAt = pingAt = lastPacket = now;
@@ -615,12 +621,12 @@ namespace Trias.Native
             foreach (var item in frame["projectiles"].Items)
             {
                 int id = item[0].Int;
-                bool pulse = item[1].Text == "rift";
+                string kind = item[1].Text;
                 Vector3 target = new Vector3(item[2].Float, item[3].Float, item[4].Float);
-                if (item[1].Text == "grenade") HintAtGrenade(target);
+                if (kind == "grenade") HintAtGrenade(target);
                 if (!projectiles.TryGetValue(id, out var art))
                 {
-                    art = AcquireProjectile(pulse, target, item[6].Bool);
+                    art = AcquireProjectile(kind, target, item[6].Bool);
                     projectiles.Add(id, art);
                 }
                 art.Goal = target;
@@ -634,44 +640,53 @@ namespace Trias.Native
                 projectiles.Remove(id);
                 art.Mesh.gameObject.SetActive(false);
                 art.Trail.Clear();
-                var pool = art.Rift ? riftReserve : grenadeReserve;
+                var pool = art.Grenade ? grenadeReserve : riftReserve;
                 if (pool.Count < 8) pool.Push(art);
                 else Destroy(art.Mesh.gameObject);
             }
         }
 
-        ProjectileArt AcquireProjectile(bool rift, Vector3 at, bool alternate)
+        ProjectileArt AcquireProjectile(string kind, Vector3 at, bool alternate)
         {
-            var pool = rift ? riftReserve : grenadeReserve;
+            bool isGrenade = kind == "grenade";
+            var pool = isGrenade ? grenadeReserve : riftReserve;
             if (pool.TryPop(out var cached))
             {
                 cached.Mesh.position = at;
                 cached.Goal = at;
                 cached.Mesh.gameObject.SetActive(true);
                 cached.Trail.Clear();
-                ShapeProjectile(cached, alternate);
+                ShapeProjectile(cached, kind, alternate);
                 return cached;
             }
-            var mesh = TriasWorld.Part(world.Actors, rift ? orb : grenade, at, Vector3.one * (rift ? .43f : .24f), PrimitiveType.Sphere);
+            var mesh = TriasWorld.Part(world.Actors, isGrenade ? grenade : orb, at, Vector3.one, PrimitiveType.Sphere);
             var trail = mesh.gameObject.AddComponent<TrailRenderer>();
             trail.sharedMaterial = effects.tracerMaterial;
             trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            trail.time = rift ? .19f : .095f;
             trail.minVertexDistance = .18f;
             trail.endWidth = 0;
-            var art = new ProjectileArt { Mesh = mesh, Trail = trail, Goal = at, Rift = rift };
-            ShapeProjectile(art, alternate);
+            var art = new ProjectileArt { Mesh = mesh, Trail = trail, Goal = at, Grenade = isGrenade, Surface = mesh.GetComponent<Renderer>() };
+            ShapeProjectile(art, kind, alternate);
             return art;
         }
 
-        static void ShapeProjectile(ProjectileArt art, bool alternate)
+        void ShapeProjectile(ProjectileArt art, string kind, bool alternate)
         {
-            Color tint = Catalog.Tint(alternate ? "#ffad89" : art.Rift ? "#fe85d0" : "#ffb863");
+            var (paint, hex, size, width, trailTime) = kind switch
+            {
+                "grenade" => (grenade, "#ffb863", .24f, .06f, .095f),
+                "spore" => (spores ?? orb, "#bad96e", .30f, .14f, .29f),
+                "rubble" => (rubble ?? grenade, "#c59b72", .43f, .08f, .17f),
+                _ => (orb, alternate ? "#ffad89" : "#fe85d0", alternate ? .64f : .43f, alternate ? .42f : .27f, .19f)
+            };
+            art.Surface.sharedMaterial = paint;
+            Color tint = Catalog.Tint(hex);
             art.Trail.startColor = tint;
             tint.a = 0;
             art.Trail.endColor = tint;
-            art.Trail.startWidth = alternate ? .42f : art.Rift ? .27f : .06f;
-            art.Mesh.localScale = Vector3.one * (alternate ? .64f : art.Rift ? .43f : .24f);
+            art.Trail.startWidth = width;
+            art.Trail.time = trailTime;
+            art.Mesh.localScale = Vector3.one * size;
         }
 
         void GameEvent(WireValue evt, float now)
@@ -680,7 +695,7 @@ namespace Trias.Native
             string key = evt["weapon"].Text ?? "pulse";
             string actorId = evt["id"].Text;
             bool local = actorId == identity;
-            if (own[6].Int <= 0 && !local && (type is "shot" or "tower-shot" or "burst" or "movement" or "pickup" or "echo-recall" or "intercept") &&
+            if (own[6].Int <= 0 && !local && (type is "shot" or "tower-shot" or "burst" or "movement" or "pickup" or "echo-recall" or "intercept" or "horde-windup" or "horde-release" or "horde-impact") &&
                 (actorId == null || !pilots.TryGetValue(actorId,out var sourcePilot) || !SpectatorAlly(sourcePilot))) return;
             switch (type)
             {
@@ -727,6 +742,18 @@ namespace Trias.Native
                     break;
                 case "built":
                     effects.Pickup(At(evt["position"]), Catalog.Tint("#c3fa83"), false);
+                    break;
+                case "horde-windup":
+                    if (actorId != null && pilots.TryGetValue(actorId, out var infected))
+                        infected.Windup(now, evt["duration"].Float);
+                    effects.InfectedAttack(At(evt["from"]) + Vector3.up, evt["attack"].Text, "windup", visualEffects);
+                    break;
+                case "horde-release":
+                    effects.InfectedAttack(At(evt["from"]), evt["attack"].Text, "release", visualEffects);
+                    break;
+                case "horde-impact":
+                    effects.InfectedAttack(At(evt["position"]), evt["attack"].Text, "impact", visualEffects);
+                    if (evt["objective"].Bool) coreFlash = 1;
                     break;
                 case "tower-shot":
                     effects.Shot(At(evt["from"]), At(evt["position"]), true, false, Catalog.Tint("#99f8ff"), "arc");
@@ -824,13 +851,18 @@ namespace Trias.Native
                     if (mine && own[6].Int <= 0)
                     {
                         killer = evt["attacker"].Text;
-                        killerWeapon = Catalog.Find(catalog.weapons,key)?.label;
+                        killerWeapon = key switch
+                        {
+                            "claw" => "Úder nakaženého", "spore" => "Plivanec", "rubble" => "Troska",
+                            _ => Catalog.Find(catalog.weapons,key)?.label
+                        };
                         deathReplayLength = Mathf.Min(1.85f, own[29].Float);
                         replayUntil = now + deathReplayLength;
                         deploymentUntil = 0;
                         replayOrigin = At(body["from"]);
                         replayPoint = evt["impact"].Count == 3 ? At(evt["impact"]) : spot + Vector3.up;
-                        effects.Shot(replayOrigin, replayPoint, true, false, Catalog.Tint(Catalog.Find(catalog.weapons, key)?.color), key, false);
+                        if (key is not ("claw" or "spore" or "rubble"))
+                            effects.Shot(replayOrigin, replayPoint, true, false, ShotTint(key), key, false);
                     }
                     break;
             }

@@ -36,6 +36,7 @@ namespace Trias.Native
     {
         internal readonly Transform Root;
         readonly Transform body, head, left, right, weapon;
+        readonly HordeBody infected;
         readonly Animation locomotion;
         readonly AnimationState runCycle;
         readonly PilotArm leftArm, rightArm;
@@ -60,7 +61,12 @@ namespace Trias.Native
         {
             world = w; Id = id; accent = shade;
             Root = TriasWorld.Group(w.Actors, player[1].Text);
-            body = TriasWorld.Group(Root, "Armor");
+            body = TriasWorld.Group(Root, "Body");
+            if (player[31].Text is string hordeType && player[9].Text == null)
+            {
+                infected = new HordeBody(w, body, hordeType, player[4].Int);
+                return;
+            }
             string kit = player[5].Text;
             float width = kit == "bulwark" ? .64f : kit == "wraith" ? .42f : .53f;
             var shell = kit == "wraith" ? w.Dark : kit == "kestrel" ? w.Steel : w.White;
@@ -137,6 +143,7 @@ namespace Trias.Native
             if ((player[2].Int & 64) != 0 && (Row == null || (Row[2].Int & 64) == 0))
                 reloadSpan = Mathf.Max(.1f, player[30].Float);
             Row = player;
+            if (infected != null) return;
             string key = player[9].Text ?? "pulse";
             if (key != Weapon)
             {
@@ -205,6 +212,11 @@ namespace Trias.Native
                 float distance = new Vector2(Position.x - old.x, Position.z - old.z).magnitude;
                 gait = Mathf.Repeat(gait + Mathf.Min(distance, 10.6f * dt) / (stance < .8f ? 1.8f : 3.2f) * (backward ? -1 : 1), 1);
             }
+            if (infected != null)
+            {
+                infected.Pose(now, paceShown, gait, row[4].Int, flinch);
+                return;
+            }
             if (locomotion != null)
             {
                 string next = !grounded ? "jump" : running ? "run" : "idle";
@@ -250,6 +262,7 @@ namespace Trias.Native
             leftArm.Reach(gun.TransformPoint(actions[Weapon].SupportGrip(handlingPose)), body.TransformPoint(-.46f, .94f, -.06f));
         }
 
+        internal void Windup(float now, float duration) => infected?.Windup(now, duration);
         internal void Fire(string key) => weaponKick = key == "rift" || key == "scatter" ? 11 : key == "arc" ? 4 : 7;
         internal void React(bool shieldBreak) => flinch = Mathf.Max(flinch, shieldBreak ? 7 : 3.2f);
 
@@ -283,12 +296,20 @@ namespace Trias.Native
             Local = local;
             Team = body["team"].Int;
             HordeEnemy = body["hordeType"].Text != null;
-            int faction = world.Mode != "ffa" && body["hordeType"].Text == null ? body["team"].Int : -1;
-            var suit = world.Kit.Pilot(Root, body["character"].Text ?? "vector", paint, faction, body["frame"].Text == "male", out var motion);
-            if (suit == null) { Object.Destroy(Root.gameObject); return; }
+            if (HordeEnemy && body["weapon"].Text == null)
+            {
+                var infected = new HordeBody(world, Root, body["hordeType"].Text, body["slot"].Int);
+                infected.Pose(0, 0, 0, body["slot"].Int, 19);
+            }
+            else
+            {
+                int faction = world.Mode == "ffa" || HordeEnemy ? -1 : body["team"].Int;
+                var suit = world.Kit.Pilot(Root, body["character"].Text ?? "vector", paint, faction, body["frame"].Text == "male", out var motion);
+                if (suit == null) { Object.Destroy(Root.gameObject); return; }
+                if (motion["jump"] != null)
+                    motion["jump"].clip.SampleAnimation(motion.gameObject, motion["jump"].length * .30f);
+            }
             Visible = true;
-            if (motion["jump"] != null)
-                motion["jump"].clip.SampleAnimation(motion.gameObject, motion["jump"].length * .30f);
             Vector3 from = new Vector3(body["from"][0].Float, body["from"][1].Float, body["from"][2].Float);
             var push = Vector3.ProjectOnPlane(feet - from, Vector3.up).normalized;
             velocity = Vector3.ClampMagnitude(new Vector3(body["vx"].Float * .36f, 0, body["vz"].Float * .36f) + push * 2.8f, 5);

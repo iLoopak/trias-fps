@@ -504,6 +504,10 @@ export class Match {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const projectile = this.projectiles[i];
       const { owner, direction, position, weapon } = projectile;
+      if (projectile.hordeAttack) {
+        if (this.horde.advanceShot(projectile, now)) this.projectiles.splice(i, 1);
+        continue;
+      }
       if (this.players.get(owner.id) !== owner) {
         this.projectiles.splice(i, 1);
         continue;
@@ -751,6 +755,10 @@ export class Match {
         if (signal) {
           this.events.push({ type: 'movement',id: player.id,action: signal,position: [player.x,player.y,player.z],team: player.team });
           botSound(this,player,{ x: player.x,y: player.y + .6,z: player.z },now,signal === 'step' ? 9 : 13);
+        }
+        if (player.hordeType) {
+          this.clearRequests(player);
+          continue;
         }
         const switchTo = input.weapon ?? player.weaponRequest;
         if (switchTo) this.selectWeapon(player, switchTo, now);

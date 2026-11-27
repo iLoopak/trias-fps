@@ -68,7 +68,7 @@ Všechny čtyři balíčky mají licenci CC0. Původní licenční soubory jsou 
 
 ## Obrana jádra
 
-V lobby vyber **HORDA**. Až čtyři piloti spolu brání jádro na Relay Station během osmi vln. Lovci sprintují do boje zblízka, střelci kryjí nástup, drtiči ohrožují jádro silnými údery a strážci míří z dálky. Mezi vlnami má posádka čas přeskupit se. V průběhu zápasu přibývá munice, zbraně, granáty, štíty a Overcharge. Výhra vyžaduje ubránit jádro do konce osmé vlny.
+V lobby vyber **HORDA**. Až čtyři piloti spolu brání jádro na Relay Station během osmi vln. Nakažení se snaží dostat k jádru. Běžní nakažení a drtiči útočí zblízka holýma rukama. Od třetí vlny se objevuje plivač a od páté vrhač trosek. Každý útok má čitelný nápřah. Úderu lze uhnout a plivanec nebo trosku zastaví kryt. Mezi vlnami má posádka čas přeskupit se. V průběhu zápasu přibývá munice, zbraně, granáty, štíty a Overcharge. Výhra vyžaduje ubránit jádro do konce osmé vlny.
 
 Během přípravy stiskni **B**. Klávesou **1** vybereš barikádu za 30 šrotu a **2** automatickou věž za 65. Namiř na volné stavební místo a klikni levým tlačítkem. Posádka začíná se 40 kusy šrotu a další získává za vyřazené nepřátele. Postavená obrana přetrvává mezi vlnami a nepřátelé ji mohou zničit. Modely obrany využívají bedny a blaster z Kenney Blaster Kit.
 

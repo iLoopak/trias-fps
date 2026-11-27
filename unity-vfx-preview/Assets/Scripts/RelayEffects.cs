@@ -41,6 +41,7 @@ namespace Trias.Preview
         float ambienceGain, rhythmLevel, rhythmTarget;
         AudioClip pulseCue, riftCue, arrivalCue, reloadCue, foot, hurtCue, confirm, shield, kill, waveCue, clearCue, menuClick, landing;
         AudioClip focusedCue, riftShot, shieldBreak, dryClick, equipCue, soil, water, thruster, dodge, airJump, pad, grenadeBlast;
+        AudioClip infectedGrowl, infectedSpit, infectedStrike;
         AudioClip phaseForm, phaseFire, phaseFade, phaseRupture, nearMissCue, shieldReturnCue;
         AudioClip menuBack, menuInvalid, menuDeploy, menuResult;
         readonly AudioClip[] factionEntry = new AudioClip[3];
@@ -129,6 +130,9 @@ namespace Trias.Preview
             confirm = MatchSound.Mechanism("Hit telemetry", .083f, 181, .08f, .61f);
             shield = MatchSound.Mechanism("Shield interrupted", .126f, 242, .22f, .76f);
             kill = MatchSound.Mechanism("Elimination confirmed", .166f, 106, .09f, .66f, true);
+            infectedGrowl = MatchSound.Foley("Infected growl", .44f, 46, 183);
+            infectedSpit = MatchSound.Discharge("Corrosive spit", .23f, 92, 750, .52f);
+            infectedStrike = MatchSound.Foley("Infected strike", .23f, 51, 178);
             waveCue = Trias.Preview.MatchSound.Wave("Horde inbound", true);
             clearCue = Trias.Preview.MatchSound.Wave("Area clear", false);
             menuClick = MatchSound.Foley("Console contact", .06f, 490, 1650);
@@ -395,6 +399,25 @@ namespace Trias.Preview
                 boots.PlayOneShot(clip, gain);
             }
             else Play(clip, position, gain, false, pitch);
+        }
+
+        internal void InfectedAttack(Vector3 at, string variant, string stage, float intensity)
+        {
+            bool spit = variant == "spitter", stone = variant == "thrower";
+            if (stage == "windup")
+            {
+                Play(infectedGrowl, at, .37f, false, spit ? 1.24f : stone || variant == "crusher" ? .79f : 1);
+                return;
+            }
+            if (stage == "release")
+            {
+                if (spit) Play(infectedSpit, at, .39f);
+                return;
+            }
+            Play(spit ? infectedSpit : infectedStrike, at, spit ? .39f : .49f, false, spit ? .83f : 1);
+            if (intensity > .11f)
+                Emit(impact, at, Native.Catalog.Tint(spit ? "#b0c479" : stone ? "#baa180" : "#e4c4a4"),
+                    Mathf.CeilToInt((spit || stone ? 11 : 6) * intensity), spit ? 1.05f : .73f);
         }
 
         public void DistantMuzzle(Vector3 at, Color tint, float intensity)

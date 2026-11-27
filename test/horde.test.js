@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../match.js';
-import { PILOT_HP, TICK } from '../public/rules.js';
+import { packCover, PILOT_HP, TICK } from '../public/rules.js';
 
 function enter(match, id) {
   const peer = { id, readyState: 0 };
@@ -25,6 +25,8 @@ test('Horde puts four human defenders on one team and scales and rewards eight w
     assert.ok(active.length <= 8);
     for (const enemy of active) {
       variants.add(enemy.hordeType);
+      assert.equal(enemy.weapon, null);
+      assert.deepEqual(enemy.loadout, {});
       assert.equal(match.hostile(defenders[0], enemy), true);
       if (active.length > 1) assert.equal(match.hostile(enemy, active.find(other => other !== enemy)), false);
       if (now - enemy.safeUntil > 1.1) {
@@ -33,7 +35,7 @@ test('Horde puts four human defenders on one team and scales and rewards eight w
       }
     }
   }
-  assert.deepEqual(variants, new Set(['runner', 'striker', 'crusher', 'sentinel']));
+  assert.deepEqual(variants, new Set(['runner', 'spitter', 'crusher', 'thrower']));
   assert.equal(match.horde.wave, 8);
   assert.deepEqual(match.winner, { label: 'Jádro ubráněno' });
   assert.ok(defenders.every(pilot => pilot.loadout.rift?.reserve > 0));
@@ -71,7 +73,9 @@ test('building spends shared combat salvage once, adds cover and clears it on de
   const enemy = horde.alive[0];
   Object.assign(enemy, { x, y: 0, z: z + 1.5 });
   horde.input(enemy, 3);
-  assert.ok(center.hp < center.maxHp, 'enemies attack nearby defenses');
+  assert.equal(center.hp, center.maxHp, 'wind-up gives time to react');
+  horde.input(enemy, 3.4);
+  assert.ok(center.hp < center.maxHp, 'enemies claw nearby defenses');
   match.damage(pilot, enemy, 1000, 3, pilot, 'pulse');
   assert.equal(horde.scrap, 18);
   horde.damageStructure(center, center.hp);
@@ -101,4 +105,74 @@ test('a sentry shoots visible enemies, earns shared salvage and leaves allies al
   assert.equal(pilot.hp, PILOT_HP);
   assert.equal(horde.scrap, 8);
   assert.equal(match.events.some(event => event.type === 'tower-shot'), true);
+});
+
+test('zombies wind up a melee attack and a defender can dodge out of reach', () => {
+  const match = new Match('DODGE-WAVE', 'horde', false);
+  const defender = enter(match, 'Pilot');
+  const horde = match.horde;
+  horde.start(2);
+  horde.dispatch(2, []);
+  const zombie = horde.alive[0];
+  Object.assign(zombie, { x: 0, y: 0, z: 0 });
+  Object.assign(defender, { x: 0, y: 0, z: -1.2, safeUntil: 0 });
+  horde.layout = { ...horde.layout, cover: [] };
+  horde.input(zombie, 3);
+  assert.equal(match.events.at(-1).type, 'horde-windup');
+  assert.equal(defender.hp, PILOT_HP);
+  defender.x = 2.8;
+  horde.input(zombie, 3.4);
+  assert.equal(defender.hp, PILOT_HP);
+  defender.x = 0;
+  horde.input(zombie, 4.5);
+  horde.input(zombie, 4.9);
+  assert.equal(defender.hp, PILOT_HP - 17);
+  assert.equal(match.events.at(-1).weapon, 'claw');
+});
+
+test('rare unarmed ranged variants launch dodgeable attacks that can strike the core', () => {
+  for (const [variant, remaining, key] of [['spitter', 7, 'spore'], ['thrower', 9, 'rubble']]) {
+    const match = new Match('RANGED-WAVE', 'horde', false);
+    const defender = enter(match, 'Pilot');
+    const horde = match.horde;
+    const core = horde.core;
+    horde.wave = 5;
+    horde.remaining = remaining;
+    horde.dispatch(2, []);
+    const zombie = horde.alive[0];
+    assert.equal(zombie.hordeType, variant);
+    Object.assign(zombie, { x: core.x, y: 0, z: core.z + 7 });
+    Object.assign(defender, { x: core.x, y: 0, z: core.z + 3 });
+    horde.layout = { ...horde.layout, cover: [] };
+    horde.input(zombie, 3);
+    horde.input(zombie, 3.9);
+    assert.equal(match.projectiles[0]?.weapon, key);
+    assert.equal(match.projectiles[0]?.hordeAttack, true);
+    defender.x += 3;
+    for (let i = 0; i < 50 && match.projectiles.length; i++) match.updateProjectiles(3.9 + i * TICK);
+    assert(core.hp < core.maxHp, variant);
+    assert.equal(defender.hp, PILOT_HP, variant);
+  }
+});
+
+test('solid cover blocks airborne infected attacks even if the core was visible at launch', () => {
+  const match = new Match('COVER-WAVE', 'horde', false);
+  const defender = enter(match, 'Pilot');
+  const horde = match.horde;
+  const core = horde.core;
+  horde.wave = 5;
+  horde.remaining = 9;
+  horde.dispatch(2, []);
+  const zombie = horde.alive[0];
+  Object.assign(zombie, { x: core.x, y: 0, z: core.z + 7 });
+  Object.assign(defender, { x: core.x - 6, y: 0, z: core.z });
+  horde.layout = { ...horde.layout, cover: [] };
+  horde.input(zombie, 3);
+  horde.input(zombie, 3.9);
+  assert.equal(match.projectiles[0]?.weapon, 'rubble');
+  horde.layout.cover = packCover([{ x: core.x, z: core.z + 3.5, w: 4, d: .4, h: 4 }]);
+  for (let i = 0; i < 50 && match.projectiles.length; i++) match.updateProjectiles(3.9 + i * TICK);
+  assert.equal(core.hp, core.maxHp);
+  assert.equal(match.events.at(-1).type, 'horde-impact');
+  assert.equal(match.events.at(-1).objective, false);
 });
