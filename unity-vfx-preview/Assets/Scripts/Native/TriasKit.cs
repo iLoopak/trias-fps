@@ -9,26 +9,22 @@ namespace Trias.Native
     {
         const string Directory = "TRIAS/Kit/";
         readonly Dictionary<string, GameObject> meshes = new Dictionary<string, GameObject>();
-        readonly Dictionary<string, Material> suits = new Dictionary<string, Material>();
+        readonly TriasWorld world;
         readonly Dictionary<string, Material> landscape = new Dictionary<string, Material>();
-        readonly Material blaster;
+        readonly Material crateFinish;
         readonly AnimationClip idle, run, jump;
+        readonly Dictionary<string, BlenderPilotSuit> pilotSuits = new();
+        BlenderArmory armory;
+        internal BlenderArmory Armory => armory ??= new BlenderArmory();
+        readonly Material[] pilotTeamPaint = new Material[3];
 
         internal TriasKit(TriasWorld world)
         {
-            blaster = world.MaterialAt("#cedaed");
-            blaster.mainTexture = Resources.Load<Texture2D>(Directory + "Weapons/colormap");
-            blaster.SetFloat("_Glossiness", .56f);
-            blaster.SetFloat("_Metallic", .30f);
-            var pilotKeys = new[] { "vector", "bulwark", "wraith", "kestrel" };
-            var paint = new[] { "#abc5d7", "#d3ac85", "#837b9c", "#97bb95" };
-            var skin = Resources.Load<Texture2D>(Directory + "Pilots/cyborgFemaleA");
-            for (int i = 0; i < pilotKeys.Length; i++)
-            {
-                var suit = world.MaterialAt(paint[i]);
-                suit.mainTexture = skin;
-                suits.Add(pilotKeys[i], suit);
-            }
+            this.world = world;
+            crateFinish = world.MaterialAt("#cedaed");
+            crateFinish.mainTexture = Resources.Load<Texture2D>(Directory + "Weapons/colormap");
+            crateFinish.SetFloat("_Glossiness", .56f);
+            crateFinish.SetFloat("_Metallic", .30f);
             idle = Clip("idle"); run = Clip("run"); jump = Clip("jump");
             landscape["leafsGreen"] = world.MaterialAt("#528b50");
             landscape["leafsDark"] = world.MaterialAt("#326e4e");
@@ -77,32 +73,6 @@ namespace Trias.Native
             return null;
         }
 
-        internal bool Gun(Transform parent, string weapon, Material accent)
-        {
-            (string file, float length) = weapon switch
-            {
-                "scatter" => ("blaster-l", .65f),
-                "lance" => ("blaster-f", .94f),
-                "arc" => ("blaster-p", .66f),
-                "rift" => ("blaster-a", .86f),
-                _ => ("blaster-d", .72f)
-            };
-            var item = Place(parent, "Weapons/" + file, Quaternion.Euler(0, 180, 0), out var bounds);
-            if (item == null) return false;
-            float scale = length / Mathf.Max(.001f, bounds.size.z);
-            item.localScale = Vector3.one * scale;
-            item.localPosition = new Vector3(-bounds.center.x * scale, -bounds.center.y * scale - .021f, length * .12f - bounds.center.z * scale);
-            foreach (var renderer in item.GetComponentsInChildren<Renderer>())
-                renderer.sharedMaterial = blaster;
-            for (int side = -1; side <= 1; side += 2)
-            {
-                var rail = TriasWorld.Part(parent, accent, new Vector3(side * (bounds.extents.x * scale + .002f), .02f, .12f),
-                    new Vector3(.009f, .012f, length * .24f));
-                rail.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            }
-            return true;
-        }
-
         internal bool Nature(Transform parent, string name, Vector3 size, Vector3 at, float yaw = 0)
         {
             var item = Sized(parent, "Nature/" + name, size, at, yaw);
@@ -121,7 +91,7 @@ namespace Trias.Native
         {
             var item = Sized(parent, wide ? "Weapons/crate-wide" : "Weapons/crate-medium", size, Vector3.zero, 0);
             if (item == null) return false;
-            foreach (var renderer in item.GetComponentsInChildren<Renderer>()) renderer.sharedMaterial = blaster;
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>()) renderer.sharedMaterial = crateFinish;
             return true;
         }
 
@@ -174,7 +144,7 @@ namespace Trias.Native
             return item;
         }
 
-        internal Transform Pilot(Transform parent, string kit, out Animation motion)
+        internal Transform Pilot(Transform parent, string kit, Material accent, int faction, bool male, out Animation motion)
         {
             motion = null;
             var item = Place(parent, "Pilots/characterMedium", Quaternion.identity, out _);
@@ -183,11 +153,6 @@ namespace Trias.Native
             var renderers = item.GetComponentsInChildren<SkinnedMeshRenderer>();
             if (renderers.Length == 0) { Object.Destroy(item.gameObject); return null; }
             if (idle != null) idle.SampleAnimation(rig, 0);
-            foreach (var renderer in renderers)
-            {
-                renderer.sharedMaterial = suits.TryGetValue(kit, out var paint) ? paint : suits["vector"];
-                renderer.updateWhenOffscreen = true;
-            }
             // The imported mesh and skeleton use different unit transforms. Size the
             // posed character from feet to head in the wrapper's coordinate space.
             float bottom = float.PositiveInfinity, top = float.NegativeInfinity;
@@ -199,12 +164,19 @@ namespace Trias.Native
             }
             if (top <= bottom) { Object.Destroy(item.gameObject); return null; }
             float height = kit == "bulwark" ? 1.77f : kit == "wraith" ? 1.62f : 1.68f;
-            float scale = height * .92f / (top - bottom);
-            item.localScale = new Vector3(scale * (kit == "bulwark" ? 1.22f : kit == "wraith" ? .90f : 1f), scale, scale);
+            float scale = height * (male ? .963f : .92f) / (top - bottom);
+            item.localScale = new Vector3(scale * (kit == "bulwark" ? 1.23f : kit == "wraith" ? .87f : 1f) * (male ? 1.045f : 1f), scale, scale);
             item.localPosition = Vector3.down * bottom * scale;
+            foreach (var renderer in renderers) renderer.enabled = false;
+            string suitKey = kit ?? "vector";
+            if (!pilotSuits.TryGetValue(suitKey,out var suit))
+                pilotSuits[suitKey] = suit = new BlenderPilotSuit(suitKey,pilotTeamPaint);
+            if (!suit.Build(world,parent,rig.transform,accent,faction,male))
+                PilotSuit.Build(world, parent, rig.transform, kit, accent, faction, male);
             var legacy = rig.GetComponent<Animation>();
             motion = legacy != null ? legacy : rig.AddComponent<Animation>();
             motion.playAutomatically = false;
+            motion.cullingType = AnimationCullingType.AlwaysAnimate;
             if (idle != null) { motion.AddClip(idle, "idle"); motion["idle"].wrapMode = WrapMode.Loop; }
             if (run != null) { motion.AddClip(run, "run"); motion["run"].wrapMode = WrapMode.Loop; }
             if (jump != null) { motion.AddClip(jump, "jump"); motion["jump"].wrapMode = WrapMode.ClampForever; }

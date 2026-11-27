@@ -6,6 +6,8 @@ namespace Trias.Native
     [Serializable] internal sealed class Catalog
     {
         public ArenaSpec[] maps;
+        public ArenaSpec relayService, relayHorde;
+        public string layoutSet;
         public Choice[] modes, pilots, weapons, powerups, teams;
         public string[] ffaColors;
         internal static Color Tint(string value) => ColorUtility.TryParseHtmlString(value, out var color) ? color : Color.white;
@@ -14,7 +16,7 @@ namespace Trias.Native
 
     [Serializable] internal class Site
     {
-        public float x, y, z, radius, angle, yaw;
+        public float x, y, z, radius, angle, yaw, height;
         public string label, type, kind;
         public int team, sector;
         internal Vector3 Position => new Vector3(x, y, z);
@@ -23,7 +25,25 @@ namespace Trias.Native
     [Serializable] internal sealed class Choice
     {
         public string id, label, name, description, color, weapon, @short;
-        public float angle;
+        public float angle, reload;
+        public int magazine;
+        public ShotSpec shot, alt;
+    }
+
+    [Serializable] internal sealed class ShotSpec
+    {
+        public string label;
+        public float range, interval, penetration;
+        public int damage, cost;
+        public float[] pattern;
+        public bool horizontal;
+        public ShotProjectile projectile;
+        internal int Cost => Mathf.Max(1, cost);
+    }
+
+    [Serializable] internal sealed class ShotProjectile
+    {
+        public float speed, radius, splash;
     }
 
     [Serializable] internal sealed class ArenaSpec
@@ -34,22 +54,30 @@ namespace Trias.Native
             copy.cover = boxes;
             return copy;
         }
-        public string id, label, description;
-        public float length, edgeRadius, roadRadius;
+        public string id, label, description, revision;
+        public float length, edgeRadius, roadRadius, islandScale, fallY;
+        public bool walkways;
+        internal bool Shaft => fallY < 0;
+        internal bool Walkways => Shaft || walkways;
+        internal float IslandScale => islandScale > 0 ? islandScale : 1;
         public BoxSpec[] cover;
         public PadSpec[] launchPads;
-        public Site[] pickups, bases, points, turrets, repairs, river, creek, trail;
+        public Site[] pickups, bases, points, turrets, repairs, river, creek, trail, crossings;
         public HeightData terrain;
         public SiegeSpec siege;
+        public HazardSpec hazard;
     }
+
+    [Serializable] internal sealed class HazardSpec : Site { public float w, d; }
 
     [Serializable] internal sealed class BoxSpec : Site
     {
         public float w, d, h, bottom, ground;
-        public bool gantry, terrace, relay;
-        public string nature;
+        public bool gantry, terrace, relay, strata;
+        public string nature, profile, structure;
         internal bool Overlaps(float px, float pz, float radius)
         {
+            if (structure == "stair") radius = Mathf.Min(radius,.16f);
             float dx = px - x, dz = pz - z, cos = Mathf.Cos(angle), sin = Mathf.Sin(angle);
             return Mathf.Abs(dx * cos - dz * sin) < w * 0.5f + radius
                 && Mathf.Abs(dx * sin + dz * cos) < d * 0.5f + radius;

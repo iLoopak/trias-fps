@@ -1,0 +1,3309 @@
+{
+  "schema": 1,
+  "blender": "4.5.17 LTS",
+  "units": "metres",
+  "source": "tools/blender/build-environment.py + trias_environment_forms.py + trias_mesh.py",
+  "provenance": "Original TRIAS procedural geometry and studio materials. No external inputs.",
+  "collections": {
+    "Architecture": {
+      "assets": [
+        {
+          "id": "WallStandard",
+          "family": "Wall",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "WallStandard",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.316
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.316
+                ]
+              ],
+              "triangles": 772,
+              "vertices": 420,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 17
+            },
+            {
+              "mount": "WallStandard_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.31
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.31
+                ]
+              ],
+              "triangles": 228,
+              "vertices": 132,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 9
+            }
+          ]
+        },
+        {
+          "id": "WallReinforced",
+          "family": "Wall",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "WallReinforced",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.316
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.316
+                ]
+              ],
+              "triangles": 772,
+              "vertices": 420,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Alloy",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 17
+            },
+            {
+              "mount": "WallReinforced_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.31
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.31
+                ]
+              ],
+              "triangles": 228,
+              "vertices": 132,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 9
+            }
+          ]
+        },
+        {
+          "id": "WallAngled",
+          "family": "Wall",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "WallAngled",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.316
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.316
+                ]
+              ],
+              "triangles": 612,
+              "vertices": 336,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 15
+            },
+            {
+              "mount": "WallAngled_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.31
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.31
+                ]
+              ],
+              "triangles": 180,
+              "vertices": 104,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            }
+          ]
+        },
+        {
+          "id": "WallRecessed",
+          "family": "Wall",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "WallRecessed",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.316
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.316
+                ]
+              ],
+              "triangles": 884,
+              "vertices": 476,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 17
+            },
+            {
+              "mount": "WallRecessed_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.31
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.31
+                ]
+              ],
+              "triangles": 228,
+              "vertices": 132,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 9
+            }
+          ]
+        },
+        {
+          "id": "WallCore",
+          "family": "Wall",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "WallCore",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.316
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.316
+                ]
+              ],
+              "triangles": 964,
+              "vertices": 532,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 25
+            },
+            {
+              "mount": "WallCore_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.31
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.31
+                ]
+              ],
+              "triangles": 420,
+              "vertices": 244,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 17
+            }
+          ]
+        },
+        {
+          "id": "WallPhase",
+          "family": "Wall",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "WallPhase",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.316
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.316
+                ]
+              ],
+              "triangles": 692,
+              "vertices": 384,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 19
+            },
+            {
+              "mount": "WallPhase_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.31
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.31
+                ]
+              ],
+              "triangles": 236,
+              "vertices": 140,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 11
+            }
+          ]
+        },
+        {
+          "id": "WallEnd",
+          "family": "Wall",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "WallEnd",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.316
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.316
+                ]
+              ],
+              "triangles": 772,
+              "vertices": 420,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 17
+            },
+            {
+              "mount": "WallEnd_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.31
+                ],
+                [
+                  1.6,
+                  3.0,
+                  0.31
+                ]
+              ],
+              "triangles": 228,
+              "vertices": 132,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 9
+            }
+          ]
+        },
+        {
+          "id": "OpeningDoor",
+          "family": "Opening",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "OpeningDoor",
+              "boundsUnityXYZ": [
+                [
+                  -1.35,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.35,
+                  2.85,
+                  0.33
+                ]
+              ],
+              "triangles": 608,
+              "vertices": 320,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Amber"
+              ],
+              "authoredShells": 8
+            },
+            {
+              "mount": "OpeningDoor_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.35,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.35,
+                  2.85,
+                  0.33
+                ]
+              ],
+              "triangles": 168,
+              "vertices": 96,
+              "slots": [
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "OpeningReinforced",
+          "family": "Opening",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "OpeningReinforced",
+              "boundsUnityXYZ": [
+                [
+                  -1.5,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.5,
+                  3.0,
+                  0.33
+                ]
+              ],
+              "triangles": 608,
+              "vertices": 320,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Amber"
+              ],
+              "authoredShells": 8
+            },
+            {
+              "mount": "OpeningReinforced_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.5,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.5,
+                  3.0,
+                  0.33
+                ]
+              ],
+              "triangles": 168,
+              "vertices": 96,
+              "slots": [
+                "Graphite",
+                "Refractory"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "OpeningMaintenance",
+          "family": "Opening",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "OpeningMaintenance",
+              "boundsUnityXYZ": [
+                [
+                  -1.0,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.0,
+                  2.5,
+                  0.33
+                ]
+              ],
+              "triangles": 608,
+              "vertices": 320,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Amber"
+              ],
+              "authoredShells": 8
+            },
+            {
+              "mount": "OpeningMaintenance_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.0,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.0,
+                  2.5,
+                  0.33
+                ]
+              ],
+              "triangles": 168,
+              "vertices": 96,
+              "slots": [
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "OpeningMachinery",
+          "family": "Opening",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "OpeningMachinery",
+              "boundsUnityXYZ": [
+                [
+                  -2.2,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  2.2,
+                  3.8,
+                  0.33
+                ]
+              ],
+              "triangles": 608,
+              "vertices": 320,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Amber"
+              ],
+              "authoredShells": 8
+            },
+            {
+              "mount": "OpeningMachinery_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -2.2,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  2.2,
+                  3.8,
+                  0.33
+                ]
+              ],
+              "triangles": 168,
+              "vertices": 96,
+              "slots": [
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "OpeningPhase",
+          "family": "Opening",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "OpeningPhase",
+              "boundsUnityXYZ": [
+                [
+                  -1.625,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.625,
+                  3.2,
+                  0.33
+                ]
+              ],
+              "triangles": 608,
+              "vertices": 320,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 8
+            },
+            {
+              "mount": "OpeningPhase_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.625,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.625,
+                  3.2,
+                  0.33
+                ]
+              ],
+              "triangles": 224,
+              "vertices": 128,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 8
+            }
+          ]
+        },
+        {
+          "id": "OpeningWindow",
+          "family": "Opening",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "OpeningWindow",
+              "boundsUnityXYZ": [
+                [
+                  -1.4,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.4,
+                  1.25,
+                  0.33
+                ]
+              ],
+              "triangles": 664,
+              "vertices": 352,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Amber",
+                "Secondary",
+                "Alloy"
+              ],
+              "authoredShells": 10
+            },
+            {
+              "mount": "OpeningWindow_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.4,
+                  0.0,
+                  -0.33
+                ],
+                [
+                  1.4,
+                  1.25,
+                  0.33
+                ]
+              ],
+              "triangles": 224,
+              "vertices": 128,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary",
+                "Alloy"
+              ],
+              "authoredShells": 8
+            }
+          ]
+        },
+        {
+          "id": "OpeningCorner",
+          "family": "Opening",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "OpeningCorner",
+              "boundsUnityXYZ": [
+                [
+                  -1.25,
+                  0.0,
+                  -1.79
+                ],
+                [
+                  1.36,
+                  2.9,
+                  0.316
+                ]
+              ],
+              "triangles": 336,
+              "vertices": 180,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy"
+              ],
+              "authoredShells": 6
+            },
+            {
+              "mount": "OpeningCorner_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.25,
+                  0.0,
+                  -1.79
+                ],
+                [
+                  1.36,
+                  2.9,
+                  0.316
+                ]
+              ],
+              "triangles": 160,
+              "vertices": 92,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "SupportTapered",
+          "family": "Support",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "SupportTapered",
+              "boundsUnityXYZ": [
+                [
+                  -0.79,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.79,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 660,
+              "vertices": 344,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            },
+            {
+              "mount": "SupportTapered_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.79,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.79,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 212,
+              "vertices": 120,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            }
+          ]
+        },
+        {
+          "id": "SupportAngled",
+          "family": "Support",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "SupportAngled",
+              "boundsUnityXYZ": [
+                [
+                  -0.9285,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.9285,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 672,
+              "vertices": 350,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            },
+            {
+              "mount": "SupportAngled_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.93,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.93,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 212,
+              "vertices": 120,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            }
+          ]
+        },
+        {
+          "id": "SupportMechanical",
+          "family": "Support",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "SupportMechanical",
+              "boundsUnityXYZ": [
+                [
+                  -0.79,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.79,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 660,
+              "vertices": 344,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            },
+            {
+              "mount": "SupportMechanical_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.79,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.79,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 212,
+              "vertices": 120,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            }
+          ]
+        },
+        {
+          "id": "SupportPhase",
+          "family": "Support",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "SupportPhase",
+              "boundsUnityXYZ": [
+                [
+                  -0.92612,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.92612,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 1216,
+              "vertices": 638,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 15
+            },
+            {
+              "mount": "SupportPhase_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.93,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.93,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 404,
+              "vertices": 232,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 15
+            }
+          ]
+        },
+        {
+          "id": "SupportHeavy",
+          "family": "Support",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "SupportHeavy",
+              "boundsUnityXYZ": [
+                [
+                  -0.79,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.79,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 660,
+              "vertices": 344,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            },
+            {
+              "mount": "SupportHeavy_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.79,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.79,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 212,
+              "vertices": 120,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            }
+          ]
+        },
+        {
+          "id": "SupportBracket",
+          "family": "Support",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "SupportBracket",
+              "boundsUnityXYZ": [
+                [
+                  -0.80229,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.89119,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 240,
+              "vertices": 128,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 4
+            },
+            {
+              "mount": "SupportBracket_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.80229,
+                  0.0,
+                  -0.69
+                ],
+                [
+                  0.89119,
+                  3.2,
+                  0.69
+                ]
+              ],
+              "triangles": 112,
+              "vertices": 64,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 4
+            }
+          ]
+        },
+        {
+          "id": "CoverLow",
+          "family": "Cover",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "CoverLow",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.564
+                ],
+                [
+                  1.225,
+                  1.12,
+                  0.564
+                ]
+              ],
+              "triangles": 536,
+              "vertices": 288,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 10
+            },
+            {
+              "mount": "CoverLow_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.56
+                ],
+                [
+                  1.225,
+                  1.12,
+                  0.56
+                ]
+              ],
+              "triangles": 184,
+              "vertices": 104,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "CoverFull",
+          "family": "Cover",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "CoverFull",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.564
+                ],
+                [
+                  1.225,
+                  2.35,
+                  0.564
+                ]
+              ],
+              "triangles": 552,
+              "vertices": 296,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 10
+            },
+            {
+              "mount": "CoverFull_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.56
+                ],
+                [
+                  1.225,
+                  2.35,
+                  0.56
+                ]
+              ],
+              "triangles": 184,
+              "vertices": 104,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "CoverReinforced",
+          "family": "Cover",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "CoverReinforced",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.564
+                ],
+                [
+                  1.225,
+                  1.52,
+                  0.564
+                ]
+              ],
+              "triangles": 544,
+              "vertices": 292,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Refractory",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 10
+            },
+            {
+              "mount": "CoverReinforced_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.56
+                ],
+                [
+                  1.225,
+                  1.52,
+                  0.56
+                ]
+              ],
+              "triangles": 184,
+              "vertices": 104,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Refractory",
+                "Secondary"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "CoverEquipment",
+          "family": "Cover",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "CoverEquipment",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.564
+                ],
+                [
+                  1.225,
+                  1.48,
+                  0.564
+                ]
+              ],
+              "triangles": 824,
+              "vertices": 448,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Amber"
+              ],
+              "authoredShells": 18
+            },
+            {
+              "mount": "CoverEquipment_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.56
+                ],
+                [
+                  1.225,
+                  1.48,
+                  0.56
+                ]
+              ],
+              "triangles": 376,
+              "vertices": 216,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic"
+              ],
+              "authoredShells": 14
+            }
+          ]
+        },
+        {
+          "id": "CoverCeramic",
+          "family": "Cover",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "CoverCeramic",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.564
+                ],
+                [
+                  1.225,
+                  1.44,
+                  0.564
+                ]
+              ],
+              "triangles": 544,
+              "vertices": 292,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 10
+            },
+            {
+              "mount": "CoverCeramic_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.56
+                ],
+                [
+                  1.225,
+                  1.44,
+                  0.56
+                ]
+              ],
+              "triangles": 184,
+              "vertices": 104,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "CoverPhase",
+          "family": "Cover",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "CoverPhase",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.564
+                ],
+                [
+                  1.225,
+                  1.36,
+                  0.564
+                ]
+              ],
+              "triangles": 592,
+              "vertices": 320,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Amber"
+              ],
+              "authoredShells": 12
+            },
+            {
+              "mount": "CoverPhase_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.56
+                ],
+                [
+                  1.225,
+                  1.36,
+                  0.56
+                ]
+              ],
+              "triangles": 192,
+              "vertices": 112,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic"
+              ],
+              "authoredShells": 8
+            }
+          ]
+        },
+        {
+          "id": "CoverWeathered",
+          "family": "Cover",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "CoverWeathered",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.564
+                ],
+                [
+                  1.225,
+                  1.34,
+                  0.564
+                ]
+              ],
+              "triangles": 592,
+              "vertices": 320,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 12
+            },
+            {
+              "mount": "CoverWeathered_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.225,
+                  0.0,
+                  -0.56
+                ],
+                [
+                  1.225,
+                  1.34,
+                  0.56
+                ]
+              ],
+              "triangles": 192,
+              "vertices": 112,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 8
+            }
+          ]
+        },
+        {
+          "id": "ContainerPressure",
+          "family": "Container",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "ContainerPressure",
+              "boundsUnityXYZ": [
+                [
+                  -0.93,
+                  0.0,
+                  -0.656
+                ],
+                [
+                  0.93,
+                  1.08,
+                  0.656
+                ]
+              ],
+              "triangles": 908,
+              "vertices": 492,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 19
+            },
+            {
+              "mount": "ContainerPressure_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.93,
+                  0.0,
+                  -0.656
+                ],
+                [
+                  0.93,
+                  1.08,
+                  0.656
+                ]
+              ],
+              "triangles": 476,
+              "vertices": 276,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Ceramic",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 19
+            }
+          ]
+        },
+        {
+          "id": "ContainerThermal",
+          "family": "Container",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "ContainerThermal",
+              "boundsUnityXYZ": [
+                [
+                  -0.93,
+                  0.0,
+                  -0.656
+                ],
+                [
+                  0.93,
+                  1.08,
+                  0.656
+                ]
+              ],
+              "triangles": 1380,
+              "vertices": 740,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Refractory",
+                "Amber"
+              ],
+              "authoredShells": 25
+            },
+            {
+              "mount": "ContainerThermal_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.93,
+                  0.0,
+                  -0.656
+                ],
+                [
+                  0.93,
+                  1.08,
+                  0.656
+                ]
+              ],
+              "triangles": 620,
+              "vertices": 360,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Refractory",
+                "Amber"
+              ],
+              "authoredShells": 25
+            }
+          ]
+        },
+        {
+          "id": "DeckWalkway",
+          "family": "Deck",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "DeckWalkway",
+              "boundsUnityXYZ": [
+                [
+                  -1.4,
+                  0.0,
+                  -2.0
+                ],
+                [
+                  1.4,
+                  0.54327,
+                  2.0
+                ]
+              ],
+              "triangles": 812,
+              "vertices": 432,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "DeckWalkway_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.4,
+                  0.0,
+                  -2.0
+                ],
+                [
+                  1.4,
+                  0.54327,
+                  2.0
+                ]
+              ],
+              "triangles": 308,
+              "vertices": 176,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 11
+            }
+          ]
+        },
+        {
+          "id": "DeckBridge",
+          "family": "Deck",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "DeckBridge",
+              "boundsUnityXYZ": [
+                [
+                  -2.8,
+                  0.0,
+                  -4.0
+                ],
+                [
+                  2.8,
+                  1.01347,
+                  4.0
+                ]
+              ],
+              "triangles": 812,
+              "vertices": 432,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "DeckBridge_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -2.8,
+                  0.0,
+                  -4.0
+                ],
+                [
+                  2.8,
+                  1.01347,
+                  4.0
+                ]
+              ],
+              "triangles": 308,
+              "vertices": 176,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 11
+            }
+          ]
+        },
+        {
+          "id": "DeckSuspended",
+          "family": "Deck",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "DeckSuspended",
+              "boundsUnityXYZ": [
+                [
+                  -1.675,
+                  0.0,
+                  -2.1
+                ],
+                [
+                  1.675,
+                  0.73678,
+                  2.1
+                ]
+              ],
+              "triangles": 812,
+              "vertices": 432,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "DeckSuspended_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.675,
+                  0.0,
+                  -2.1
+                ],
+                [
+                  1.675,
+                  0.73678,
+                  2.1
+                ]
+              ],
+              "triangles": 308,
+              "vertices": 176,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 11
+            }
+          ]
+        },
+        {
+          "id": "DeckEdge",
+          "family": "Deck",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "DeckEdge",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -0.5
+                ],
+                [
+                  1.6,
+                  0.58548,
+                  0.5
+                ]
+              ],
+              "triangles": 812,
+              "vertices": 432,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Secondary"
+              ],
+              "authoredShells": 13
+            }
+          ]
+        },
+        {
+          "id": "DeckExposed",
+          "family": "Deck",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "DeckExposed",
+              "boundsUnityXYZ": [
+                [
+                  -1.625,
+                  0.0,
+                  -2.0
+                ],
+                [
+                  1.625,
+                  0.92902,
+                  2.0
+                ]
+              ],
+              "triangles": 444,
+              "vertices": 240,
+              "slots": [
+                "Alloy",
+                "Graphite"
+              ],
+              "authoredShells": 9
+            },
+            {
+              "mount": "DeckExposed_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.625,
+                  0.0,
+                  -2.0
+                ],
+                [
+                  1.625,
+                  0.92902,
+                  2.0
+                ]
+              ],
+              "triangles": 196,
+              "vertices": 112,
+              "slots": [
+                "Alloy",
+                "Graphite"
+              ],
+              "authoredShells": 7
+            }
+          ]
+        },
+        {
+          "id": "DeckTread",
+          "family": "Deck",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "DeckTread",
+              "boundsUnityXYZ": [
+                [
+                  -1.4,
+                  0.0,
+                  -0.28
+                ],
+                [
+                  1.4,
+                  0.21,
+                  0.28
+                ]
+              ],
+              "triangles": 148,
+              "vertices": 80,
+              "slots": [
+                "Alloy",
+                "Secondary",
+                "Graphite"
+              ],
+              "authoredShells": 3
+            }
+          ]
+        },
+        {
+          "id": "DeckRamp",
+          "family": "Deck",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "DeckRamp",
+              "boundsUnityXYZ": [
+                [
+                  -1.4,
+                  0.0,
+                  -1.6
+                ],
+                [
+                  1.4,
+                  0.66151,
+                  1.6
+                ]
+              ],
+              "triangles": 84,
+              "vertices": 48,
+              "slots": [
+                "Alloy",
+                "Ceramic"
+              ],
+              "authoredShells": 3
+            }
+          ]
+        },
+        {
+          "id": "DeckFloor",
+          "family": "Deck",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "DeckFloor",
+              "boundsUnityXYZ": [
+                [
+                  -1.6,
+                  0.0,
+                  -1.4
+                ],
+                [
+                  1.6,
+                  0.045,
+                  1.4
+                ]
+              ],
+              "triangles": 140,
+              "vertices": 80,
+              "slots": [
+                "Graphite",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 5
+            }
+          ]
+        },
+        {
+          "id": "RailSwept",
+          "family": "Rail",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RailSwept",
+              "boundsUnityXYZ": [
+                [
+                  -1.5,
+                  0.0,
+                  -0.1
+                ],
+                [
+                  1.5,
+                  0.87,
+                  0.1
+                ]
+              ],
+              "triangles": 508,
+              "vertices": 272,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 9
+            },
+            {
+              "mount": "RailSwept_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.5,
+                  0.0,
+                  -0.1
+                ],
+                [
+                  1.5,
+                  0.87,
+                  0.1
+                ]
+              ],
+              "triangles": 252,
+              "vertices": 144,
+              "slots": [
+                "Alloy",
+                "Graphite",
+                "Ceramic"
+              ],
+              "authoredShells": 9
+            }
+          ]
+        },
+        {
+          "id": "MachineStabilizer",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineStabilizer",
+              "boundsUnityXYZ": [
+                [
+                  -1.20652,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.20652,
+                  1.97987,
+                  0.74
+                ]
+              ],
+              "triangles": 940,
+              "vertices": 496,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Signal",
+                "Amber"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "MachineStabilizer_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.20652,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.20652,
+                  1.97987,
+                  0.685
+                ]
+              ],
+              "triangles": 368,
+              "vertices": 208,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Signal"
+              ],
+              "authoredShells": 12
+            }
+          ]
+        },
+        {
+          "id": "MachineDistribution",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineDistribution",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.58,
+                  0.795
+                ]
+              ],
+              "triangles": 708,
+              "vertices": 380,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "MachineDistribution_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.58,
+                  0.795
+                ]
+              ],
+              "triangles": 360,
+              "vertices": 204,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 12
+            }
+          ]
+        },
+        {
+          "id": "MachineProcessor",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineProcessor",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.89,
+                  0.76763
+                ]
+              ],
+              "triangles": 748,
+              "vertices": 400,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Alloy",
+                "Amber"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "MachineProcessor_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.89,
+                  0.77
+                ]
+              ],
+              "triangles": 252,
+              "vertices": 144,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Alloy"
+              ],
+              "authoredShells": 9
+            }
+          ]
+        },
+        {
+          "id": "MachineCooling",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineCooling",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.73,
+                  0.74
+                ]
+              ],
+              "triangles": 748,
+              "vertices": 400,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Alloy",
+                "Amber"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "MachineCooling_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.73,
+                  0.69
+                ]
+              ],
+              "triangles": 252,
+              "vertices": 144,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Alloy"
+              ],
+              "authoredShells": 9
+            }
+          ]
+        },
+        {
+          "id": "MachineMaintenance",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineMaintenance",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.58,
+                  0.75512
+                ]
+              ],
+              "triangles": 608,
+              "vertices": 320,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 8
+            },
+            {
+              "mount": "MachineMaintenance_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.58,
+                  0.76
+                ]
+              ],
+              "triangles": 196,
+              "vertices": 112,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 7
+            }
+          ]
+        },
+        {
+          "id": "MachineControl",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineControl",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.22505,
+                  1.58,
+                  0.805
+                ]
+              ],
+              "triangles": 636,
+              "vertices": 336,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 9
+            },
+            {
+              "mount": "MachineControl_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.2278,
+                  1.58,
+                  0.805
+                ]
+              ],
+              "triangles": 224,
+              "vertices": 128,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 8
+            }
+          ]
+        },
+        {
+          "id": "MachineSuspended",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineSuspended",
+              "boundsUnityXYZ": [
+                [
+                  -1.31652,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.31652,
+                  2.42005,
+                  0.74
+                ]
+              ],
+              "triangles": 968,
+              "vertices": 512,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Signal",
+                "Amber"
+              ],
+              "authoredShells": 14
+            },
+            {
+              "mount": "MachineSuspended_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.31652,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.31652,
+                  2.42005,
+                  0.685
+                ]
+              ],
+              "triangles": 396,
+              "vertices": 224,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Signal"
+              ],
+              "authoredShells": 13
+            }
+          ]
+        },
+        {
+          "id": "MachineConduit",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineConduit",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.58,
+                  0.77
+                ]
+              ],
+              "triangles": 716,
+              "vertices": 384,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "MachineConduit_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.135,
+                  1.58,
+                  0.77
+                ]
+              ],
+              "triangles": 368,
+              "vertices": 208,
+              "slots": [
+                "Graphite",
+                "Ceramic",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 12
+            }
+          ]
+        },
+        {
+          "id": "MachineExtraction",
+          "family": "Machine",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "MachineExtraction",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.22505,
+                  2.06929,
+                  0.7708
+                ]
+              ],
+              "triangles": 716,
+              "vertices": 384,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Alloy",
+                "Secondary",
+                "Amber"
+              ],
+              "authoredShells": 13
+            },
+            {
+              "mount": "MachineExtraction_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.135,
+                  0.0,
+                  -0.685
+                ],
+                [
+                  1.2278,
+                  2.06929,
+                  0.7708
+                ]
+              ],
+              "triangles": 368,
+              "vertices": 208,
+              "slots": [
+                "Graphite",
+                "Refractory",
+                "Alloy",
+                "Secondary"
+              ],
+              "authoredShells": 12
+            }
+          ]
+        }
+      ],
+      "fbxSha256": "88d0062852b70967dc4b328f7bc9d03c9e0ceb7d35b384725ea0fee8787b1d7f"
+    },
+    "Nature": {
+      "assets": [
+        {
+          "id": "RockShelf",
+          "family": "Rock",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RockShelf",
+              "boundsUnityXYZ": [
+                [
+                  -1.87519,
+                  0.0,
+                  -1.20745
+                ],
+                [
+                  1.97546,
+                  2.75772,
+                  1.05928
+                ]
+              ],
+              "triangles": 156,
+              "vertices": 80,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            }
+          ]
+        },
+        {
+          "id": "RockSplit",
+          "family": "Rock",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RockSplit",
+              "boundsUnityXYZ": [
+                [
+                  -1.91309,
+                  0.0,
+                  -1.20809
+                ],
+                [
+                  1.81225,
+                  2.22601,
+                  1.39078
+                ]
+              ],
+              "triangles": 244,
+              "vertices": 128,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 3
+            },
+            {
+              "mount": "RockSplit_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.91309,
+                  0.0,
+                  -1.20809
+                ],
+                [
+                  1.49507,
+                  2.22601,
+                  1.39078
+                ]
+              ],
+              "triangles": 156,
+              "vertices": 80,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            }
+          ]
+        },
+        {
+          "id": "RockErased",
+          "family": "Rock",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RockErased",
+              "boundsUnityXYZ": [
+                [
+                  -1.53181,
+                  0.0,
+                  -1.32075
+                ],
+                [
+                  1.75281,
+                  1.81164,
+                  1.18099
+                ]
+              ],
+              "triangles": 156,
+              "vertices": 80,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            }
+          ]
+        },
+        {
+          "id": "RockOutcrop",
+          "family": "Rock",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RockOutcrop",
+              "boundsUnityXYZ": [
+                [
+                  -2.835,
+                  0.0,
+                  -1.68503
+                ],
+                [
+                  2.835,
+                  3.75265,
+                  1.76116
+                ]
+              ],
+              "triangles": 244,
+              "vertices": 128,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 3
+            },
+            {
+              "mount": "RockOutcrop_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -2.56255,
+                  0.0,
+                  -1.68503
+                ],
+                [
+                  2.4144,
+                  3.75265,
+                  1.76116
+                ]
+              ],
+              "triangles": 156,
+              "vertices": 80,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            }
+          ]
+        },
+        {
+          "id": "RockPebbles",
+          "family": "Rock",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RockPebbles",
+              "boundsUnityXYZ": [
+                [
+                  -0.55125,
+                  0.0,
+                  -0.40729
+                ],
+                [
+                  0.60025,
+                  0.42004,
+                  0.37181
+                ]
+              ],
+              "triangles": 244,
+              "vertices": 128,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 3
+            },
+            {
+              "mount": "RockPebbles_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.50529,
+                  0.0,
+                  -0.40729
+                ],
+                [
+                  0.51469,
+                  0.42004,
+                  0.37181
+                ]
+              ],
+              "triangles": 156,
+              "vertices": 80,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            }
+          ]
+        },
+        {
+          "id": "RockCliff",
+          "family": "Rock",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RockCliff",
+              "boundsUnityXYZ": [
+                [
+                  -2.78721,
+                  0.0,
+                  -1.2569
+                ],
+                [
+                  2.85046,
+                  4.55609,
+                  1.31607
+                ]
+              ],
+              "triangles": 156,
+              "vertices": 80,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            }
+          ]
+        },
+        {
+          "id": "RockSeam",
+          "family": "Rock",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RockSeam",
+              "boundsUnityXYZ": [
+                [
+                  -1.6275,
+                  0.0,
+                  -1.2378
+                ],
+                [
+                  1.6355,
+                  2.43788,
+                  1.32277
+                ]
+              ],
+              "triangles": 244,
+              "vertices": 128,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 3
+            },
+            {
+              "mount": "RockSeam_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.40566,
+                  0.0,
+                  -1.2378
+                ],
+                [
+                  1.59423,
+                  2.43788,
+                  1.32277
+                ]
+              ],
+              "triangles": 156,
+              "vertices": 80,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone"
+              ],
+              "authoredShells": 1
+            }
+          ]
+        },
+        {
+          "id": "RockPhase",
+          "family": "Rock",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "RockPhase",
+              "boundsUnityXYZ": [
+                [
+                  -1.65628,
+                  0.0,
+                  -1.44424
+                ],
+                [
+                  1.61057,
+                  2.87478,
+                  1.49137
+                ]
+              ],
+              "triangles": 156,
+              "vertices": 84,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "OchreStone"
+              ],
+              "authoredShells": 3
+            }
+          ]
+        },
+        {
+          "id": "TreeSentinel",
+          "family": "Tree",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "TreeSentinel",
+              "boundsUnityXYZ": [
+                [
+                  -2.55941,
+                  0.0,
+                  -2.26793
+                ],
+                [
+                  2.7913,
+                  7.21487,
+                  2.01713
+                ]
+              ],
+              "triangles": 1016,
+              "vertices": 556,
+              "slots": [
+                "Bark",
+                "Leaf",
+                "LeafShade",
+                "YoungLeaf"
+              ],
+              "authoredShells": 24
+            },
+            {
+              "mount": "TreeSentinel_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -2.61266,
+                  0.0,
+                  -2.10884
+                ],
+                [
+                  2.67277,
+                  6.88158,
+                  1.605
+                ]
+              ],
+              "triangles": 376,
+              "vertices": 210,
+              "slots": [
+                "Bark",
+                "Leaf",
+                "LeafShade",
+                "YoungLeaf"
+              ],
+              "authoredShells": 11
+            }
+          ]
+        },
+        {
+          "id": "TreeRidge",
+          "family": "Tree",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "TreeRidge",
+              "boundsUnityXYZ": [
+                [
+                  -1.87633,
+                  0.0,
+                  -2.1119
+                ],
+                [
+                  2.55806,
+                  4.78094,
+                  1.70696
+                ]
+              ],
+              "triangles": 1016,
+              "vertices": 556,
+              "slots": [
+                "Bark",
+                "Leaf",
+                "LeafShade",
+                "YoungLeaf"
+              ],
+              "authoredShells": 24
+            },
+            {
+              "mount": "TreeRidge_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.87911,
+                  0.0,
+                  -1.86099
+                ],
+                [
+                  2.46356,
+                  4.55098,
+                  1.33748
+                ]
+              ],
+              "triangles": 376,
+              "vertices": 210,
+              "slots": [
+                "Bark",
+                "Leaf",
+                "LeafShade",
+                "YoungLeaf"
+              ],
+              "authoredShells": 11
+            }
+          ]
+        },
+        {
+          "id": "TreeSapling",
+          "family": "Tree",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "TreeSapling",
+              "boundsUnityXYZ": [
+                [
+                  -1.06477,
+                  0.0,
+                  -0.82521
+                ],
+                [
+                  1.17145,
+                  2.75643,
+                  0.88352
+                ]
+              ],
+              "triangles": 840,
+              "vertices": 460,
+              "slots": [
+                "Bark",
+                "Leaf",
+                "LeafShade",
+                "YoungLeaf"
+              ],
+              "authoredShells": 20
+            },
+            {
+              "mount": "TreeSapling_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -1.01225,
+                  0.0,
+                  -0.7485
+                ],
+                [
+                  1.09621,
+                  2.63114,
+                  0.70596
+                ]
+              ],
+              "triangles": 316,
+              "vertices": 176,
+              "slots": [
+                "Bark",
+                "Leaf",
+                "LeafShade",
+                "YoungLeaf"
+              ],
+              "authoredShells": 9
+            }
+          ]
+        },
+        {
+          "id": "TreeWindward",
+          "family": "Tree",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "TreeWindward",
+              "boundsUnityXYZ": [
+                [
+                  -2.32897,
+                  0.0,
+                  -2.49623
+                ],
+                [
+                  2.83531,
+                  4.99931,
+                  1.7735
+                ]
+              ],
+              "triangles": 1016,
+              "vertices": 556,
+              "slots": [
+                "Bark",
+                "Leaf",
+                "LeafShade",
+                "YoungLeaf"
+              ],
+              "authoredShells": 24
+            },
+            {
+              "mount": "TreeWindward_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -2.1168,
+                  0.0,
+                  -1.96852
+                ],
+                [
+                  2.83398,
+                  4.75785,
+                  1.68991
+                ]
+              ],
+              "triangles": 376,
+              "vertices": 210,
+              "slots": [
+                "Bark",
+                "Leaf",
+                "LeafShade",
+                "YoungLeaf"
+              ],
+              "authoredShells": 11
+            }
+          ]
+        },
+        {
+          "id": "PlantBramble",
+          "family": "Plant",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "PlantBramble",
+              "boundsUnityXYZ": [
+                [
+                  -0.49635,
+                  0.0,
+                  -0.49085
+                ],
+                [
+                  0.49492,
+                  0.55856,
+                  0.41927
+                ]
+              ],
+              "triangles": 420,
+              "vertices": 230,
+              "slots": [
+                "Bark",
+                "YoungLeaf",
+                "LeafShade",
+                "Leaf"
+              ],
+              "authoredShells": 10
+            },
+            {
+              "mount": "PlantBramble_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.43434,
+                  0.0,
+                  -0.46569
+                ],
+                [
+                  0.49492,
+                  0.50796,
+                  0.38215
+                ]
+              ],
+              "triangles": 180,
+              "vertices": 102,
+              "slots": [
+                "Bark",
+                "YoungLeaf",
+                "LeafShade",
+                "Leaf"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "PlantSedge",
+          "family": "Plant",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "PlantSedge",
+              "boundsUnityXYZ": [
+                [
+                  -0.17671,
+                  0.0,
+                  -0.13946
+                ],
+                [
+                  0.21692,
+                  0.28361,
+                  0.24403
+                ]
+              ],
+              "triangles": 96,
+              "vertices": 72,
+              "slots": [
+                "YoungLeaf",
+                "Leaf"
+              ],
+              "authoredShells": 12
+            },
+            {
+              "mount": "PlantSedge_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.17671,
+                  0.0,
+                  -0.13946
+                ],
+                [
+                  0.21692,
+                  0.25017,
+                  0.16968
+                ]
+              ],
+              "triangles": 48,
+              "vertices": 36,
+              "slots": [
+                "YoungLeaf",
+                "Leaf"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "PlantFern",
+          "family": "Plant",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "PlantFern",
+              "boundsUnityXYZ": [
+                [
+                  -0.22019,
+                  0.0,
+                  -0.28151
+                ],
+                [
+                  0.25347,
+                  0.42269,
+                  0.35432
+                ]
+              ],
+              "triangles": 96,
+              "vertices": 72,
+              "slots": [
+                "YoungLeaf",
+                "Leaf"
+              ],
+              "authoredShells": 12
+            },
+            {
+              "mount": "PlantFern_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.2006,
+                  0.0,
+                  -0.23881
+                ],
+                [
+                  0.25347,
+                  0.38296,
+                  0.27925
+                ]
+              ],
+              "triangles": 48,
+              "vertices": 36,
+              "slots": [
+                "YoungLeaf",
+                "Leaf"
+              ],
+              "authoredShells": 6
+            }
+          ]
+        },
+        {
+          "id": "PlantBloom",
+          "family": "Plant",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "PlantBloom",
+              "boundsUnityXYZ": [
+                [
+                  -0.27387,
+                  0.0,
+                  -0.28265
+                ],
+                [
+                  0.34157,
+                  0.50243,
+                  0.25138
+                ]
+              ],
+              "triangles": 272,
+              "vertices": 176,
+              "slots": [
+                "YoungLeaf",
+                "Leaf",
+                "OchreStone"
+              ],
+              "authoredShells": 20
+            },
+            {
+              "mount": "PlantBloom_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -0.27387,
+                  0.0,
+                  -0.1926
+                ],
+                [
+                  0.20829,
+                  0.49296,
+                  0.25138
+                ]
+              ],
+              "triangles": 136,
+              "vertices": 88,
+              "slots": [
+                "YoungLeaf",
+                "Leaf",
+                "OchreStone"
+              ],
+              "authoredShells": 10
+            }
+          ]
+        },
+        {
+          "id": "SiteReclaimedDeflector",
+          "family": "Site",
+          "collision": "none",
+          "lods": [
+            {
+              "mount": "SiteReclaimedDeflector",
+              "boundsUnityXYZ": [
+                [
+                  -2.0836,
+                  0.0,
+                  -1.20745
+                ],
+                [
+                  1.97546,
+                  2.78772,
+                  1.425
+                ]
+              ],
+              "triangles": 472,
+              "vertices": 252,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone",
+                "Graphite",
+                "Ceramic",
+                "Alloy"
+              ],
+              "authoredShells": 8
+            },
+            {
+              "mount": "SiteReclaimedDeflector_LOD1",
+              "boundsUnityXYZ": [
+                [
+                  -2.0836,
+                  0.0,
+                  -1.20745
+                ],
+                [
+                  1.97546,
+                  2.78772,
+                  1.425
+                ]
+              ],
+              "triangles": 268,
+              "vertices": 144,
+              "slots": [
+                "DryStone",
+                "DarkStone",
+                "Moss",
+                "OchreStone",
+                "Graphite",
+                "Ceramic",
+                "Alloy"
+              ],
+              "authoredShells": 5
+            }
+          ]
+        }
+      ],
+      "fbxSha256": "1a51a368721272eac9e367e5c936d4b2fa628d364234b58eb7eda1a8d02c19b9"
+    }
+  }
+}

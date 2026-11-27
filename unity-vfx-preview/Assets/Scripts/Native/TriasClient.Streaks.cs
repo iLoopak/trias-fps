@@ -7,7 +7,7 @@ namespace Trias.Native
     public sealed partial class TriasClient
     {
         static readonly string[] Perks = { "scan", "module", "strike", "overdrive" };
-        static readonly string[] PerkNames = { "Průzkum", "Modul", "Úder", "Přetížení" };
+        static readonly string[] PerkNames = { "Sken", "Modul", "Úder", "Pohon" };
         static readonly int[] PerkGoals = { 3, 5, 7, 9 };
         static readonly KeyCode[] PerkKeys = { KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8, KeyCode.Alpha9 };
         readonly Dictionary<int, (Transform marker, LineRenderer circle)> orbitalWarnings = new Dictionary<int, (Transform, LineRenderer)>();
@@ -94,20 +94,20 @@ namespace Trias.Native
         void PaintPerks(float width)
         {
             if (!streaksAvailable || own[6].Int <= 0 || !captured || scoreboard) return;
-            const float tile = 63;
-            float x = width - 278;
-            CornerPanel(new Rect(x, 80, 252, 73), perkMask > 0 ? Amber : Subtle);
-            GUI.Label(new Rect(x + 8, 83, 152, 22), "SÉRIE  " + streakCount, section);
-            if (scanLeft > 0) GUI.Label(new Rect(x + 138, 84, 109, 20), "PRŮZKUM " + Mathf.CeilToInt(scanLeft) + " s", caption);
+            const float tile = 56;
+            float x = width - 246;
+            HudStrip(new Rect(x, 55, 224, 57), perkMask > 0 ? Amber : Subtle);
+            hudText.Draw(new Rect(x + 7, 55, 92, 22), "SÉRIE  " + streakCount, section);
+            if (scanLeft > 0) hudText.Draw(new Rect(x + 112, 56, 106, 20), "PRŮZKUM " + Mathf.CeilToInt(scanLeft) + " s", caption);
             for (int i = 0; i < Perks.Length; i++)
             {
                 float at = x + i * tile;
                 bool ready = (perkMask & (1 << i)) != 0;
                 var tint = ready ? Amber : Subtle;
-                Fill(new Rect(at + 7, 108, tile - 12, 2), tint);
+                Fill(new Rect(at + 5, 76, tile - 12, 2), tint);
                 string name = i == 1 ? ModuleName() : PerkNames[i];
-                GUI.Label(new Rect(at + 6, 110, tile - 9, 22), name, caption);
-                GUI.Label(new Rect(at + 6, 128, tile - 9, 22), ready ? "»  " + (6 + i) : PerkGoals[i] + " výř.", caption);
+                hudText.Draw(new Rect(at + 5, 76, tile - 7, 20), name, caption);
+                hudText.Draw(new Rect(at + 5, 93, tile - 7, 18), ready ? "» " + (6 + i) : PerkGoals[i] + " výř.", caption);
             }
         }
     }

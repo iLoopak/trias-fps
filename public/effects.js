@@ -15,6 +15,8 @@ const coreSpark = new THREE.Color('#f6d092');
 const metalSpark = new THREE.Color('#ffc07d');
 const shieldSpark = new THREE.Color('#6fbaff');
 const pilotSpark = new THREE.Color('#ff8c71');
+const prism = new THREE.Color('#e2f7ff');
+const chipLimit = 128;
 
 function lightMap(line = false) {
   const size = 64;
@@ -75,9 +77,11 @@ export class ArenaEffects {
     this.beamMesh = batch(scene, new THREE.PlaneGeometry(), 80, lightMap(true));
     this.sparkMesh = batch(scene, new THREE.PlaneGeometry(), 240, lightMap());
     this.ringMesh = batch(scene, new THREE.RingGeometry(0.91, 1, 40).rotateX(-Math.PI / 2), 24);
+    this.chipMesh = batch(scene, new THREE.OctahedronGeometry(0.5), chipLimit);
     this.beams = [];
     this.sparks = [];
     this.rings = [];
+    this.chips = [];
     this.pose = new THREE.Object3D();
     this.normal = new THREE.Vector3();
     this.side = new THREE.Vector3();
@@ -97,7 +101,7 @@ export class ArenaEffects {
   }
 
   reset() {
-    this.beams.length = this.sparks.length = this.rings.length = 0;
+    this.beams.length = this.sparks.length = this.rings.length = this.chips.length = 0;
     this.lastFlash = undefined;
     this.setProjectiles([]);
   }
@@ -140,10 +144,30 @@ export class ArenaEffects {
     }
   }
 
-  pulse(position, shade, time, pickup = false) {
+  shards(origin, shade, time, count, lift, spread, life, gravity) {
+    const shift = Math.random() * Math.PI * 2;
+    for (let i = 0; i < count; i++) {
+      if (this.chips.length >= chipLimit) this.chips.shift();
+      const angle = shift + i * 2.39996;
+      const width = spread * (0.40 + Math.random() * 0.60);
+      const heading = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+      this.chips.push({
+        origin: origin.clone().addScaledVector(heading, 0.10 + width * 0.06),
+        velocity: heading.multiplyScalar(width).setY(lift * (0.54 + Math.random() * 0.72)),
+        shade: i % 4 ? shade : prism, time, life: life * (0.73 + Math.random() * 0.48),
+        gravity, size: 0.074 + Math.random() * 0.11, angle,
+      });
+    }
+  }
+
+  shockwave(origin, shade, time, life, radius, height = 0) {
     if (this.rings.length >= 24) this.rings.shift();
+    this.rings.push({ origin, shade, time, life, radius, height });
+  }
+
+  pulse(position, shade, time, pickup = false) {
     const origin = new THREE.Vector3(...position);
-    this.rings.push({ origin, shade, time, life: pickup ? 480 : 650, radius: pickup ? 1.22 : 1.7 });
+    this.shockwave(origin, shade, time, pickup ? 480 : 650, pickup ? 1.22 : 1.7);
     if (pickup) this.burst(origin.clone().addScaledVector(worldUp, 0.36), worldUp, shade, time, 12);
   }
 
@@ -165,6 +189,7 @@ export class ArenaEffects {
         }));
         halo.scale.setScalar(1.78);
         root.add(core, orbit, halo);
+        if (shot.alt) root.scale.setScalar(1.48);
         this.projectileLayer.add(root);
         orb = { root, core, orbit, halo, target: new THREE.Vector3(), lastTrail: 0, shade: colors[shot.weapon], grenade };
         this.projectiles.set(shot.id, orb);
@@ -180,13 +205,55 @@ export class ArenaEffects {
     }
   }
 
-  projectileBurst(position, time, weapon) {
+  projectileBurst(position, time, weapon, alternate = false) {
     const tint = colors[weapon];
     const origin = new THREE.Vector3(...position);
-    if (this.rings.length >= 24) this.rings.shift();
-    this.rings.push({ origin, shade: tint, time, life: 580, radius: weapon === 'grenade' ? 4 : 3.28 });
-    this.burst(origin, worldUp, tint, time, 36);
+    this.shockwave(origin, tint, time, 580, weapon === 'grenade' ? 4 : alternate ? 4.65 : 3.28);
+    this.burst(origin, worldUp, tint, time, 24);
     this.burst(origin, worldUp, this.orbMaterial.color, time, 10);
+    this.shards(origin, tint, time, weapon === 'grenade' ? 17 : 12, 3.9, 5.8, 640, 4.6);
+    if (weapon === 'rift') this.shockwave(origin, prism, time + 80, 535, 2.65, 0.60);
+  }
+
+  elimination(event, time, shade) {
+    const { x, y, z } = event.body;
+    const origin = new THREE.Vector3(x, y + 0.72, z);
+    this.shards(origin, shade, time, 11, 2.7, 2.9, 530, 5.1);
+    this.shockwave(new THREE.Vector3(x, y, z), shade, time, 330, 1.02);
+  }
+
+  replay(event, time, shade) {
+    this.elimination(event, time, shade);
+    const body = event.body;
+    const start = new THREE.Vector3(...body.from);
+    const end = new THREE.Vector3(...(event.impact ?? [body.x, body.y + 0.76, body.z]));
+    const direction = end.clone().sub(start);
+    const length = direction.length();
+    if (event.weapon === 'grenade' || event.weapon === 'rift') {
+      this.projectileBurst(body.from, time, event.weapon);
+    } else if (length > 0.15) {
+      if (this.beams.length >= 80) this.beams.shift();
+      this.beams.push({ from: start, end, direction: direction.normalize(), length,
+        shade: colors[event.weapon] ?? prism, time, width: 0.23, life: 810 });
+      this.burst(end, worldUp, prism, time, 12);
+    }
+  }
+
+  respawn(position, time, shade) {
+    const origin = new THREE.Vector3(...position);
+    this.shockwave(origin, shade, time, 635, 1.59);
+    this.shockwave(origin, prism, time + 85, 485, 1.05, 0.20);
+    this.shockwave(origin, shade, time + 150, 510, 0.80, 1.23);
+    this.shards(origin, shade, time, 18, 4.5, 1.33, 515, 0.80);
+  }
+
+  coreCollapse(position, time, shade) {
+    const origin = new THREE.Vector3(...position);
+    this.shockwave(origin, shade, time, 1070, 9.4, 0.11);
+    this.shockwave(origin, prism, time + 140, 950, 6.7, 1.24);
+    this.shockwave(origin, shade, time + 250, 850, 5.3, 2.8);
+    this.shards(origin, shade, time, 43, 8.3, 9.3, 1100, 5.9);
+    this.burst(origin, worldUp, prism, time, 26);
   }
 
   movement(position, action, accent, time) {
@@ -216,6 +283,7 @@ export class ArenaEffects {
     this.beams = this.beams.filter(beam => time - beam.time < beam.life);
     this.sparks = this.sparks.filter(spark => time - spark.time < spark.life);
     this.rings = this.rings.filter(ring => time - ring.time < ring.life);
+    this.chips = this.chips.filter(chip => time - chip.time < chip.life);
     const { pose, tint } = this;
     for (const [i, beam] of this.beams.entries()) {
       const fade = Math.max(0, 1 - (time - beam.time) / beam.life);
@@ -245,18 +313,31 @@ export class ArenaEffects {
       this.sparkMesh.setColorAt(i, tint.copy(spark.shade).multiplyScalar(fade * 1.7));
     }
     for (const [i, ring] of this.rings.entries()) {
-      const phase = Math.max(0, (time - ring.time) / ring.life);
+      const phase = (time - ring.time) / ring.life;
       pose.position.copy(ring.origin);
-      pose.position.y += 0.035 + phase * 0.12;
+      pose.position.y += 0.035 + Math.max(0, phase) * (ring.height ?? 0.12);
       pose.quaternion.identity();
-      pose.scale.setScalar(0.17 + phase * ring.radius);
+      pose.scale.setScalar(phase >= 0 ? 0.17 + phase * ring.radius : 0);
       pose.updateMatrix();
       this.ringMesh.setMatrixAt(i, pose.matrix);
       this.ringMesh.setColorAt(i, tint.copy(ring.shade).multiplyScalar((1 - phase) ** 2 * 0.9));
     }
+    for (const [i, chip] of this.chips.entries()) {
+      const age = (time - chip.time) / 1000;
+      const fade = 1 - (time - chip.time) / chip.life;
+      pose.position.copy(chip.origin).addScaledVector(chip.velocity, age);
+      pose.position.y -= age * age * chip.gravity;
+      pose.rotation.set(chip.angle + age * 6.8, age * 7.9, -chip.angle * 0.33);
+      const size = chip.size * (0.36 + Math.max(0, fade) * 0.64);
+      pose.scale.set(size, size * (1.35 + fade), size);
+      pose.updateMatrix();
+      this.chipMesh.setMatrixAt(i, pose.matrix);
+      this.chipMesh.setColorAt(i, tint.copy(chip.shade).multiplyScalar(fade * 1.8));
+    }
     commit(this.beamMesh, this.beams.length);
     commit(this.sparkMesh, this.sparks.length);
     commit(this.ringMesh, this.rings.length);
+    commit(this.chipMesh, this.chips.length);
 
     const flashAge = Math.max(0, time - (this.lastFlash?.time ?? -1000));
     const style = this.lastFlash?.style;

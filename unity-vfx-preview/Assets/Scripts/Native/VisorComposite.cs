@@ -16,6 +16,7 @@ namespace Trias.Native
         static readonly int Fog = Shader.PropertyToID("_HeightFog");
         static readonly int FogTint = Shader.PropertyToID("_FogTint");
         static readonly int ShaftTint = Shader.PropertyToID("_ShaftTint");
+        static readonly int Film = Shader.PropertyToID("_Film");
         static readonly int Bloom = Shader.PropertyToID("_Bloom");
         Material material;
         Camera view;
@@ -28,7 +29,7 @@ namespace Trias.Native
         Color haze, light;
         float bloomIntensity, shaftIntensity;
         Vector3 emitter;
-        bool sunlight;
+        bool sunlight, relay;
 
         void Awake()
         {
@@ -40,12 +41,13 @@ namespace Trias.Native
         internal void Grade(string arena)
         {
             sunlight = arena == "island";
+            relay = arena == "relay";
             tone = arena switch
             {
                 "foundry" => new Vector4(1.07f, .99f, .95f, 1.09f),
                 "basin" => new Vector4(1.05f, 1.015f, .98f, 1.07f),
                 "island" => new Vector4(.86f, .89f, .94f, .85f),
-                _ => new Vector4(.98f, 1.02f, 1.08f, 1.08f)
+                _ => new Vector4(1f, 1f, 1f, .98f)
             };
             switch (arena)
             {
@@ -65,9 +67,9 @@ namespace Trias.Native
                     bloomIntensity = .16f; shaftIntensity = .37f;
                     break;
                 default:
-                    fog = new Vector4(.023f, -.28f, 2.1f, .14f); haze = Catalog.Tint("#576e87");
-                    light = Catalog.Tint("#ffc776"); emitter = new Vector3(0, 9.4f, 0);
-                    bloomIntensity = .33f; shaftIntensity = .40f;
+                    fog = new Vector4(.014f, -.63f, 2.4f, .115f); haze = Catalog.Tint("#788b9d");
+                    light = Catalog.Tint("#ffc776"); emitter = new Vector3(0, 14.5f, 0);
+                    bloomIntensity = .17f; shaftIntensity = .23f;
                     break;
             }
         }
@@ -124,6 +126,7 @@ namespace Trias.Native
                 material.SetColor(FogTint, haze);
                 material.SetColor(ShaftTint, light);
                 material.SetFloat(Bloom, bloomIntensity * strength);
+                material.SetFloat(Film, relay ? 1f : 0f);
                 material.SetFloat(Damage, DamagePulse);
                 material.SetColor(DamageTint, DamageColor);
                 material.SetVector(Tone, tone);

@@ -1,8 +1,10 @@
 import {
   aimVector, ARENAS, ARMORY, CAPACITY, CHARACTERS, DEFAULT_CHARACTER, DEFAULT_WEAPON, distanceSquared, eyeHeight, floorBelow,
-  GRENADE, hitHeight, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, turretYaw, wallDistance, WEAPONS,
+  GRENADE, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RELAY_HORDE, RELAY_SERVICE, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, touchesHazard, turretYaw, wallDistance, WEAPONS,
 } from './public/rules.js';
 import { botInput } from './bots.js';
+import { normalizeDifficulty } from './bot-profiles.js';
+import { botSound, noteBotHit } from './bot-perception.js';
 import { Fleet } from './fleet.js';
 import { Siege } from './siege.js';
 import { Horde } from './horde.js';
@@ -10,6 +12,8 @@ import { Streaks } from './streaks.js';
 import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
 import { NETWORK_VERSION, packSnapshot } from './public/netcode.js';
 import { Signature } from './signature.js';
+import { explosionImpulse, grenadeOnRay } from './interactions.js';
+import { CombatDirector } from './combat-director.js';
 
 const EMPTY = { x: 0, z: 0, sprint: false, fire: false, reload: false, jump: false, dodge: false, crouch: false };
 const BOT_CHARACTERS = Object.keys(CHARACTERS);
@@ -18,15 +22,21 @@ const ROUND_PAUSE = 9;
 
 export const fireProfileData = () => ARMORY.map(key => {
   const spec = WEAPONS[key];
-  return [key, spec.interval, spec.magazine, spec.reload, spec.alt?.interval ?? 0, spec.alt?.cost ?? 0];
+  return [key, spec.interval, spec.magazine, spec.reload, spec.alt?.interval ?? 0, spec.alt?.cost ?? 0, spec.alt?.label];
 });
 
 export class Match {
-  constructor(code, mode, bots, layout = ARENAS.relay, signature = {}) {
+  constructor(code, mode, bots, layout = RELAY_SERVICE, signature = {}) {
     this.code = code;
     this.mode = mode;
-    this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' ? ARENAS.relay : layout;
+    this.pace = { pilotHp: PILOT_HP, respawn: mode === 'horde' ? HORDE_RESPAWN : RESPAWN };
+    this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' && layout === ARENAS.relay ? RELAY_HORDE : layout;
     this.bots = bots;
+    this.botDifficulty = normalizeDifficulty(signature.botDifficulty);
+    this.botDebug = signature.botDebug === true;
+    this.hordeSupport = signature.hordeSupport === true;
+    const { intercept = false, recall = false, brace = false, traversal = false } = signature.interactions ?? {};
+    this.interactions = { intercept, recall, brace, traversal };
     this.players = new Map();
     this.humans = new Set();
     this.events = [];
@@ -38,11 +48,20 @@ export class Match {
     this.horde = mode === 'horde' ? new Horde(this) : null;
     this.streaks = new Streaks(this);
     this.signature = new Signature(this, signature);
+    const director = signature.director;
+    this.director = director && (director.bots || director.horde || director.presentation) ? new CombatDirector(this, director) : null;
     this.reset(0);
   }
 
   reset(now) {
+    this.director?.reset(now);
     this.signature.reset();
+    this.botSound = [];
+    this.botSoundIndex = -1;
+    this.botMetrics = { stuck: 0 };
+    this.radioAt = [];
+    this.radioReadyAt = now + 2.2;
+    this.nextRadioCheck = now + 3.8;
     this.endsAt = now + (MODES[this.mode]?.time ?? 0);
     this.restartAt = 0;
     this.winner = null;
@@ -73,10 +92,13 @@ export class Match {
     const toward = this.layout.points[team];
     const kit = CHARACTERS[player.character] ?? CHARACTERS[DEFAULT_CHARACTER];
     const loadout = { [DEFAULT_WEAPON]: { ammo: WEAPONS[DEFAULT_WEAPON].magazine, reserve: Infinity } };
-    if (kit.weapon !== DEFAULT_WEAPON) loadout[kit.weapon] = { ammo: kit.rounds, reserve: 0 };
+    if (kit.weapon !== DEFAULT_WEAPON) {
+      const magazine = WEAPONS[kit.weapon].magazine;
+      loadout[kit.weapon] = { ammo: magazine, reserve: magazine };
+    }
     Object.assign(player, start, {
       hp: this.siege && !this.siege.alive(player.team) ? 0 : PILOT_HP, armor: 0, surgeUntil: 0, y: start.y ?? 0, vx: 0, vy: 0, vz: 0, grounded: true, airJump: true,
-      dodgeCooldown: 0, dodgeTime: 0, airDodge: true, padCooldown: 0, crouch: false, grenades: 1, turret: -1, vehicle: -1, vehiclePlanAt: -100, impactAt: 0,
+      dodgeCooldown: 0, dodgeTime: 0, airDodge: true, padCooldown: 0, crouch: false, grenades: 1, turret: -1, vehicle: -1, vehiclePlanAt: -100, impactAt: 0, hazardAt: 0,
       weapon: kit.weapon, loadout,
       yaw: Math.atan2(start.x - toward.x, start.z - toward.z), pitch: 0, fireAt: now + 0.2,
       safeUntil: now + 1.4, reloadAt: 0, respawnAt: 0, input: EMPTY, inputAt: now, fireRequest: false, reloadRequest: false, jumpRequest: false, dodgeRequest: false, altRequest: false, grenadeRequest: false, useRequest: false, weaponRequest: null,
@@ -86,17 +108,16 @@ export class Match {
     this.horde?.reward(player, now);
   }
 
-  addPlayer(id, name, team, slot, now, bot = false, character = DEFAULT_CHARACTER) {
-    const player = { id, name, team, slot, bot, character, kills: 0, deaths: 0, spawn: 0, ack: 0 };
+  addPlayer(id, name, team, slot, now, bot = false, character = DEFAULT_CHARACTER, frame) {
+    const player = { id, name, team, slot, bot, character, frame: frame === 'male' ? 'male' : undefined, kills: 0, deaths: 0, spawn: 0, ack: 0 };
     this.spawn(player, now);
     this.players.set(id, player);
     return player;
   }
 
-  join(socket, name, now, character = DEFAULT_CHARACTER) {
-    if (this.horde && this.humans.size >= TEAM_SIZE) return false;
-    if (this.humans.size >= CAPACITY) return false;
+  join(socket, name, now, character = DEFAULT_CHARACTER, frame) {
     const counts = TEAMS.map((_, team) => [...this.players.values()].filter(p => !p.bot && p.team === team).length);
+    if (this.horde ? counts[0] >= TEAM_SIZE : counts.reduce((total, count) => total + count, 0) >= CAPACITY) return false;
     const open = counts.map((count, team) => ({ count, team })).filter(item => item.count < TEAM_SIZE);
     open.sort((a, b) => {
       const alive = this.siege ? Number(this.siege.alive(b.team)) - Number(this.siege.alive(a.team)) : 0;
@@ -105,19 +126,47 @@ export class Match {
     const team = this.horde ? 0 : open[0].team;
     const slot = this.layout.spawns[team].findIndex((_, i) => ![...this.players.values()].some(p => p.team === team && p.slot === i && !p.bot));
     this.removePlayer('bot-' + team + '-' + slot, now);
-    socket.player = this.addPlayer(socket.id, name, team, slot, now, false, character);
+    socket.player = this.addPlayer(socket.id, name, team, slot, now, false, character, frame);
     this.humans.add(socket);
+    this.director?.onJoin();
     this.fillBots(now);
     return true;
   }
 
   fillBots(now) {
-    if (!this.bots || this.horde) return;
+    if (this.horde ? !this.hordeSupport : !this.bots) return;
     for (const [team, spawns] of this.layout.spawns.entries()) {
+      if (this.horde && team !== 0) continue;
       for (const slot of spawns.keys()) {
         if ([...this.players.values()].some(player => player.team === team && player.slot === slot)) continue;
-        this.addPlayer('bot-' + team + '-' + slot, BOT_NAMES[team * TEAM_SIZE + slot], team, slot, now, true, BOT_CHARACTERS[(team + slot) % BOT_CHARACTERS.length]);
+        this.addPlayer('bot-' + team + '-' + slot, BOT_NAMES[team * TEAM_SIZE + slot], team, slot, now, true, BOT_CHARACTERS[(team + slot) % BOT_CHARACTERS.length], slot % 2 === 0 ? 'male' : undefined);
       }
+    }
+  }
+
+  radioBot(player, line, now) {
+    if (this.mode === 'ffa' || now < (this.radioAt[player.team] ?? this.radioReadyAt) ||
+        now < (player.radioAt ?? 0)) return false;
+    let message;
+    for (const socket of this.humans) {
+      if (!socket.botRadio || socket.player.team !== player.team || socket.player.hp <= 0 ||
+          socket.readyState !== 1 || socket.bufferedAmount >= 8192) continue;
+      message ??= JSON.stringify({ type: 'bot-radio', name: player.name, line, frame: player.frame === 'male' ? 'male' : 'female' });
+      socket.send(message);
+    }
+    if (!message) return false;
+    this.radioAt[player.team] = now + 8.5;
+    player.radioAt = now + 19;
+    return true;
+  }
+
+  checkTeamRadio(now) {
+    if (now < this.nextRadioCheck || this.mode === 'ffa' || !this.humans.size || (this.horde ? !this.hordeSupport : !this.bots)) return;
+    this.nextRadioCheck = now + 2;
+    for (const peer of this.humans) {
+      if (!peer.botRadio || peer.player.hp <= 0 || this.radioAt[peer.player.team] !== undefined) continue;
+      const ally = [...this.players.values()].find(bot => bot.bot && !bot.hordeType && bot.hp > 0 && bot.team === peer.player.team);
+      if (ally) this.radioBot(ally, this.horde ? 'core' : 'cover', now);
     }
   }
 
@@ -131,10 +180,27 @@ export class Match {
     this.players.delete(id);
   }
 
+  stopPlayerInput(player) {
+    this.clearRequests(player);
+    Object.assign(player, { input: EMPTY, inputAt: -Infinity, predictedTrigger: null, echoRequest: null });
+  }
+
+  park(player, now) {
+    player.away = true;
+    this.stopPlayerInput(player);
+    this.signature.clearEcho(player, 'exit');
+    this.unmount(player);
+    this.fleet.release(player, now);
+    this.dropFlag(player, now);
+  }
+
   dropFlag(player, now) {
     const flag = this.flags.find(item => item.carrier === player.id);
-    if (flag) Object.assign(flag, {
-      status: 'dropped', carrier: null, x: player.x, z: player.z, y: floorBelow(player.x, player.z, player.y, 0, this.layout), returnAt: now + 15,
+    if (!flag) return;
+    const floor = floorBelow(player.x, player.z, player.y, 0, this.layout);
+    if (!Number.isFinite(floor)) this.returnFlag(this.flags.indexOf(flag));
+    else Object.assign(flag, {
+      status: 'dropped', carrier: null, x: player.x, z: player.z, y: floor, returnAt: now + 15,
     });
   }
 
@@ -199,11 +265,11 @@ export class Match {
 
   get combatLayout() { return this.horde?.layout ?? this.layout; }
 
-  trace(player, origin, direction, range, width = 0) {
+  trace(player, origin, direction, range, width = 0, pierced = null) {
     let distance = wallDistance(origin, direction, range, this.combatLayout);
     let target;
     for (const other of this.players.values()) {
-      if (!this.hostile(player, other)) continue;
+      if (other === pierced || !this.hostile(player, other)) continue;
       const hit = rayBox(origin, direction,
         { x: other.x - 0.44 - width, y: other.y + 0.08 - width, z: other.z - 0.44 - width },
         { x: other.x + 0.44 + width, y: other.y + hitHeight(other) + width, z: other.z + 0.44 + width });
@@ -238,21 +304,24 @@ export class Match {
     const shieldBreak = absorbed > 0 && target.armor === 0;
     const health = Math.min(target.hp, amount - absorbed);
     target.hp -= health;
+    if (health + absorbed > 0) this.director?.record(now, health + absorbed, target.hp === 0);
+    const environment = weapon === 'fall' ? 'Pád' : weapon === 'plasma' ? 'Plazmový kanál' : null;
+    if (!environment) noteBotHit(attacker,target.id,health,now);
     if (!target.hp) {
       this.signature.respawn(target);
-      this.streaks.kill(attacker, target, direct);
+      if (!environment) this.streaks.kill(attacker, target, direct);
       if (target.hordeType) this.horde.salvage(target);
-      attacker.kills++;
+      if (!environment) attacker.kills++;
       target.deaths++;
-      target.respawnAt = now + (this.horde ? 5.5 : RESPAWN);
+      target.respawnAt = now + this.pace.respawn;
       this.unmount(target);
       this.fleet.release(target, now);
       this.dropFlag(target, now);
-      if (this.mode === 'tdm') this.scores[attacker.team]++;
-      this.events.push({ type: 'kill', attacker: attacker.name, victim: target.name, team: attacker.team,
-        attackerId: attacker.id, victimId: target.id, weapon, impact,
+      if (this.mode === 'tdm' && !environment) this.scores[attacker.team]++;
+      this.events.push({ type: 'kill', attacker: environment ?? attacker.name, victim: target.name, team: environment ? -1 : attacker.team,
+        attackerId: environment ? null : attacker.id, victimId: target.id, weapon, impact,
         body: { x: target.x, y: target.y, z: target.z, vx: target.vx, vy: target.vy, vz: target.vz,
-          yaw: target.yaw, crouch: target.crouch, team: target.team, slot: target.slot, character: target.character,
+          yaw: target.yaw, crouch: target.crouch, team: target.team, slot: target.slot, character: target.character, frame: target.frame,
           weapon: target.weapon, hordeType: target.hordeType, from: [origin.x, origin.y, origin.z] },
       });
     }
@@ -280,39 +349,60 @@ export class Match {
     if (!mounted && !vehicle) player.loadout[key].ammo -= weapon.cost ?? 1;
     if (!vehicle) player.fireAt = now + weapon.interval;
     player.safeUntil = now;
+    if (player.bot && player.brain) player.brain.lastDischargeAt = now;
     const mountedAim = vehicle && this.vehicleAim(player, vehicle, weapon.range);
     const origin = trigger?.origin ?? mountedAim?.origin ?? { x: player.x, y: player.y + eyeHeight(player), z: player.z };
     const from = [origin.x, origin.y - 0.12, origin.z];
+    botSound(this,player,origin,now,key === 'arc' ? 21 : 26);
     const hits = [];
     const ends = [];
     this.events.push({ type: 'shot', id: player.id, weapon: key, from, ends, hits, alt, mounted, vehicle: vehicle?.id, fireId: trigger?.fireId, echo: trigger?.echo });
+    this.director?.record(now);
     const shotYaw = trigger?.yaw ?? player.yaw;
     const shotPitch = trigger?.pitch ?? player.pitch;
     const power = player.surgeUntil > now ? 1.6 : 1;
     if (weapon.projectile) {
       this.projectiles.push({
         id: ++this.nextProjectile, owner: player, weapon: key, position: origin,
-        direction: mountedAim?.direction ?? aimVector(shotYaw, shotPitch), range: weapon.range, power, spec: weapon,
+        direction: mountedAim?.direction ?? aimVector(shotYaw, shotPitch), range: weapon.range, power, spec: weapon, alt,
         echo: trigger?.echo,
       });
       return;
     }
     const damage = new Map();
-    for (const [index, offset] of weapon.pattern.entries()) {
-      const direction = mountedAim?.direction ?? aimVector(shotYaw + offset, shotPitch + (index % 2 ? offset * 0.7 : -offset * 0.7));
-      const { target, distance } = this.trace(player, origin, direction, weapon.range);
+    const intercepts = this.interactions.intercept && !mounted && !vehicle && !trigger?.echo ? new Set() : null;
+    function recordImpact(target, distance, direction, strength = 1) {
+      const at = [origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance];
       if (target && (target.isEcho || target.opened !== undefined || target.kind || target.safeUntil <= now)) {
+        const amount = weapon.damage * power * strength;
         const hit = damage.get(target);
-        if (hit) hit.damage += weapon.damage * power;
-        else damage.set(target, { damage: weapon.damage * power, impact: [
-          origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance,
-        ] });
+        if (hit) hit.damage += amount;
+        else damage.set(target, { damage: amount, impact: at });
       }
       const impact = target?.isEcho ? 'echo' : target?.opened !== undefined
         ? (target.opened & (1 << player.team) ? 'core' : 'shield')
         : target ? (target.kind || target.armor || target.safeUntil > now ? 'shield' : 'pilot')
           : distance < weapon.range ? 'wall' : null;
-      ends.push([origin.x + direction.x * distance, origin.y + direction.y * distance, origin.z + direction.z * distance, impact]);
+      ends.push([...at, impact]);
+    }
+
+    for (const [index, offset] of weapon.pattern.entries()) {
+      const elevation = weapon.horizontal ? 0 : (index % 2 ? offset * 0.7 : -offset * 0.7);
+      const direction = mountedAim?.direction ?? aimVector(shotYaw + offset, shotPitch + elevation);
+      const { target, distance } = this.trace(player, origin, direction, weapon.range);
+      const cut = intercepts && grenadeOnRay(this,player,origin,direction,distance,now);
+      if (cut) {
+        intercepts.add(cut.grenade);
+        ends.push([origin.x + direction.x * cut.distance, origin.y + direction.y * cut.distance,
+          origin.z + direction.z * cut.distance, 'grenade']);
+        continue;
+      }
+      recordImpact(target, distance, direction);
+      if (weapon.penetration && target && !target.isEcho && !target.kind && target.opened === undefined &&
+          target.safeUntil <= now && !target.armor) {
+        const next = this.trace(player, origin, direction, weapon.range, 0, target);
+        if (next.distance > distance) recordImpact(next.target, next.distance, direction, weapon.penetration);
+      }
     }
     for (const [target, value] of damage) {
       if (target.isEcho) {
@@ -324,6 +414,16 @@ export class Match {
         hits.push(hit);
         this.signature.combat(player, hit, now, Boolean(trigger?.echo));
       }
+    }
+    for (const grenade of intercepts ?? []) {
+      const index = this.projectiles.indexOf(grenade);
+      if (index < 0) continue;
+      this.projectiles.splice(index,1);
+      const position = grenade.position;
+      this.events.push({ type: 'intercept', id: player.id, position: [position.x,position.y,position.z] });
+      if ((!player.grounded || now - player.lastDodge < 1.12) && distanceSquared(player,position) < 12 ** 2)
+        this.signature.action(player,'intercept',now,grenade.owner.id);
+      this.explode(grenade,null,now);
     }
   }
 
@@ -365,7 +465,7 @@ export class Match {
     const spec = weapon === 'grenade' ? GRENADE : projectile.spec.projectile;
     const from = [position.x, position.y, position.z];
     const hits = [];
-    this.events.push({ type: 'burst', id: owner.id, weapon, from, hits, echo: projectile.echo });
+    this.events.push({ type: 'burst', id: owner.id, weapon, from, hits, alt: projectile.alt, echo: projectile.echo });
     const origin = direction ? {
       x: position.x - direction.x * 0.041,
       y: position.y - direction.y * 0.041,
@@ -392,17 +492,14 @@ export class Match {
         this.signature.damage(other, amount * power);
         continue;
       }
+      const shielded = !vehicle && !core && other.armor > 0;
       const hit = this.damage(owner, other, amount * power * (vehicle ? 1.32 : 1), now, origin, weapon);
       if (!hit) continue;
       hits.push(hit);
       this.signature.combat(owner, hit, now, Boolean(projectile.echo));
       if (!hit.eliminated && !vehicle && !core) {
-        const horizontal = Math.hypot(x, z) || 1;
-        const impulse = (direction ? 4.8 : 7.3) * strength;
-        other.vx += x / horizontal * impulse;
-        other.vz += z / horizontal * impulse;
-        other.vy = Math.max(other.vy, 2.8 * strength);
-        other.grounded = false;
+        explosionImpulse(other,{ x,z },strength,projectile,shielded,this.interactions.brace);
+        if (shielded && this.interactions.brace) hit.braced = true;
       }
     }
   }
@@ -411,6 +508,10 @@ export class Match {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const projectile = this.projectiles[i];
       const { owner, direction, position, weapon } = projectile;
+      if (projectile.hordeAttack) {
+        if (this.horde.advanceShot(projectile, now)) this.projectiles.splice(i, 1);
+        continue;
+      }
       if (this.players.get(owner.id) !== owner) {
         this.projectiles.splice(i, 1);
         continue;
@@ -479,7 +580,7 @@ export class Match {
     for (const [i, pickup] of this.layout.pickups.entries()) {
       if (this.horde && !this.horde.available(pickup)) continue;
       if (this.pickups[i] > now) continue;
-      const player = [...this.players.values()].find(candidate => candidate.hp > 0 && candidate.vehicle < 0
+      const player = [...this.players.values()].find(candidate => candidate.hp > 0 && !candidate.away && candidate.vehicle < 0
         && !candidate.hordeType
         && Math.abs(candidate.y - pickup.y) < 0.78 && distanceSquared(candidate, pickup) < 1.14 ** 2
         && (pickup.type !== 'med' || candidate.hp < PILOT_HP)
@@ -502,8 +603,8 @@ export class Match {
   updateDominance(now) {
     for (const [i, location] of this.layout.points.entries()) {
       const point = this.points[i];
-      const present = new Set([...this.players.values()].filter(p => p.hp > 0 && p.vehicle < 0
-        && distanceSquared(p, location) <= 3.05 ** 2 && p.y - (this.layout.terrain?.(p.x, p.z) ?? 0) < 1.6).map(p => p.team));
+      const present = new Set([...this.players.values()].filter(p => p.hp > 0 && !p.away && p.vehicle < 0
+        && distanceSquared(p, location) <= 3.05 ** 2 && Math.abs(p.y - (location.y ?? 0)) < 1.6).map(p => p.team));
       point.contested = present.size > 1;
       if (point.contested) continue;
       const [team] = present;
@@ -540,7 +641,7 @@ export class Match {
         flag.y = carrier.y;
         continue;
       }
-      const near = [...this.players.values()].filter(p => p.hp > 0 && p.vehicle < 0 && Math.abs(p.y - flag.y) < 1.25 && distanceSquared(p, flag) < 1.7 ** 2);
+      const near = [...this.players.values()].filter(p => p.hp > 0 && !p.away && p.vehicle < 0 && Math.abs(p.y - flag.y) < 1.25 && distanceSquared(p, flag) < 1.7 ** 2);
       if (flag.status === 'dropped' && near.some(p => p.team === team)) {
         this.returnFlag(team);
         continue;
@@ -555,7 +656,7 @@ export class Match {
       const carrier = this.players.get(flag.carrier);
       if (!carrier || this.flags[carrier.team].status !== 'home') continue;
       const base = this.layout.bases[carrier.team];
-      if (carrier.y - (this.layout.terrain?.(carrier.x, carrier.z) ?? 0) >= 1.25 || distanceSquared(carrier, base) >= 2 ** 2) continue;
+      if (Math.abs(carrier.y - (base.y ?? 0)) >= 1.25 || distanceSquared(carrier, base) >= 2 ** 2) continue;
       this.scores[carrier.team]++;
       this.returnFlag(team);
       this.events.push({ type: 'notice', text: carrier.name + ' doručil vlajku pro ' + TEAMS[carrier.team].name });
@@ -563,6 +664,10 @@ export class Match {
   }
 
   checkEnd(now) {
+    if (this.practice) {
+      this.practice.step(now);
+      return;
+    }
     if (this.horde) {
       const label = this.horde.step(now);
       if (label) { this.winner = { label }; this.restartAt = now + ROUND_PAUSE; }
@@ -601,7 +706,7 @@ export class Match {
             this.rejectTrigger(player, player.predictedTrigger.fireId);
             player.predictedTrigger = null;
           }
-          if (!player.hordeType && now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
+          if (!player.away && !player.hordeType && now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
           continue;
         }
         let input = player.hordeType ? this.horde.input(player, now)
@@ -634,11 +739,28 @@ export class Match {
         const startX = player.x;
         const startZ = player.z;
         const pose = { x: startX, y: player.y, z: startZ, yaw: player.yaw, crouch: player.crouch,
-          vy: player.vy, grounded: player.grounded, character: player.character, weapon: player.weapon, team: player.team, slot: player.slot };
+          vy: player.vy, grounded: player.grounded, character: player.character, frame: player.frame, weapon: player.weapon, team: player.team, slot: player.slot };
         let signal = movePlayer(player, {
           ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest, dodge: input.dodge || player.dodgeRequest,
         }, TICK, this.combatLayout);
+        if (this.layout.fallY !== undefined && player.y < this.layout.fallY) {
+          this.damage(player, player, player.hp + player.armor, now, player, 'fall');
+          this.clearRequests(player);
+          continue;
+        }
+        const hazard = this.layout.hazard;
+        if (now >= player.hazardAt && touchesHazard(hazard,player.x,player.y,player.z)) {
+          player.hazardAt = now + hazard.interval;
+          const position = [player.x, player.y + .08, player.z];
+          const hit = this.damage(player, player, hazard.damage, now, player, 'plasma', position, false);
+          this.events.push({ type:'hazard', id:player.id, source:'plasma', position, hits:[hit] });
+          if (player.hp <= 0) {
+            this.clearRequests(player);
+            continue;
+          }
+        }
         this.signature.movement(player, pose, signal, now);
+        if (signal === 'dodge') this.practice?.dodge(player);
         if (signal === 'launch') {
           player.usedLaunch = true;
           player.launchAt = now;
@@ -650,9 +772,14 @@ export class Match {
             signal = 'step';
           }
         } else player.stride = 0;
-        if (signal) this.events.push({
-          type: 'movement', id: player.id, action: signal, position: [player.x, player.y, player.z], team: player.team,
-        });
+        if (signal) {
+          this.events.push({ type: 'movement',id: player.id,action: signal,position: [player.x,player.y,player.z],team: player.team });
+          botSound(this,player,{ x: player.x,y: player.y + .6,z: player.z },now,signal === 'step' ? 9 : 13);
+        }
+        if (player.hordeType) {
+          this.clearRequests(player);
+          continue;
+        }
         const switchTo = input.weapon ?? player.weaponRequest;
         if (switchTo) this.selectWeapon(player, switchTo, now);
         const spec = WEAPONS[player.weapon];
@@ -668,7 +795,7 @@ export class Match {
         if (player.bot && !active.ammo && !active.reserve) this.selectWeapon(player, DEFAULT_WEAPON, now);
         if (player.grenadeRequest && player.grenades > 0) this.throwGrenade(player, now);
         const echoRequest = player.echoRequest ?? (input.echo ? {
-          echo: this.signature.echoes.get(player.id)?.serial, yaw: player.yaw, pitch: player.pitch, alt: false,
+          echo: this.signature.echoes.get(player.id)?.serial, yaw: input.echo.yaw, pitch: input.echo.pitch, alt: false,
         } : null);
         player.echoRequest = null;
         const echoFired = this.signature.fire(player, echoRequest, now);
@@ -683,7 +810,7 @@ export class Match {
             this.shoot(player, now, predicted.alt, false, null, predicted);
             player.predictedTrigger = null;
           }
-        } else if (!player.reloadAt && now >= player.fireAt) {
+        } else if (!echoFired && !player.reloadAt && now >= player.fireAt) {
           const alt = player.altRequest && spec.alt && active.ammo >= spec.alt.cost;
           if (alt || ((input.fire || player.fireRequest) && active.ammo > 0)) this.shoot(player, now, Boolean(alt));
         }
@@ -697,6 +824,8 @@ export class Match {
       this.siege?.step();
       this.streaks.step(now);
       this.checkEnd(now);
+      this.director?.step(now);
+      if (!this.restartAt) this.checkTeamRadio(now);
     }
     this.broadcast(now);
   }
@@ -727,7 +856,7 @@ export class Match {
       return;
     }
     const players = [...this.players.values()].map(p => ({
-      id: p.id, name: p.name, team: p.team, slot: p.slot, character: p.character, bot: p.bot, x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100,
+      id: p.id, name: p.name, team: p.team, slot: p.slot, character: p.character, frame: p.frame, bot: p.bot, x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100,
       y: Math.round(p.y * 1000) / 1000, vx: p.vx, vy: p.vy, vz: p.vz, grounded: p.grounded, airJump: p.airJump,
       airDodge: p.airDodge, dodgeCooldown: p.dodgeCooldown, dodgeTime: p.dodgeTime, padCooldown: p.padCooldown, crouch: p.crouch, sprint: p.sprint, grenades: p.grenades, turret: p.turret, vehicle: p.vehicle,
       yaw: p.yaw, pitch: p.pitch, hp: p.hp, armor: p.armor, surge: Math.max(0, Math.ceil(p.surgeUntil - now)), weapon: p.weapon,
@@ -738,6 +867,10 @@ export class Match {
     const state = {
       type: 'state', players, scores: this.scores, siege: this.siege?.snapshot(), horde: this.horde?.snapshot(now), time: Math.max(0, Math.ceil(this.endsAt - now)),
       signature: this.signature.snapshot(now),
+      practice: this.practice?.snapshot(),
+      arenaDirector: this.director?.publicFrame(now),
+      directorBots: this.director?.directsBots || undefined,
+      interactions: Object.values(this.interactions).some(Boolean) ? this.interactions : undefined,
       streaks: this.streaks.snapshot(now),
       points: this.mode === 'dom' ? this.points : undefined, flags: this.mode === 'ctf' ? this.flags : undefined,
       pickups: this.pickups.map((time, i) => this.horde && !this.horde.available(this.layout.pickups[i]) ? 1 : Math.max(0, Math.ceil(time - now))),
@@ -745,7 +878,7 @@ export class Match {
       turrets: this.turrets.map(item => ({ user: item.user, heat: item.heat, hot: item.hot })),
       projectiles: this.projectiles.map(shot => ({
         id: shot.id, weapon: shot.weapon, x: shot.position.x, y: shot.position.y, z: shot.position.z,
-        fuse: shot.fuseAt === undefined ? undefined : Math.max(0, shot.fuseAt - now),
+        fuse: shot.fuseAt === undefined ? undefined : Math.max(0, shot.fuseAt - now), alt: shot.alt || undefined,
       })), winner: this.restartAt ? this.winner : null, restart: Math.max(0, Math.ceil(this.restartAt - now)), events: this.events,
     };
     if (modern.length) {

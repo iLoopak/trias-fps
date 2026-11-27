@@ -25,9 +25,14 @@ namespace Trias.Native
                 surface.SetColor("_EmissionColor", surface.color * .47f);
             }
 
-            if (!basin)
+            if (IsRelayArt)
             {
-                carrierAnchor = foundry ? new Vector3(55, 38, 119) : new Vector3(55, 48, 110);
+                carrierAnchor = new Vector3(61, 43, 116);
+                BuildRelayTender(backdrop, beacon);
+            }
+            else if (!basin)
+            {
+                carrierAnchor = new Vector3(55, 38, 119);
                 var carrier = Group(backdrop, foundry ? "Foundry smelter tender" : "Relay carrier", carrierAnchor);
                 float length = foundry ? 37 : 49;
                 if (Kit.Spacecraft(carrier, "craft_cargoB", length, hull, armor, glass, markings))
@@ -93,7 +98,39 @@ namespace Trias.Native
             AnimateOrbitalTraffic(flightStart);
         }
 
-        void AnimateOrbitalTraffic(float time)
+        void BuildRelayTender(Transform backdrop, Material beacon)
+        {
+            orbitalCarrier = Group(backdrop, "Relay orbital tender", carrierAnchor);
+            var spinePaint = MapSurface("#586272", "brushed-deck", .26f, .36f);
+            var sidePaint = MapSurface("#9b9c9a", "refractory", .12f, .23f);
+            var heatshield = MapSurface("#333947", "brushed-deck", .34f, .22f);
+            var spine = Armor(orbitalCarrier, spinePaint, new Vector3(0, -.7f, -.55f), new Vector3(8.2f, 38, 3.12f), false);
+            spine.localRotation = Quaternion.Euler(90, 0, 0);
+            var prow = Shell(orbitalCarrier, sidePaint, new Vector3(0, 0, 14f), new Vector3(6.5f, 12f, 2.65f));
+            prow.localRotation = Quaternion.Euler(90, 0, 0);
+            Armor(orbitalCarrier, heatshield, new Vector3(0, 1.85f, 5f), new Vector3(4f, 1.9f, 11f), false);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var flank = Group(orbitalCarrier, "Staggered heatshield rail", new Vector3(side * 3.25f, -.62f, 0));
+                flank.localRotation = Quaternion.Euler(0, side * -8, 0);
+                var root = Armor(flank, heatshield, Vector3.back * 1.4f, new Vector3(3.98f, 26, 2.49f), false);
+                root.localRotation = Quaternion.Euler(90, 0, 0);
+                for (int part = 0; part < 5; part++)
+                {
+                    float z = 9.8f - part * 4.44f;
+                    float x = side * (1.64f + part * .20f);
+                    var plate = Armor(flank, part % 3 == 1 ? relayPaintedSteel : sidePaint, new Vector3(x, .54f, z),
+                        new Vector3(3.05f, 3.83f, .82f), false);
+                    plate.localRotation = Quaternion.Euler(90, side * 8, 0);
+                    Part(flank, heatshield, new Vector3(x, -1.44f, z), new Vector3(2.26f, .44f, 2.68f));
+                    if (part % 2 == 0) Part(flank, beacon, new Vector3(x, -1.69f, z), new Vector3(.18f, .055f, .39f));
+                }
+                Part(flank, spinePaint, new Vector3(side * .75f, -.45f, -12.4f), new Vector3(3.35f, 1.47f, 4.92f));
+                Part(flank, beacon, new Vector3(side * .75f, -.51f, -14.9f), new Vector3(1.59f, .25f, .067f));
+            }
+        }
+
+        void AnimateOrbitalTraffic(float time, float arenaPulse = 0)
         {
             float age = time - flightStart;
             if (orbitalCarrier != null)
@@ -105,7 +142,7 @@ namespace Trias.Native
             if (orbitalFlight == null) return;
             float angle = age * (Spec.id == "basin" ? .15f : .25f) + flightPhase;
             float s = Mathf.Sin(angle), c = Mathf.Cos(angle);
-            orbitalFlight.localPosition = flightAnchor + new Vector3(s * 57, Mathf.Sin(angle * 2) * 4, c * 13);
+            orbitalFlight.localPosition = flightAnchor + new Vector3(s * 57, Mathf.Sin(angle * 2) * 4 + arenaPulse * 6, c * 13 + arenaPulse * 8);
             var tangent = new Vector3(c * 57, Mathf.Cos(angle * 2) * 8, -s * 13);
             orbitalFlight.localRotation = Quaternion.LookRotation(tangent) * Quaternion.Euler(0, 0, 14 * s);
         }

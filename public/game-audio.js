@@ -112,6 +112,24 @@ export class GameAudio {
     }
   }
 
+  signature(action, level = 1, pan = 0) {
+    if (action === 'replay') {
+      this.tone(182, 71, 0.25, 'triangle', 0.115);
+      this.tone(1024, 558, 0.17, 'sine', 0.068, 0, 0.046);
+    } else if (action === 'respawn') {
+      this.tone(146, 365, 0.26, 'triangle', 0.099);
+      this.tone(484, 840, 0.25, 'sine', 0.071, 0, 0.083);
+      this.tone(780, 1180, 0.18, 'sine', 0.043, 0, 0.151);
+    } else if (action === 'core') {
+      this.tone(126, 28, 0.78, 'sine', 0.24 * level, pan);
+      this.tone(511, 58, 0.59, 'triangle', 0.17 * level, pan, 0.035);
+      this.tone(886, 135, 0.44, 'triangle', 0.083 * level, pan, 0.19);
+    } else if (action === 'rift' && level > 0) {
+      this.tone(660, 195, 0.20, 'triangle', 0.10 * level, pan);
+      this.tone(940, 340, 0.28, 'sine', 0.074 * level, pan, 0.062);
+    }
+  }
+
   engine(vehicle) {
     if (this.context?.state !== 'running') return;
     if (vehicle && !this.motor) {

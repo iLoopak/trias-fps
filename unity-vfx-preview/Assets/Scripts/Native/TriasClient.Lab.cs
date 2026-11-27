@@ -46,6 +46,8 @@ namespace Trias.Native
                 socket.Send(labDelay ? "{\"type\":\"lab-delay\",\"active\":true}" : "{\"type\":\"lab-delay\",\"active\":false}");
             }
             if (Input.GetKeyDown(KeyCode.F7)) socket.Send("{\"type\":\"lab-reset\"}");
+            if (state["interactions"]["intercept"].Bool && Input.GetKeyDown(KeyCode.F10))
+                socket.Send("{\"type\":\"lab-grenade\"}");
             bool toggleEcho = Input.GetKeyDown(KeyCode.F8), toggleMomentum = Input.GetKeyDown(KeyCode.F9);
             if (toggleEcho) labEcho = !labEcho;
             if (toggleMomentum) labMomentum = !labMomentum;
@@ -55,16 +57,19 @@ namespace Trias.Native
 
         void PaintLab(float width)
         {
-            var panel = new Rect((width - 486) * .5f, 90, 486, 113);
+            bool intercept = state["interactions"]["intercept"].Bool;
+            var panel = new Rect((width - 486) * .5f, 90, 486, intercept ? 135 : 113);
             CornerPanel(panel, Shield);
             float milliseconds = labFrameTime * 1000;
             float fps = labFrameTime > 0 ? 1 / labFrameTime : 0;
-            GUI.Label(new Rect(panel.x + 11, 94, 467, 23), "GAME FEEL LAB   ·   " + (labBaseline ? "SERVEROVÁ ODEZVA" : "LOKÁLNÍ PREDIKCE"), section);
-            GUI.Label(new Rect(panel.x + 11, 119, 467, 22), $"{fps:F0} FPS · {milliseconds:F1} ms · RTT {latency} ms · korekce {predictedCorrection * 100:F1} cm", caption);
-            GUI.Label(new Rect(panel.x + 11, 139, 467, 22), $"Vstup → efekt {inputFeedbackMs:F2} ms · potvrzení výstřelu {confirmationMs:F0} ms", caption);
-            GUI.Label(new Rect(panel.x + 11, 159, 467, 21), "F5 srovnání · F6 přidat 160 ms · F7 doplnit terče a munici", caption);
-            GUI.Label(new Rect(panel.x + 11, 180, 467, 21),
+            hudText.Draw(new Rect(panel.x + 11, 94, 467, 23), "GAME FEEL LAB   ·   " + (labBaseline ? "SERVEROVÁ ODEZVA" : "LOKÁLNÍ PREDIKCE"), section);
+            hudText.Draw(new Rect(panel.x + 11, 119, 467, 22), $"{fps:F0} FPS · {milliseconds:F1} ms · RTT {latency} ms · korekce {predictedCorrection * 100:F1} cm", caption);
+            hudText.Draw(new Rect(panel.x + 11, 139, 467, 22), $"Vstup → efekt {inputFeedbackMs:F2} ms · potvrzení výstřelu {confirmationMs:F0} ms", caption);
+            hudText.Draw(new Rect(panel.x + 11, 159, 467, 21), "F5 srovnání · F6 přidat 160 ms · F7 doplnit terče a munici", caption);
+            hudText.Draw(new Rect(panel.x + 11, 180, 467, 21),
                 $"F8 Ozvěna {(labEcho ? "zapnuta" : "vypnuta")} · F9 Momentum {(labMomentum ? "zapnuto" : "vypnuto")}", caption);
+            if (intercept)
+                hudText.Draw(new Rect(panel.x + 11, 202, 467, 21), "F10 tréninkový granát · namiř do volného prostoru", caption);
         }
 #endif
     }

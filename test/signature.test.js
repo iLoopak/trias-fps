@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
 import { SIGNATURE } from '../signature.js';
-import { ARMORY, WEAPONS } from '../public/rules.js';
+import { ARMORY, PILOT_HP, WEAPONS } from '../public/rules.js';
 
 function setup(flags) {
   const match = new Match('ECHO', 'tdm', false, undefined, flags);
@@ -86,7 +86,7 @@ test('echo activation checks ownership, ammo, cooldown, reload and obstruction',
   player.loadout.pulse.ammo = 0;
   assert.equal(signature.fire(player, request(echo), 1.2), false);
   player.loadout.pulse.ammo = 3;
-  echo.x = 30;
+  echo.x = match.layout.length;
   assert.equal(signature.fire(player, request(echo), 1.2), false);
   assert.equal(player.loadout.pulse.ammo, 3);
 });
@@ -114,7 +114,7 @@ test('an echo cannot shoot through geometry to hit hidden targets', () => {
   const enemy = match.addPlayer('target', 'Target', 1, 0, 0);
   Object.assign(enemy, { x: 6, y: 0, z: 0, safeUntil: 0 });
   assert(signature.fire(player, { ...request(echo), yaw: -Math.PI / 2 }, 1.25));
-  assert.equal(enemy.hp, 150);
+  assert.equal(enemy.hp, PILOT_HP);
   assert.equal(match.events.find(evt => evt.type === 'shot').ends[0][3], 'wall');
 });
 
@@ -129,7 +129,7 @@ test('echo requests deduplicate and lifecycle clears on death, reset and disconn
   Object.assign(player, { dodgeCooldown: 0, airDodge: true });
   assert(dodge(match, player, 2.3));
   const foe = match.addPlayer('foe', 'Foe', 1, 0, 0);
-  match.damage(foe, player, 200, 2.4, foe, 'lance');
+  match.damage(foe, player, PILOT_HP, 2.4, foe, 'lance');
   assert.equal(signature.echoes.size, 0);
   match.spawn(player, 5);
   assert(dodge(match, player, 6));

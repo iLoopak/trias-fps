@@ -1,12 +1,11 @@
+using Trias.Native;
 using UnityEngine;
 
 namespace Trias.Preview
 {
     public sealed class RelayPilot : MonoBehaviour
     {
-        public const int MaxHealth = 150;
-        public const int Magazine = 24;
-        public const int TrainingRift = 3;
+        public const int MaxHealth = 210;
         const float BodyHeight = 1.78f;
         const float BodyRadius = 0.43f;
         const float Gravity = 19f;
@@ -15,15 +14,24 @@ namespace Trias.Preview
         internal CharacterController Body;
         internal Transform Art;
         internal Transform LeftLeg, RightLeg, Visor;
-        internal int Team, Slot, Health, Ammo, RiftAmmo, Deaths;
+        internal int Team, Slot, Health, Deaths, WeaponIndex;
+        readonly int[] ammo = new int[5], reserve = new int[5];
+        internal Choice Weapon => Match.Arsenal[WeaponIndex];
+        internal int Ammo => ammo[WeaponIndex];
+        internal int Reserve => reserve[WeaponIndex];
         internal string Callsign;
-        internal bool Human, Rift;
+        internal bool Human;
         internal float NextShot, ReloadAt, ReturnAt, ProtectedUntil;
         internal Vector3 Velocity;
         internal float Vertical, Pitch, Yaw, Kick, HitFlash, ConfirmFlash;
         bool airJump, grounded;
         float padLocked, launchUntil, step, seekAt;
         Vector3 waypoint;
+        internal Vector3 DirectorGoal { get; private set; }
+        internal bool DirectorContact { get; private set; }
+        float memoryUntil, goalUntil, botReactionAt;
+        RelayPilot botContact;
+        Vector3 lastSeen;
 
         internal Vector3 Eye => transform.position + Vector3.up * 1.56f;
         Vector3 Aim => Quaternion.Euler(Pitch - (Human ? Kick * 0.52f : 0), Yaw, 0) * Vector3.forward;
@@ -53,13 +61,20 @@ namespace Trias.Preview
             Body.enabled = true;
             if (Art != null) Art.gameObject.SetActive(true);
             Health = MaxHealth;
-            Ammo = Magazine;
-            RiftAmmo = Human ? TrainingRift : 0;
-            Rift = false;
+            WeaponIndex = Human ? Match.StartingWeapon : 0;
+            for (int i = 0; i < Match.Arsenal.Length; i++)
+            {
+                ammo[i] = Human || i == 0 ? Match.Arsenal[i].magazine : 0;
+                reserve[i] = Human && i > 0 ? Match.Arsenal[i].magazine : 0;
+            }
             Pitch = Vertical = Kick = HitFlash = ConfirmFlash = 0;
             Velocity = Vector3.zero;
             grounded = airJump = false;
             seekAt = padLocked = launchUntil = ReloadAt = 0;
+            goalUntil = memoryUntil = -1;
+            DirectorGoal = new Vector3(1024, 0, 1024);
+            DirectorContact = false;
+            botContact = null;
             ProtectedUntil = Time.time + 1.4f;
             NextShot = Time.time + 0.22f;
             if (Human) PositionCamera();
@@ -68,12 +83,15 @@ namespace Trias.Preview
         internal void Tick(float dt)
         {
             if (Health <= 0 || !Match.Running) return;
-            Kick = Mathf.MoveTowards(Kick, 0, dt * (Rift ? 12 : 20));
+            Kick = Mathf.MoveTowards(Kick, 0, dt * (Weapon.id == "rift" ? 12 : 20));
             ConfirmFlash = Mathf.MoveTowards(ConfirmFlash, 0, dt * 5.7f);
             HitFlash = Mathf.MoveTowards(HitFlash, 0, dt * 2.5f);
             if (ReloadAt > 0 && Time.time >= ReloadAt)
             {
-                Ammo = Magazine;
+                int needed = Weapon.magazine - Ammo;
+                int loaded = WeaponIndex == 0 ? needed : Mathf.Min(needed, Reserve);
+                ammo[WeaponIndex] += loaded;
+                if (WeaponIndex != 0) reserve[WeaponIndex] -= loaded;
                 ReloadAt = 0;
                 if (Human) Match.Effects.Reload(Eye, true);
             }
@@ -85,20 +103,22 @@ namespace Trias.Preview
         {
             Yaw = Mathf.Repeat(Yaw + Input.GetAxisRaw("Mouse X") * Match.lookSensitivity, 360);
             Pitch = Mathf.Clamp(Pitch - Input.GetAxisRaw("Mouse Y") * Match.lookSensitivity, -83, 83);
-            if (Input.GetKeyDown(KeyCode.Alpha1) && Rift) Switch(false);
-            if (Input.GetKeyDown(KeyCode.Alpha2) && !Rift && RiftAmmo > 0) Switch(true);
-            if (!Rift && Input.GetKeyDown(KeyCode.R)) Reload();
+            for (int i = 0; i < Match.Arsenal.Length; i++)
+                if (Input.GetKeyDown(KeyCode.Alpha1 + i) && i != WeaponIndex) Switch(i);
+            if (Input.GetKeyDown(KeyCode.R)) Reload();
             var rotation = Quaternion.Euler(0, Yaw, 0);
             Vector3 wish = rotation * Vector3.ClampMagnitude(new Vector3(Input.GetAxisRaw("Horizontal"), 0, Input.GetAxisRaw("Vertical")), 1);
             bool sprint = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             Move(wish, sprint ? 10.1f : 7.55f, Input.GetKeyDown(KeyCode.Space), dt);
             PositionCamera();
-            if (Input.GetMouseButton(0)) Fire();
+            if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.F)) Fire(true);
+            else if (Input.GetMouseButtonDown(0) ||
+                ((Weapon.id == "pulse" || Weapon.id == "arc") && Input.GetMouseButton(0))) Fire();
         }
 
-        void Switch(bool rift)
+        void Switch(int index)
         {
-            Rift = rift;
+            WeaponIndex = index;
             ReloadAt = 0;
             NextShot = Time.time + 0.22f;
         }
@@ -106,25 +126,60 @@ namespace Trias.Preview
         void BotInput(float dt)
         {
             var enemy = Match.TargetFor(this, out bool visible);
-            if (enemy == null) return;
-            Vector3 target = enemy.transform.position;
+            bool directed = Match.Directed;
+            DirectorContact = visible;
+            if (enemy == null && !directed) return;
+            Vector3 target;
+            if (!directed) target = enemy.transform.position;
+            else if (visible)
+            {
+                target = lastSeen = enemy.transform.position;
+                memoryUntil = Time.time + 2.4f;
+            }
+            else if (Time.time < memoryUntil && (lastSeen - transform.position).sqrMagnitude > 2.4f * 2.4f)
+                target = lastSeen;
+            else
+            {
+                if (Time.time >= goalUntil || (DirectorGoal - transform.position).sqrMagnitude < 8)
+                {
+                    DirectorGoal = Match.PatrolFor(this, DirectorGoal);
+                    goalUntil = Time.time + 5.5f;
+                    seekAt = -1;
+                }
+                target = DirectorGoal;
+            }
             Vector3 toward = target - transform.position;
             Vector3 flat = new Vector3(toward.x, 0, toward.z);
             float distance = flat.magnitude;
             Vector3 direction = distance > 0.05f ? flat / distance : transform.forward;
             if (visible)
             {
-                Vector3 look = enemy.Eye - Eye - Vector3.up * 0.38f + Vector3.Cross(Vector3.up, direction) * Mathf.Sin(Time.time * 9 + Slot) * (0.30f + distance * 0.022f);
-                Yaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
-                Pitch = -Mathf.Atan2(look.y, new Vector2(look.x, look.z).magnitude) * Mathf.Rad2Deg;
+                if (botContact != enemy)
+                {
+                    botContact = enemy;
+                    botReactionAt = Time.time + .47f + (Slot % 4) * .06f;
+                }
+                Vector3 look = enemy.Eye - Eye - Vector3.up * 0.38f + Vector3.Cross(Vector3.up, direction) * Mathf.Sin(Time.time * 8 + Slot) * (0.48f + distance * 0.035f);
+                float aimYaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
+                float aimPitch = -Mathf.Atan2(look.y, new Vector2(look.x, look.z).magnitude) * Mathf.Rad2Deg;
+                Yaw = Mathf.MoveTowardsAngle(Yaw, aimYaw, dt * 142);
+                Pitch = Mathf.MoveTowardsAngle(Pitch, aimPitch, dt * 100);
                 Vector3 side = Vector3.Cross(Vector3.up, direction);
                 var advance = distance > 10 ? direction * 0.82f : distance < 4 ? -direction * 0.42f : Vector3.zero;
+                if (directed)
+                {
+                    float band = Match.PreferredRange(this);
+                    bool withdraw = Match.Regrouping && Health < MaxHealth * .43f && distance < band + 2;
+                    advance = withdraw ? -.67f * direction : direction * Mathf.Clamp((distance - band) * .18f, -.54f, .82f);
+                }
                 advance += side * Mathf.Sin(Time.time * 1.9f + Slot * 2 + Team) * 0.62f;
                 Move(Vector3.ClampMagnitude(advance, 1), 6.1f, false, dt);
-                Fire();
+                if (Time.time >= botReactionAt && Mathf.Abs(Mathf.DeltaAngle(Yaw, aimYaw)) < 7 && Mathf.Abs(Mathf.DeltaAngle(Pitch, aimPitch)) < 6)
+                    Fire();
             }
             else
             {
+                botContact = null;
                 Vector3 delta = waypoint - transform.position;
                 delta.y = 0;
                 if (Time.time >= seekAt || delta.sqrMagnitude < 0.45f)
@@ -189,50 +244,42 @@ namespace Trias.Preview
             Match.View.transform.SetPositionAndRotation(Eye, Quaternion.Euler(Pitch - Kick * 0.52f, Yaw, 0));
         }
 
-        internal bool Fire()
+        internal bool Fire(bool alternate = false)
         {
             if (Time.time < NextShot || ReloadAt > 0 || Health <= 0) return false;
-            if (!Rift && Ammo == 0)
+            var spec = alternate ? Weapon.alt : Weapon.shot;
+            if (Ammo < spec.Cost)
             {
-                Reload();
+                if (Ammo == 0) Reload();
+                if (Human && alternate) Match.Effects.DryFire();
                 return false;
             }
-            if (Rift && RiftAmmo == 0) return false;
             ProtectedUntil = 0;
-            Vector3 origin = Eye, aim = Aim;
-            if (Rift)
-            {
-                RiftAmmo--;
-                NextShot = Time.time + 0.72f;
-                Kick = Human ? 5.5f : 0;
-                Match.ShootRift(this, origin, aim);
-            }
-            else
-            {
-                Ammo--;
-                NextShot = Time.time + (Human ? 0.145f : 0.26f + Slot * 0.017f);
-                Kick = Human ? 2.45f : 0;
-                Match.ShootPulse(this, origin, aim);
-            }
+            ammo[WeaponIndex] -= spec.Cost;
+            NextShot = Time.time + (Human ? spec.interval : 0.26f + Slot * 0.017f);
+            Vector3 direction = Aim;
+            Kick = Human ? (Weapon.id == "rift" ? 5.5f : 2.45f) * (alternate ? 1.4f : 1) : 0;
+            Match.FireWeapon(this, Eye, direction, spec, alternate);
             return true;
         }
 
         internal void Reload()
         {
-            if (Ammo >= Magazine || ReloadAt > 0) return;
-            ReloadAt = Time.time + 1.3f;
-            if (Human) Match.Effects.Reload(Eye, false);
+            if (Ammo >= Weapon.magazine || ReloadAt > 0 || (WeaponIndex > 0 && Reserve == 0)) return;
+            ReloadAt = Time.time + Weapon.reload;
+            if (Human) Match.Effects.Reload(Eye, false, Weapon.id);
         }
 
         internal bool Damage(RelayPilot attacker, int damage)
         {
             if (attacker == this || attacker.Team == Team || Health <= 0 || Time.time < ProtectedUntil) return false;
             Health = Mathf.Max(0, Health - damage);
+            Match.DirectorHit(damage, Health == 0);
             HitFlash = 1f;
             if (attacker.Human) attacker.ConfirmFlash = Health == 0 ? 1.6f : 1f;
             if (Health != 0) return true;
             Deaths++;
-            ReturnAt = Time.time + 2.8f;
+            ReturnAt = Time.time + 5f;
             Body.enabled = false;
             if (Art != null) Art.gameObject.SetActive(false);
             Match.Eliminated(attacker, this);

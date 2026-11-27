@@ -1,7 +1,8 @@
 import { performance } from 'node:perf_hooks';
 import { WebSocketServer } from 'ws';
 import { fireProfileData, Match } from '../match.js';
-import { ARMORY, TICK, WEAPONS } from '../public/rules.js';
+import { interactionFlags } from '../interactions.js';
+import { aimVector, ARMORY, eyeHeight, PILOT_HP, TICK, wallDistance, WEAPONS } from '../public/rules.js';
 import { NETWORK_VERSION, unpackInput } from '../public/netcode.js';
 
 const port = 3035;
@@ -19,14 +20,14 @@ function drill(room, player, targets, start) {
   for (const [i, point] of stations.entries()) {
     const target = targets[i] ?? room.addPlayer('dummy-' + i, point.name, 1, i, start, false, 'bulwark');
     targets[i] = target;
-    Object.assign(target, { x: point.x, y: 0, z: point.z, hp: 150, armor: point.armor, safeUntil: 0, yaw: 0, fireAt: Infinity });
+    Object.assign(target, { x: point.x, y: 0, z: point.z, hp: PILOT_HP, armor: point.armor, safeUntil: 0, yaw: 0, fireAt: Infinity });
   }
 }
 
 server.on('connection', (socket, request) => {
   if (request.headers.origin) { socket.close(1008); return; }
   const start = now();
-  const match = new Match('FEEL LAB', 'tdm', false);
+  const match = new Match('FEEL LAB', 'tdm', false, undefined, { interactions: interactionFlags(process.env) });
   const targets = [];
   const send = socket.send.bind(socket);
   let lag = 0;
@@ -55,7 +56,7 @@ server.on('connection', (socket, request) => {
       Object.assign(socket.player, { x: 0, z: -24, yaw: -Math.PI });
       drill(match, socket.player, targets, now());
       socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: 'FEEL LAB', mode: 'tdm',
-        arena: 'relay', v: NETWORK_VERSION, fireProfiles: fireProfileData(), lab: true }));
+        arena: 'relay', v: NETWORK_VERSION, fireProfiles: fireProfileData(), pace: match.pace, lab: true }));
       sessions.add(tick);
       return;
     }
@@ -74,18 +75,33 @@ server.on('connection', (socket, request) => {
         const input = unpackInput(message.data);
         if (input) match.input(socket.player, input, at);
       } else if (message.type === 'trigger') match.trigger(socket.player, message, at);
-      else if (message.type === 'echo-fire') match.signature.request(socket.player, message);
+      else if (message.type === 'echo-fire' || message.type === 'echo-swap') match.signature.request(socket.player, message);
+      else if (message.type === 'lab-grenade' && match.interactions.intercept) practiceGrenade(socket.player, at);
       else if (message.type === 'ping') socket.send(JSON.stringify({ type: 'pong', id: message.id }));
     });
   });
   socket.on('close', () => sessions.delete(tick));
+
+  function practiceGrenade(player, at) {
+    const target = targets[0];
+    if (!player.hp || match.projectiles.some(projectile => projectile.weapon === 'grenade')) return;
+    const direction = aimVector(player.yaw, player.pitch);
+    const eye = { x: player.x, y: player.y + eyeHeight(player), z: player.z };
+    if (wallDistance(eye, direction, 7, match.combatLayout) < 6.99) return;
+    target.grenades = Math.max(1, target.grenades);
+    match.throwGrenade(target, at);
+    const grenade = match.projectiles.at(-1);
+    Object.assign(grenade.position, { x: eye.x + direction.x * 6.6, y: eye.y + direction.y * 6.6, z: eye.z + direction.z * 6.6 });
+    Object.assign(grenade.velocity, { x: -direction.x * 1.65, y: 3.2, z: -direction.z * 1.65 });
+    match.events.at(-1).from = [grenade.position.x, grenade.position.y, grenade.position.z];
+  }
 
   function tick(at) {
     match.endsAt = at + 360;
     match.scores.fill(0);
     for (const [i, point] of stations.entries()) {
       const target = targets[i];
-      if (!target.hp && at >= target.respawnAt - 1.9) {
+      if (!target.hp && at >= target.respawnAt - match.pace.respawn + .9) {
         match.spawn(target, at);
         Object.assign(target, { x: point.x, y: 0, z: point.z, armor: point.armor, safeUntil: 0, yaw: 0, fireAt: Infinity });
       }

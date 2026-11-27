@@ -42,6 +42,7 @@ export class Streaks {
       pilot.surgeUntil = Math.max(pilot.surgeUntil, now + 12);
     }
     pilot.perks &= ~(1 << index);
+    this.room.practice?.perk(pilot, request.perk);
     this.room.events.push({ type: 'perk-used', id: pilot.id, perk: request.perk, position: [pilot.x, pilot.y, pilot.z] });
     return null;
   }

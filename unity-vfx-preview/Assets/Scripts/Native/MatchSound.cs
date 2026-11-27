@@ -43,6 +43,48 @@ namespace Trias.Preview
             return Clip(name, data, 1);
         }
 
+        internal static AudioClip Mechanism(string name, float duration, float body, float air, float metal, bool latch = false)
+        {
+            var samples = new float[Mathf.CeilToInt(Rate * duration)];
+            int seed = 31;
+            foreach (char c in name) seed = unchecked(seed * 37 + c);
+            var random = new System.Random(seed);
+            float pink = 0, mid = 0;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float t = (float)i / Rate;
+                float raw = (float)random.NextDouble() * 2 - 1;
+                pink = Mathf.Lerp(pink, raw, .12f);
+                mid = Mathf.Lerp(mid, raw, .39f);
+                float second = t - duration * .35f;
+                float contact = Mathf.Exp(-t * 93) + (latch && second > 0 ? .56f * Mathf.Exp(-second * 110) : 0);
+                float thud = (.48f * Mathf.Sin(Cycle * body * t) + .20f * pink) * Mathf.Exp(-t * 21);
+                float hiss = (mid - pink) * air * Mathf.Clamp01(t * 85) * Mathf.Exp(-t * (6 + 1.1f / duration));
+                float strike = metal * contact * (.43f * (raw - mid) + .14f * Mathf.Sin(Cycle * 842 * t) + .10f * Mathf.Sin(Cycle * 1219 * t));
+                samples[i] = (thud + hiss + strike) * Mathf.Clamp01(t * 1400) * Mathf.Clamp01((duration - t) * 100);
+            }
+            return Clip(name, samples, 1);
+        }
+
+        internal static AudioClip NearMiss()
+        {
+            const float duration = .105f;
+            var samples = new float[Mathf.CeilToInt(Rate * duration)];
+            var random = new System.Random(509);
+            float pressure = 0, phase = 0;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float t = (float)i / (samples.Length - 1);
+                float noise = (float)random.NextDouble() * 2 - 1;
+                pressure = Mathf.Lerp(pressure, noise, .28f);
+                float pass = Mathf.SmoothStep(0, 1, (t - .1f) / .55f);
+                phase += Cycle * Mathf.Lerp(2850, 950, pass) / Rate;
+                float envelope = Mathf.Clamp01(t * 21) * (1 - t) * (1 - t);
+                samples[i] = envelope * (.36f * Mathf.Sin(phase) + .43f * (noise - pressure));
+            }
+            return Clip("Close pass", samples, 1);
+        }
+
         internal static AudioClip Wave(string name, bool incoming)
         {
             float[] notes = incoming ? new[] { 123.5f, 123.5f, 82.4f } : new[] { 330f, 494f, 660f };
@@ -72,13 +114,14 @@ namespace Trias.Preview
             }
             var samples = new float[dust.Length * 2];
             bool island = arena == "island";
-            int root = arena == "foundry" ? 42 : arena == "basin" ? 33 : 56;
+            int root = arena == "hangar" ? 38 : arena == "foundry" ? 42 : arena == "basin" ? 33 : 56;
             for (int i = 0; i < dust.Length; i++)
             {
                 float t = (float)i / Rate, orbit = Cycle * t / length;
                 float fade = Mathf.Clamp01(Mathf.Min(t, length - t) * 5);
                 float breath = .72f + .28f * Mathf.Sin(orbit * 3);
-                float rumble = island ? 0 : Mathf.Sin(Cycle * root * t + .27f * Mathf.Sin(orbit)) * .30f
+                float tremble = arena == "hangar" ? .68f + .18f * Mathf.Sin(orbit) : 1;
+                float rumble = island ? 0 : Mathf.Sin(Cycle * root * t + .27f * Mathf.Sin(orbit)) * .30f * tremble
                     + Mathf.Sin(Cycle * root * 2 * t) * (.09f + .03f * Mathf.Sin(orbit * 2));
                 for (int channel = 0; channel < 2; channel++)
                 {

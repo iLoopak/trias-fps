@@ -11,15 +11,23 @@ namespace Trias.Native
         static readonly Color Chalk = new Color(.97f, .94f, .87f);
         VisorComposite visor;
         Texture2D radarPlate;
-        Vector3 impactSource;
-        float impactTime;
         Color damageTint = Fault;
         int confirmStyle;
+        const float IncomingDuration = .48f;
+        const float ShieldReturnDuration = .72f;
+        struct IncomingHit
+        {
+            internal float Heading, Until;
+            internal Color Tint;
+            internal bool Heavy;
+        }
+        readonly IncomingHit[] incomingHits = new IncomingHit[4];
+        float healthTrail, armorTrail, vitalsPulse, shieldAlertUntil, shieldReturnUntil;
         float waveFlash, coreFlash;
         bool waveStarts;
         struct KillEntry
         {
-            internal string Label;
+            internal string Attacker, Victim, Weapon;
             internal Color Tint;
             internal float Time;
         }
@@ -30,7 +38,7 @@ namespace Trias.Native
         {
             for (int i = killFeed.Length - 1; i > 0; i--) killFeed[i] = killFeed[i - 1];
             killFeed[0] = new KillEntry {
-                Label = attacker + "  ›  " + victim + "   ·   " + (Catalog.Find(catalog.weapons, key)?.label ?? key),
+                Attacker = attacker, Victim = victim, Weapon = Catalog.Find(catalog.weapons, key)?.label ?? key,
                 Tint = team >= 0 && team < catalog.teams.Length ? Catalog.Tint(catalog.teams[team].color) : Chalk,
                 Time = now,
             };
@@ -45,13 +53,16 @@ namespace Trias.Native
                 float age = Time.unscaledTime - entry.Time;
                 float opacity = Mathf.Clamp01((3.7f - age) * 2.7f);
                 if (opacity == 0) break;
-                float x = w - 267 + (1 - Mathf.Clamp01(age * 12)) * 13;
-                var row = new Rect(x, 132 + i * 26, 240, 24);
+                float x = w - 300 + (1 - Mathf.Clamp01(age * 12)) * 10;
+                var row = new Rect(x, 116 + i * 24, 278, 23);
                 var previous = GUI.color;
                 GUI.color = new Color(1, 1, 1, opacity);
-                Fill(row, Ink);
-                Fill(new Rect(row.x, row.y, 2, 24), entry.Tint);
-                GUI.Label(new Rect(row.x + 8, row.y + 1, 229, 22), entry.Label, caption);
+                HudStrip(row, entry.Tint);
+                Fill(new Rect(x, row.y, 2, row.height), new Color(entry.Tint.r, entry.Tint.g, entry.Tint.b, opacity));
+                hudText.Draw(new Rect(x + 8, row.y, 89, row.height), entry.Attacker, caption);
+                hudText.Draw(new Rect(x + 98, row.y, 11, row.height), "›", caption);
+                hudText.Draw(new Rect(x + 111, row.y, 89, row.height), entry.Victim, caption);
+                hudText.Draw(new Rect(x + 204, row.y, 70, row.height), entry.Weapon, caption);
                 GUI.color = previous;
             }
         }
@@ -90,6 +101,13 @@ namespace Trias.Native
             Fill(new Rect(box.xMax - 20, box.yMax - 1, 20, 1), Subtle);
         }
 
+        static void HudStrip(Rect box, Color trim)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            Trias.HudText.DrawBacking(box);
+            Fill(new Rect(box.x + 2, box.y, Mathf.Min(29, box.width - 4), 1.5f), trim);
+        }
+
         void PaintReticle(float w, float h)
         {
             if (!captured || scoreboard) return;
@@ -99,6 +117,7 @@ namespace Trias.Native
                 Vector3 screen = view.WorldToViewportPoint(reticleWorld);
                 if (screen.z > 0) centerPoint = new Vector2(screen.x * w, (1 - screen.y) * h);
             }
+            PaintPilotIdentification(centerPoint);
             Color accent = Catalog.Tint(Catalog.Find(catalog.weapons, weaponName)?.color ?? "#daffff");
             accent = Color.Lerp(accent, Fault, dryPulse);
             float kick = tension * 4.6f + Mathf.Min(predicted.Velocity.magnitude * .15f, 2);
@@ -135,15 +154,7 @@ namespace Trias.Native
                     for (int i = 0; i < 4; i++)
                         Arc(centerPoint, 25 + drift, i * 90 + 19, 35, response, 1.6f, 4);
             }
-            if (hurt > 0 && Time.unscaledTime - impactTime < .56f)
-            {
-                Vector3 incoming = view.transform.InverseTransformDirection(impactSource - view.transform.position);
-                float direction = Mathf.Atan2(incoming.x, incoming.z) * Mathf.Rad2Deg;
-                var danger = new Color(damageTint.r, damageTint.g, damageTint.b, Mathf.SmoothStep(0, .96f, hurt));
-                Arc(centerPoint, 68, direction - 24, 48, danger, 4, 11);
-                var at = centerPoint + Polar(direction) * 58;
-                Stroke(at - Polar(direction) * 6, at, 2, danger);
-            }
+            PaintIncoming(centerPoint, Time.unscaledTime);
             float reloading = ReloadProgress(Time.unscaledTime);
             if (reloading > 0 && !aimingBuild)
             {
@@ -161,42 +172,132 @@ namespace Trias.Native
 
         float reloadPeriod = 1.55f;
 
+        void RecordIncoming(Vector3 source, Color tint, bool heavy, float now)
+        {
+            float x = source.x - own[18].Float, z = source.z - own[20].Float;
+            if (x * x + z * z < .01f) return;
+            float heading = Mathf.Atan2(x, z) * Mathf.Rad2Deg;
+            int slot = 0;
+            for (int i = 0; i < incomingHits.Length; i++)
+            {
+                var previous = incomingHits[i];
+                if (previous.Until > now && Mathf.Abs(Mathf.DeltaAngle(previous.Heading, heading)) < 32)
+                {
+                    if (previous.Heavy && !heavy) return;
+                    slot = i;
+                    break;
+                }
+                if (previous.Until < incomingHits[slot].Until) slot = i;
+            }
+            incomingHits[slot] = new IncomingHit { Heading = heading, Until = now + IncomingDuration, Tint = tint, Heavy = heavy };
+        }
+
+        void PaintIncoming(Vector2 centerPoint, float now)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            foreach (var hit in incomingHits)
+            {
+                float life = (hit.Until - now) / IncomingDuration;
+                if (life <= 0) continue;
+                float direction = Mathf.DeltaAngle(view.transform.eulerAngles.y, hit.Heading);
+                var danger = hit.Tint;
+                danger.a = Mathf.SmoothStep(0, .95f, life);
+                float sweep = hit.Heavy ? 42 : 29;
+                Arc(centerPoint, 68, direction - sweep / 2, sweep, danger, hit.Heavy ? 4.5f : 3.2f, 9);
+                Vector2 radial = Polar(direction);
+                Stroke(centerPoint + radial * 55, centerPoint + radial * 62, 2.2f, danger);
+                if (hit.Heavy && visualEffects > .01f)
+                {
+                    danger.a *= visualEffects * .7f;
+                    Arc(centerPoint, 75, direction - 11, 22, danger, 1.5f, 5);
+                }
+            }
+        }
+
+        void UpdateShieldFeedback(int previous, int current, float now)
+        {
+            if (previous == current) return;
+            if (current == 0)
+            {
+                shieldAlertUntil = now + .68f;
+                shieldReturnUntil = 0;
+            }
+            else if (previous == 0)
+            {
+                shieldAlertUntil = 0;
+                shieldReturnUntil = now + ShieldReturnDuration;
+                effects.ShieldReturn();
+            }
+        }
+
+        void UpdateVitals(float now, float dt)
+        {
+            float health = HealthFraction;
+            float armor = Mathf.Clamp01(own[7].Float / 50);
+            float fade = 1 - Mathf.Exp(-dt * (vitalsPulse > .36f ? 3 : 12));
+            healthTrail = health > healthTrail ? health : Mathf.Lerp(healthTrail, health, fade);
+            armorTrail = armor > armorTrail ? armor : Mathf.Lerp(armorTrail, armor, fade);
+            vitalsPulse = Mathf.MoveTowards(vitalsPulse, 0, dt * 3);
+            if (now >= shieldAlertUntil) shieldAlertUntil = 0;
+            if (now >= shieldReturnUntil) shieldReturnUntil = 0;
+        }
+
         void PaintVitals(float w, float h)
         {
-            float health = Mathf.Clamp01(own[6].Float / 150);
+            float health = HealthFraction;
             float armor = Mathf.Clamp01(own[7].Float / 50);
             Color vitality = Color.Lerp(Fault, teamTint, Mathf.Clamp01((health - .12f) * 2.8f));
-            float y = h - 102;
-            var plate = new Rect(26, y, 216, 78);
-            CornerPanel(plate, vitality);
-            var dial = new Vector2(70, y + 39);
-            Arc(dial, 28, 220, 280, Subtle, 4, 22);
-            Arc(dial, 28, 220, 280 * health, vitality, 4, 22);
+            float y = h - 81;
+            var plate = new Rect(22, y, 175, 60);
+            HudStrip(plate, Color.Lerp(vitality, damageTint, vitalsPulse * .58f));
+            var dial = new Vector2(54, y + 29);
+            Arc(dial, 21, 220, 280, Subtle, 4, 22);
+            Arc(dial, 21, 220, 280 * healthTrail, Color.Lerp(Subtle, Fault, .53f), 4, 22);
+            Arc(dial, 21, 220, 280 * health, vitality, 4, 22);
             if (health < .24f)
-                Arc(dial, 39, 210, 300, new Color(Fault.r, Fault.g, Fault.b, .24f + (.24f - health) * 2), 1.4f, 22);
-            Arc(dial, 34, 220, 280 * armor, Shield, 1.6f, 16);
-            GUI.Label(new Rect(42, y + 25, 56, 29), own[6].Int.ToString(), center);
-            GUI.Label(new Rect(111, y + 9, 123, 22), catalog.teams[own[3].Int].name, section);
-            GUI.Label(new Rect(111, y + 31, 120, 18), own[7].Int > 0 ? "ŠTÍT " + own[7].Int : "ZDRAVÍ", caption);
-            Segments(new Rect(111, y + 57, 108, 4), 9, health, vitality);
+                Arc(dial, 29, 210, 300, new Color(Fault.r, Fault.g, Fault.b, .24f + (.24f - health) * 2), 1.4f, 22);
+            Arc(dial, 25, 220, 280 * armorTrail, Color.Lerp(Subtle, Shield, .35f), 1.6f, 16);
+            Arc(dial, 25, 220, 280 * armor, Shield, 1.6f, 16);
+            if (mode != "ffa" && (shieldReturnUntil > 0 || shieldAlertUntil > 0))
+                DrawFaction(new Vector2(54,y + 11),5.5f,own[3].Int,Color.Lerp(Shield,teamTint,.42f));
+            if (shieldReturnUntil > 0 && visualEffects > .01f)
+            {
+                float life = Mathf.Clamp01((shieldReturnUntil - Time.unscaledTime) / ShieldReturnDuration);
+                var glow = Shield;
+                glow.a = life * visualEffects;
+                Arc(dial, 27, 220, 280 * armor * Mathf.SmoothStep(0, 1, (1 - life) * 3), glow, 2.2f, 16);
+            }
+            hudText.Draw(new Rect(32, y + 15, 44, 29), own[6].Int.ToString(), center);
+            hudText.Draw(new Rect(88, y + 5, 100, 22), catalog.teams[own[3].Int].name, section);
+            string shieldLabel = shieldAlertUntil > 0 ? "ŠTÍT PRORAŽEN" : shieldReturnUntil > 0 ? "ŠTÍT OBNOVEN"
+                : own[7].Int > 0 ? "ŠTÍT " + own[7].Int : "ZDRAVÍ";
+            hudText.Draw(new Rect(88, y + 27, 105, 18), shieldLabel, caption);
+            Segments(new Rect(88, y + 50, 95, 3), 9, health, vitality);
 
             var hull = state["vehicles"][own[16].Int];
             var weapon = Catalog.Find(catalog.weapons, weaponName);
             Color energy = Catalog.Tint(weapon?.color ?? "#cfcfff");
-            float x = w - 239;
-            CornerPanel(new Rect(x, y, 213, 78), energy);
+            float x = w - 204;
+            HudStrip(new Rect(x, y, 182, 60), energy);
             string tool = own[16].Int >= 0 ? (hull[2].Text == "bastion" ? "BASTION" : "SKIMMER")
                 : own[15].Int >= 0 ? "HNÍZDO" : weapon?.label.ToUpperInvariant();
-            GUI.Label(new Rect(x + 13, y + 8, 173, 22), tool, section);
+            hudText.Draw(new Rect(x + 10, y + 3, 161, 21), tool, section);
             var mags = own[10][System.Array.IndexOf(Arsenal, weaponName)];
             int ammo = VisibleAmmo(weaponName);
             float heat = state["turrets"][own[15].Int]["heat"].Float;
             string count = own[16].Int >= 0 ? hull[5].Int + " HP" : own[15].Int >= 0 ? Mathf.RoundToInt(heat * 100) + " %"
                 : ammo + " / " + (mags[1].Int < 0 ? "∞" : mags[1].Int.ToString());
-            GUI.Label(new Rect(x + 12, y + 28, 174, 33), count, heading);
+            hudText.Draw(new Rect(x + 9, y + 20, 162, 31), count, heading);
             float magazine = fireProfiles.TryGetValue(weaponName ?? string.Empty, out var profile) ? profile.Magazine :
                 weaponName == "pulse" ? 24 : weaponName == "arc" ? 36 : weaponName == "scatter" ? 6 : 4;
-            if (own[16].Int < 0) Segments(new Rect(x + 14, y + 64, 185, 4), 12, own[15].Int >= 0 ? heat : ammo / magazine,
+            if (own[15].Int < 0 && own[16].Int < 0 && HasAlternate(weaponName ?? "pulse"))
+            {
+                string action = profile.AltName ?? "Slug";
+                int cost = Mathf.Max(2, profile.AltCost);
+                HudStrip(new Rect(x, y - 24, 182, 20), ammo >= cost ? energy : Amber);
+                hudText.Draw(new Rect(x + 9, y - 24, 166, 20), $"F   {action.ToUpperInvariant()}   ·   {cost}", caption);
+            }
+            if (own[16].Int < 0) Segments(new Rect(x + 10, y + 51, 160, 3), 12, own[15].Int >= 0 ? heat : ammo / magazine,
                 own[15].Int < 0 && ammo <= Mathf.Max(1, magazine * .18f) ? Amber : energy);
         }
 
@@ -215,15 +316,15 @@ namespace Trias.Native
             float life = Mathf.Clamp01(core["hp"].Float / Mathf.Max(1, core["maxHp"].Float));
             int countdown = defense["countdown"].Int;
             int wave = defense["wave"].Int;
-            CornerPanel(new Rect(cx - 190, 21, 380, 58), countdown > 0 ? lime : teamTint);
+            HudStrip(new Rect(cx - 150, 18, 300, 47), countdown > 0 ? lime : teamTint);
             string phase = countdown > 0 ? "PŘÍPRAVA  " + countdown + " s" : "VLNA " + wave + " / " + defense["waves"].Int;
-            GUI.Label(new Rect(cx - 177, 27, 160, 22), phase, section);
-            if (countdown == 0) GUI.Label(new Rect(cx - 177, 52, 160, 20), "HROZBY  " + defense["enemies"].Int, caption);
-            else Segments(new Rect(cx - 175, 56, 144, 4), 8, countdown / 22f, lime);
-            GUI.Label(new Rect(cx - 7, 27, 172, 25), "JÁDRO  " + core["hp"].Int, section);
+            hudText.Draw(new Rect(cx - 140, 21, 137, 22), phase, section);
+            if (countdown == 0) hudText.Draw(new Rect(cx - 140, 42, 137, 20), "HROZBY  " + defense["enemies"].Int, caption);
+            else Segments(new Rect(cx - 138, 50, 121, 3), 8, countdown / 22f, lime);
+            hudText.Draw(new Rect(cx + 4, 21, 130, 23), "JÁDRO  " + core["hp"].Int, section);
             var tint = Color.Lerp(Fault, teamTint, life);
             tint = Color.Lerp(tint, Fault, coreFlash);
-            Segments(new Rect(cx - 4, 57, 178, 5), 12, life, tint);
+            Segments(new Rect(cx + 6, 50, 130, 4), 12, life, tint);
         }
 
         void PaintWaveBanner(float cx, float h)
@@ -231,16 +332,16 @@ namespace Trias.Native
             if (mode != "horde" || waveFlash <= 0 || !captured || scoreboard) return;
             var tint = waveStarts ? Fault : lime;
             var at = new Rect(cx - 131, h * .28f, 262, 36);
-            CornerPanel(at, tint);
-            GUI.Label(at, waveStarts ? "VLNA  " + state["horde"]["wave"].Int + "  PŘICHÁZÍ" : "VLNA ODRAŽENA", center);
+            HudStrip(at, tint);
+            hudText.Draw(at, waveStarts ? "VLNA  " + state["horde"]["wave"].Int + "  PŘICHÁZÍ" : "VLNA ODRAŽENA", center);
             Segments(new Rect(at.x + 12, at.yMax - 4, at.width - 24, 2), 12, waveFlash, tint);
         }
 
         void PaintRadar()
         {
             if (Event.current.type != EventType.Repaint) return;
-            var p = new Vector2(106, 176);
-            const float radius = 70, range = 24;
+            var p = new Vector2(86, 126);
+            const float radius = 53, range = 24;
             if (radarPlate == null) radarPlate = MakeRadarPlate();
             GUI.DrawTexture(new Rect(p.x - radius - 1, p.y - radius - 1, radius * 2 + 2, radius * 2 + 2), radarPlate);
             Arc(p, radius, 0, 360, Subtle, 1.1f, 32);
@@ -306,7 +407,7 @@ namespace Trias.Native
                 float distance = new Vector2(x - 63.5f, y - 63.5f).magnitude;
                 float grid = Mathf.Min(Mathf.Abs(distance - 26), Mathf.Abs(distance - 46)) < .8f
                     || (x % 12 == 4 && y % 12 == 4) ? .16f : 0;
-                pixels[y * resolution + x] = new Color(.025f + grid, .06f + grid, .084f + grid, Mathf.Clamp01(64 - distance) * .89f);
+                pixels[y * resolution + x] = new Color(.025f + grid, .06f + grid, .084f + grid, Mathf.Clamp01((64 - distance) / 5f) * (.34f + grid * .9f));
             }
             texture.SetPixels32(pixels);
             texture.Apply(false, true);

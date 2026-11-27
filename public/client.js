@@ -1,10 +1,11 @@
 import { drawTacticalMap } from './tactical-map.js';
+import { KILL_CAM_MS, nextAlly } from './death-view.js';
 import { NETWORK_VERSION, packInput, unpackSnapshot } from './netcode.js';
 import { boardingVehicle, moveVehicle, VEHICLES } from './vehicles.js';
 import { GameAudio } from './game-audio.js';
 import {
-  ARENAS, ARMORY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, DODGE_COOLDOWN, MODES,
-  PILOT_HP, POWERUPS, TEAMS, TICK, TURRET, WEAPONS, canDodge, distanceSquared, eyeHeight, movePlayer, pilotColor, roomCode, turretYaw,
+  ARENAS, ARMORY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, DODGE_COOLDOWN, GRENADE, MODES,
+  PILOT_HP, POWERUPS, LAYOUT_SET, RELAY_SERVICE, TEAMS, TICK, TURRET, WEAPONS, canDodge, distanceSquared, eyeHeight, movePlayer, pilotColor, roomCode, turretYaw,
 } from './rules.js';
 
 const $ = id => document.getElementById(id);
@@ -67,6 +68,7 @@ let damageAnimation;
 let hitPriority = 0;
 let lastDamageAudio = -1000;
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let deathReplay, observedId, observerSignature, reentryAnimation;
 let pickupTimer;
 let sensitivity = 1;
 try { $('sensitivity').value = localStorage.getItem('trias.sensitivity') ?? '100'; } catch { /* Storage can be unavailable. */ }
@@ -142,7 +144,7 @@ for (const [id, item] of Object.entries(CHARACTERS)) {
   button.type = 'button';
   button.dataset.pilot = id;
   const weapon = WEAPONS[item.weapon];
-  button.title = item.description + (item.rounds ? ' Startovní munice: ' + item.rounds + '. Pulse v záloze.' : '');
+  button.title = item.description + (item.weapon !== 'pulse' ? ' Plný zásobník, jedno přebití a Pulse v záloze.' : '');
   button.append(node('i'), node('b', item.label), node('small', weapon.label));
   button.setAttribute('aria-pressed', id === selectedPilot);
   button.addEventListener('click', () => {
@@ -178,6 +180,7 @@ function endMatch(message = '') {
   if (connection && connection.readyState < WebSocket.CLOSING) connection.close();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
   joined = own = state = predictedVehicle = undefined;
+  resetObservation();
   audio.engine(null);
   manualAim = false;
   queue = [];
@@ -217,7 +220,7 @@ $('join-form').addEventListener('submit', async event => {
     if (socket === connection && !joined) endMatch('Server neodpověděl včas.');
   }, 5000);
   connection.addEventListener('open', () => connection.send(JSON.stringify({
-    type: 'join', v: NETWORK_VERSION, room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
+    type: 'join', v: NETWORK_VERSION, layoutSet: LAYOUT_SET, geometry: ARENAS.relay.revision, room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
   })));
   connection.addEventListener('message', event => {
     if (socket !== connection) return;
@@ -253,7 +256,7 @@ function inviteURL() {
 }
 
 function onJoin(message) {
-  layout = ARENAS[message.arena] ?? ARENAS[DEFAULT_ARENA];
+  layout = message.arena === 'relay' && !message.geometry ? RELAY_SERVICE : ARENAS[message.arena] ?? ARENAS[DEFAULT_ARENA];
   try {
     if (arena?.layout !== layout) {
       arena?.dispose();
@@ -297,6 +300,47 @@ function clearControls() {
   isFiring = fireClick = reloadClick = jumpClick = dodgeClick = dragAim = false;
   weaponClick = null;
   altClick = grenadeClick = useClick = false;
+}
+
+function resetObservation() {
+  deathReplay = observedId = observerSignature = undefined;
+  $('observer').hidden = true;
+  game.classList.remove('observing');
+  reentryAnimation?.cancel();
+}
+
+function observation(time) {
+  if (own.hp || state.winner) return null;
+  if (deathReplay && time < deathReplay.end) {
+    deathReplay.progress = Math.max(0, (time - deathReplay.start) / (deathReplay.end - deathReplay.start));
+    return deathReplay;
+  }
+  deathReplay = undefined;
+  const target = state.players.find(player => player.id === observedId && player.hp > 0 && player.team === own.team)
+    ?? nextAlly(state.players, own, joined.mode);
+  observedId = target?.id;
+  return { target, team: joined.mode === 'ffa' ? null : own.team };
+}
+
+function updateObservation(frame) {
+  const element = $('observer');
+  const phase = frame?.event ? 'replay' : frame?.target ? 'follow' : frame ? 'wait' : '';
+  const seconds = Math.ceil(own.respawn);
+  const signature = phase + ':' + (frame?.target?.id ?? frame?.event?.attackerId ?? '') + ':' + seconds;
+  if (signature === observerSignature) return;
+  observerSignature = signature;
+  element.hidden = !phase;
+  game.classList.toggle('observing', Boolean(phase));
+  if (!phase) return;
+  element.dataset.phase = phase;
+  const event = frame.event;
+  const weapon = event?.weapon === 'grenade' ? GRENADE.label : event?.weapon === 'collision' ? 'Náraz vozidla' : WEAPONS[event?.weapon]?.label;
+  element.style.setProperty('--observer-accent', event ? '#ffac78' : TEAMS[own.team].color);
+  $('observer-mode').textContent = event ? 'KILL CAM' : frame.target ? 'SLEDUJEŠ' : 'VYŘAZENÍ';
+  $('observer-time').textContent = seconds > 0 ? 'RESPAWN ' + seconds + ' s' : 'DALŠÍ KOLO';
+  $('observer-name').textContent = event?.attacker ?? frame.target?.name ?? 'Čekáš na návrat';
+  $('observer-detail').textContent = event ? [weapon, 'Mezerník · přeskočit'].filter(Boolean).join('  /  ')
+    : frame.target ? 'E · další spoluhráč' : '';
 }
 
 function canControl() {
@@ -385,6 +429,16 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (!canControl() || !scoreboard.hidden) return;
+  if (own?.hp === 0) {
+    if (event.code === 'Space' || event.code === 'KeyE') {
+      event.preventDefault();
+      if (!event.repeat) {
+        if (deathReplay) deathReplay = undefined;
+        else if (event.code === 'KeyE') observedId = nextAlly(state.players, own, joined.mode, observedId)?.id;
+      }
+    }
+    return;
+  }
   const direction = tapDirection[event.code];
   if (direction) {
     event.preventDefault();
@@ -404,7 +458,7 @@ document.addEventListener('keydown', event => {
   }
   if (!event.repeat) {
     if (event.code === 'KeyR') reloadClick = true;
-    if (event.code === 'KeyF' && own?.weapon === 'scatter' && own.turret < 0 && own.vehicle < 0) altClick = !sendTrigger(true);
+    if (event.code === 'KeyF' && WEAPONS[own?.weapon]?.alt && own.turret < 0 && own.vehicle < 0) altClick = !sendTrigger(true);
     if (event.code === 'KeyG') grenadeClick = true;
     if (event.code === 'KeyE') useClick = true;
   }
@@ -440,6 +494,8 @@ document.addEventListener('mousedown', event => {
     dragAim = true;
     previousAim = { x: event.clientX, y: event.clientY };
   }
+  if (event.button === 2 && !manualAim && WEAPONS[own.weapon]?.alt && own.turret < 0 && own.vehicle < 0)
+    altClick = !sendTrigger(true);
   if (event.button === 0) {
     isFiring = true;
     fireClick = !sendTrigger(false);
@@ -516,6 +572,7 @@ function onState(message) {
   const player = message.players.find(p => p.id === joined.id);
   if (!player) return;
   const spawn = own?.spawn !== player.spawn;
+  const wasAlive = own?.hp > 0;
   const mounted = own?.turret !== player.turret || own?.vehicle !== player.vehicle;
   const immediateHUD = spawn || mounted || own?.hp !== player.hp || own?.armor !== player.armor
     || own?.weapon !== player.weapon || own?.reload !== player.reload || own?.grenades !== player.grenades
@@ -527,8 +584,16 @@ function onState(message) {
   }
   if (spawn && own) {
     resetCombatFeedback();
+    resetObservation();
+    arena.respawn(player, joined.mode);
+    audio.signature('respawn');
+    const reentry = $('reentry');
+    reentry.style.setProperty('--arrival', pilotColor(player, joined.mode));
+    reentryAnimation = reentry.animate([{ opacity: reducedMotion.matches ? 0.22 : 0.53 }, { opacity: 0 }],
+      { duration: reducedMotion.matches ? 360 : 615, easing: 'ease-out' });
     lastMovement = undefined;
   }
+  if (wasAlive && player.hp <= 0) clearControls();
   if (!spawn && own?.weapon === player.weapon && own.reload !== player.reload && player.hp > 0) {
     const index = ARMORY.indexOf(player.weapon);
     if (player.reload) audio.gunAction(player.weapon, 'open');
@@ -553,10 +618,12 @@ function onState(message) {
   arena.snapshot(message, player, joined.mode);
   for (const event of message.events) {
     if (event.type === 'shot' || event.type === 'burst' || event.type === 'collision') playShot(event);
+    else if (event.type === 'hazard' && event.id === own.id) receiveHit(0, 0, event.hits[0]);
     else if ((event.type === 'wreck' || event.type === 'core-wreck')) {
       arena.wreck(event);
       const { distance, pan } = spatial(event.position);
-      audio.explosion(distance, pan, true);
+      if (event.type === 'core-wreck') audio.signature('core', Math.max(0.12, 1 - distance / 80), pan);
+      else audio.explosion(distance, pan, true);
     }
     else if (event.type === 'grenade') {
       const { distance, pan } = spatial(event.from);
@@ -570,7 +637,16 @@ function onState(message) {
       arena.collect(event);
       if (event.id === own.id) playPickup(event.item);
     } else {
-      if (event.type === 'kill') arena.eliminate(event, event.victimId === own.id, joined.mode);
+      if (event.type === 'kill') {
+        const local = event.victimId === own.id;
+        if (event.weapon !== 'fall') arena.eliminate(event, local, joined.mode);
+        if (event.weapon !== 'fall' && local && !own.hp && event.body && own.respawn > 0.4 && !message.winner) {
+          const start = performance.now();
+          deathReplay = { event, team: joined.mode === 'ffa' ? null : own.team, start,
+            end: start + Math.min(KILL_CAM_MS, own.respawn * 430), progress: 0 };
+          audio.signature('replay');
+        }
+      }
       addFeed(event);
     }
   }
@@ -599,6 +675,7 @@ function playShot(event) {
   const { dx, dz, distance, pan } = spatial(event.from);
   if (event.type === 'burst') {
     arena.burst(event);
+    if (event.weapon === 'rift') audio.signature('rift', Math.max(0, 1 - distance / 35), pan);
     audio.explosion(distance, pan, event.weapon === 'grenade');
   } else if (event.type === 'shot') {
     arena.shot(event, local);
@@ -621,7 +698,7 @@ function playShot(event) {
 function showMotion(event, local) {
   if (event.action !== 'step') {
     const player = local ? own : state.players.find(item => item.id === event.id);
-    arena.move(event, local, player ? pilotColor(player, joined.mode) : TEAMS[event.team].color);
+    arena.move(event, local, player ? pilotColor(player, joined.mode) : TEAMS[event.team]?.color ?? '#d8ccbd');
   }
   if (local) {
     if (event.action === 'step') audio.footstep();
@@ -708,7 +785,7 @@ function addFeed(event) {
   if (event.type === 'kill') {
     const attacker = node('b', event.attacker);
     const player = state.players.find(item => item.id === event.attackerId);
-    attacker.style.setProperty('--team', player ? pilotColor(player, joined.mode) : TEAMS[event.team].color);
+    attacker.style.setProperty('--team', player ? pilotColor(player, joined.mode) : TEAMS[event.team]?.color ?? '#d8ccbd');
     row.append(attacker, document.createTextNode(' › ' + event.victim));
   } else {
     row.textContent = event.text;
@@ -759,7 +836,7 @@ function updateHUD() {
   $('reserve').textContent = vehicle ? ' / ' + vehicleSpec.hp : turret ? ' %' : ' / ' + (reserve < 0 ? '∞' : reserve);
   $('weapon-action').textContent = vehicle ? 'TRUP · E VYSTOUPIT' : turret ? 'E · SESTOUPIT'
     : rounds === 0 && reserve === 0 && own.weapon !== 'pulse' ? '1 · ZÁLOŽNÍ PULSE'
-      : 'G · GRANÁT ' + own.grenades + (own.weapon === 'scatter' ? '  /  F · SOUSTŘEDIT (2)' : '');
+      : 'G · GRANÁT ' + own.grenades + '  /  F · ' + WEAPONS[own.weapon].alt.label.toUpperCase() + ' (' + WEAPONS[own.weapon].alt.cost + ')';
   $('weapons').hidden = $('dodge-readout').hidden = Boolean(vehicle);
   $('drive-readout').hidden = !vehicle;
   if (vehicle) $('drive-ability').textContent = vehicle.kind === 'skimmer' ? 'SHIFT · TURBO' : 'MEZERNÍK · BRZDA';
@@ -894,7 +971,9 @@ function frame(time) {
     dodge.classList.toggle('ready', Boolean(own.hp && own.turret < 0 && canDodge(predicted)));
     const directions = $('damage-directions');
     if (directions.childElementCount) directions.style.setProperty('--look-yaw', view.yaw + 'rad');
-    arena.render(time, view, own, predicted, reducedMotion.matches, predictedVehicle);
+    const watching = observation(time);
+    updateObservation(watching);
+    arena.render(time, view, own, predicted, reducedMotion.matches, predictedVehicle, watching);
   }
   requestAnimationFrame(frame);
 }

@@ -2,6 +2,8 @@
 
 Hráči potřebují klienta TRIAS pro svůj systém. Jeden host provozuje Node.js server odpovídající verze. Windows klient se spouští z rozbalené složky souborem `TRIAS.exe`. Složku `TRIAS_Data` a knihovny ponech vedle něj.
 
+Pokud používáš W8, postup pro klikací pozvánky, obnovu spojení a výcvik popisuje [návod W8](W8-PLAY-TOGETHER.md).
+
 ## 1. Ověř server lokálně
 
 Nainstaluj Node.js v podporované LTS verzi alespoň 22. V kořeni repozitáře nebo rozbaleného serverového balíčku spusť:
@@ -23,7 +25,20 @@ npm start
 
 Na stroji se serverem otevři v klientu adresu `ws://127.0.0.1:3000`. Zadej přezdívku a kód místnosti. Server lze také ověřit na `http://127.0.0.1:3000/health`. [Node.js LTS](https://nodejs.org/en/download)
 
-## 2. Zpřístupni server přes vlastní doménu
+## 2. Bezplatný hosting na Renderu
+
+V Renderu vytvoř **Web Service**, připoj repozitář `iLoopak/trias-fps` a vyber větev `main`, prostředí **Node** a instanci **Free**. Root Directory ponech prázdné. Pro hráče z Česka vyber nejbližší dostupný region.
+
+| Nastavení | Hodnota |
+| --- | --- |
+| Build Command | `npm ci --omit=dev` |
+| Start Command | `npm start` |
+| Environment variables | `TRIAS_NATIVE_ONLY=1`, `HOST=0.0.0.0` |
+| Health Check Path | `/health` |
+
+Render poskytne HTTPS adresu jako `https://moje-trias.onrender.com`. Před prvním zápasem po pauze otevři `https://moje-trias.onrender.com/health` a počkej na odpověď se stavem `ok`. Hráči pak zadají do Unity `wss://moje-trias.onrender.com` a společný kód místnosti. Bezplatný plán se uspává po 15 minutách bez příchozího provozu a probuzení může trvat přibližně minutu. Zápasy běží v paměti a restart serveru je ukončí. [Render Free](https://render.com/docs/free) · [WebSocket na Renderu](https://render.com/docs/websocket)
+
+## 3. Zpřístupni vlastní server přes doménu
 
 1. Na Linux VPS spusť server z kroku 1. Pro stálý provoz ho nech běžet jako službu pod vlastním uživatelem.
 2. Nasměruj DNS záznam domény, třeba `trias.example.com`, na veřejnou IP VPS. Zpřístupni příchozí TCP 80 a 443. Node port 3000 zůstane na lokální smyčce.

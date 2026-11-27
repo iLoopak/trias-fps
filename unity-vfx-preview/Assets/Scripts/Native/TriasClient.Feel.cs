@@ -10,13 +10,15 @@ namespace Trias.Native
         [SerializeField, Range(0, 2)] float weaponInertia = 1;
         [SerializeField, Range(0, 2)] float strideAmplitude = 1;
 
-        float baseFov, cameraMotion, masterVolume, ambienceVolume, visualEffects;
+        float baseFov, cameraMotion, masterVolume, ambienceVolume, musicVolume, visualEffects, radioVolume;
         float gunTravel, gunTravelVelocity, gunLift, gunLiftVelocity, gunTwist, gunTwistVelocity;
         float cameraKick, cameraKickVelocity, landingStep, landingVelocity, airSpeed;
         float previousPitch, previousYaw, swayX, swayY;
         float recoilRecovery = .11f, stridePhase, strideDistance, stanceHeight = 1.58f, stanceVelocity;
         float equipMotion, dryPulse, movementPulse, reticleRange = 50;
-        float chaseArm;
+        float reloadProgressShown, reloadCueProgress;
+        float chaseArm, spectatorYaw, spectatorHeight, nextNearMissAt;
+        Avatar followedPilot;
         Vector3 lastVelocity, inertia, reticleWorld;
         readonly float[] localMotionAt = new float[5];
         float sceneFade, resultAge;
@@ -30,6 +32,9 @@ namespace Trias.Native
             baseFov = Mathf.Clamp(PlayerPrefs.GetFloat("trias.fov", 70), 60, 95);
             cameraMotion = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.motion", .82f));
             masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.volume", .85f));
+            radioVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.radio", .74f));
+            musicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.music", .65f));
+            effects.MusicMix(musicVolume);
             ambienceVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.ambience", .72f));
             visualEffects = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.visualEffects", 1));
             momentumPresentation = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.momentum", momentumPresentation));
@@ -47,17 +52,80 @@ namespace Trias.Native
             swayX = swayY = 0;
             equipMotion = dryPulse = movementPulse = stridePhase = strideDistance = stanceVelocity = 0;
             stanceHeight = 1.58f;
+            reloadProgressShown = reloadCueProgress = 0;
             chaseArm = 0;
+            followedPilot = null;
+            nextNearMissAt = 0;
             lastVelocity = inertia = Vector3.zero;
             System.Array.Fill(localMotionAt, -10f);
             kickShot = 0;
             wasGrounded = false;
         }
 
+        void FollowSpectator(Avatar pilot, float dt)
+        {
+            float heading = pilot.Root.eulerAngles.y;
+            float height = (pilot.Row[2].Int & 16) != 0 ? .84f : 1.26f;
+            if (pilot != followedPilot)
+            {
+                // Switch at the new pilot so the camera never travels across the arena.
+                followedPilot = pilot;
+                spectatorYaw = heading;
+                spectatorHeight = height;
+                chaseArm = 1.28f;
+            }
+            float follow = cameraMotion < .01f ? 1 : 1 - Mathf.Exp(-dt * 13 / cameraMotion);
+            spectatorYaw = Mathf.LerpAngle(spectatorYaw, heading, follow);
+            spectatorHeight = Mathf.Lerp(spectatorHeight, height, follow);
+            Chase(pilot.Position + Vector3.up * spectatorHeight, Quaternion.Euler(0, spectatorYaw, 0) * Vector3.forward,
+                3.65f, .99f, clearCorners: true);
+        }
+
+        void PlayNearMiss(WireValue shot, Vector3 source, float now)
+        {
+            var shooter = shot["id"].Text;
+            var ends = shot["ends"];
+            if (now < nextNearMissAt || own[6].Int <= 0 || own[15].Int >= 0 || own[16].Int >= 0 ||
+                ends.Count == 0 || shot["from"].Count != 3 || shooter == null || shooter == identity ||
+                !pilots.TryGetValue(shooter, out var attacker)) return;
+            bool hostile = mode == "horde" ? attacker.Row[31].Text != null
+                : mode == "ffa" || attacker.Row[3].Int != own[3].Int;
+            if (!hostile) return;
+            if (shot["hits"].Items is { } hits)
+                foreach (var hit in hits)
+                    if (hit["id"].Text == identity) return;
+
+            const float radius = .85f;
+            Vector3 ear = view.transform.position;
+            Vector3 closest = default;
+            float best = radius * radius;
+            for (int i = 0; i < ends.Count; i++)
+            {
+                Vector3 segment = At(ends[i]) - source;
+                float length = segment.magnitude;
+                if (length <= .6f) continue;
+                Vector3 direction = segment / length;
+                float along = Vector3.Dot(ear - source, direction);
+                if (along <= .5f || along >= length - .1f) continue;
+                Vector3 point = source + direction * along;
+                float gap = (point - ear).sqrMagnitude;
+                if (gap >= best || Physics.Linecast(ear, point, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore)) continue;
+                closest = point;
+                best = gap;
+            }
+            if (best >= radius * radius) return;
+            effects.NearMiss(closest, 1 - Mathf.Sqrt(best) / radius);
+            nextNearMissAt = now + .26f;
+        }
+
         void KickWeapon(string key, bool alt)
         {
             var profile = key switch
             {
+                "pulse" when alt => (.092f, 9.5f, 1.65f, .135f),
+                "lance" when alt => (.165f, 11.1f, 1.55f, .185f),
+                "arc" when alt => (.087f, 10.1f, 3.5f, .145f),
+                "rift" when alt => (.181f, 15.1f, 4.7f, .212f),
                 "scatter" when alt => (.128f, 13f, 2.5f, .145f),
                 "scatter" => (.113f, 16f, 3.2f, .132f),
                 "lance" => (.144f, 9.3f, 1.35f, .158f),
@@ -73,14 +141,14 @@ namespace Trias.Native
             cameraKick = Mathf.Min(1.7f, cameraKick + profile.Item2 * .064f * recoilStrength);
         }
 
-        int FootSurface(Vector3 at) => world.Spec.id != "island" ? 0 : Motor.Shallow(at) ? 2 : 1;
+        int FootSurface(Vector3 at) => world.Spec.id != "island" ? 0 : Motor.Shallow(at, world.Spec) ? 2 : 1;
 
         void PlayLocalMotion(MotionCue cue, Vector3 at)
         {
             localMotionAt[(int)cue] = Time.unscaledTime;
             movementPulse = cue == MotionCue.Dodge ? 1 : cue == MotionCue.Launch ? .85f : cue == MotionCue.Double ? .60f : .24f;
             if (cue == MotionCue.Jump) landingStep = .027f;
-            effects.Motion(at, teamTint, cue, true, visualEffects);
+            effects.Motion(at, teamTint, cue, true, visualEffects, mode == "ffa" ? -1 : own[3].Int);
         }
 
         float ReloadProgress(float now)
@@ -115,7 +183,17 @@ namespace Trias.Native
             swayY = Mathf.Lerp(swayY, Mathf.Clamp(Mathf.DeltaAngle(previousPitch, pitch) * -.38f, -4.5f, 4.5f), damping);
             previousYaw = yaw; previousPitch = pitch;
             float progress = ReloadProgress(now);
-            float reload = Mathf.Sin(progress * Mathf.PI);
+            bool reloading = (own[2].Int & 64) != 0 || now < reloadPreviewUntil;
+            reloadProgressShown = reloading ? Mathf.Max(reloadProgressShown, progress) : 0;
+            var reload = WeaponHandling.At(weaponName, reloadProgressShown);
+            if (weaponName != null && reloading && (own[2].Int & 64) != 0)
+            {
+                float insertAt = WeaponHandling.ServiceBeat(weaponName);
+                if (reloadCueProgress < insertAt && reloadProgressShown >= insertAt)
+                    effects.ReloadSeat(weaponName);
+                reloadCueProgress = reloadProgressShown;
+            }
+            else if (!reloading) reloadCueProgress = 0;
             float motion = cameraMotion;
             if (predicted.Grounded && !driving && speed > .35f)
             {
@@ -151,6 +229,7 @@ namespace Trias.Native
                 reticleWorld = eyeOrigin + ray * reticleRange;
                 if (Physics.Raycast(eyeOrigin, ray, out var surface, reticleRange, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
                     reticleWorld = surface.point;
+                IdentifyPilot(eyeOrigin, ray);
             }
             equipMotion = now < switchPreviewUntil
                 ? Mathf.MoveTowards(equipMotion, 1, dt * 15f)
@@ -161,22 +240,14 @@ namespace Trias.Native
             float retract = 0;
             if (!driving && Physics.Raycast(view.transform.position, angle * Vector3.forward, out var wall, .94f, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
                 retract = Mathf.Lerp(.39f, 0, Mathf.Clamp01(wall.distance / .94f));
-            float reloadTilt = weaponName == "scatter" ? 32 : weaponName == "lance" ? 14 : weaponName == "rift" ? -35 : 22;
             float idle = Mathf.Sin(now * 1.75f) * .006f * motion;
-            grip.localPosition = new Vector3(.365f + (swayX * .0037f - inertia.x * .011f * weaponInertia) * motion + stride * .48f,
-                -.305f - reload * .14f - landingStep * .35f + stride + idle - mount * .19f, .60f - gunTravel - retract);
-            grip.localRotation = Quaternion.Euler(-gunLift + reload * 42 + swayY * motion + mount * 26,
-                -4 + swayX * motion, gunTwist + reload * reloadTilt + inertia.x * motion * 2 * weaponInertia);
+            grip.localPosition = new Vector3(.365f + (swayX * .0037f - inertia.x * .011f * weaponInertia) * motion + stride * .48f - reload.Reach * .17f,
+                -.305f + reload.Reach * .137f - reload.Dip - landingStep * .35f + stride + idle - mount * .19f,
+                .60f - gunTravel - retract + reload.Reach * .082f);
+            grip.localRotation = Quaternion.Euler(reload.GunRotation + new Vector3(-gunLift + swayY * motion + mount * 26,
+                -4 + swayX * motion, gunTwist + inertia.x * motion * 2 * weaponInertia));
             if (weaponName != null && weaponActions.TryGetValue(weaponName, out var weaponAction))
-            {
-                float cycle = Mathf.Sin(progress * Mathf.PI * 2);
-                weaponAction.localPosition = new Vector3(
-                    weaponName == "rift" ? -reload * .084f : 0,
-                    weaponName == "lance" || weaponName == "arc" ? reload * .042f : 0,
-                    -gunTravel * (weaponName == "scatter" ? .81f : .42f) - Mathf.Max(0, cycle) * .052f);
-                weaponAction.localRotation = Quaternion.Euler(reload * (weaponName == "scatter" ? 52 : 9), 0,
-                    reload * (weaponName == "rift" ? 60 : 0));
-            }
+                weaponAction.Update(reload, gunTravel, flowTier * .25f * momentumPresentation * visualEffects);
             float fov = baseFov + (driving ? 3 : (Mathf.Clamp01((speed - 6) / 4f) * 3.5f + movementPulse * 2.1f + cameraKick) * motion);
             view.fieldOfView = Mathf.Lerp(view.fieldOfView, fov, 1 - Mathf.Exp(-dt * 6));
         }
@@ -186,33 +257,21 @@ namespace Trias.Native
             string current = state["winner"]["label"].Text;
             if (current != roundResult)
             {
-                roundResult = current;
-                resultAge = 0;
                 if (current != null)
                 {
-                    effects.Wave(false);
+                    resumeCapture = captured;
+                    Capture(false);
+                    effects.InterfaceTone("result");
                     world.SurgeLandmark();
                 }
+                else if (resumeCapture && Application.isFocused)
+                    Capture(true);
+                resultContinued = false;
+                roundResult = current;
+                resultAge = 0;
             }
             resultAge += dt;
             sceneFade = Mathf.MoveTowards(sceneFade, 0, dt * 3.4f);
-        }
-
-        void PaintResult(float cx, float h)
-        {
-            float age = Mathf.Clamp01(resultAge / .34f);
-            float y = h * .68f + (1 - age) * (1 - age) * 29;
-            var tint = mode == "horde" && state["horde"]["core"]["hp"].Int == 0 ? Fault : Amber;
-            bool showFlow = flow != null && flow[5].Int > 0 && momentumPresentation > .01f;
-            var plate = new Rect(cx - 258, y, 516, showFlow ? 121 : 94);
-            CornerPanel(plate, tint);
-            DrawInsignia(new Vector2(plate.x + 43, y + 48), 21, tint);
-            GUI.Label(new Rect(plate.x + 74, y + 12, 420, 34), roundResult ?? state["winner"]["label"].Text, heading);
-            GUI.Label(new Rect(plate.x + 76, y + 52, 420, 24), "VYŘAZENÍ  " + own[11].Int + "     ·     DALŠÍ KOLO  " + state["restart"].Int + " s", caption);
-            Segments(new Rect(plate.x + 77, y + 77, 399, 3), 15, state["restart"].Float / 9, tint);
-            if (showFlow)
-                GUI.Label(new Rect(plate.x + 77, y + 91, 424, 23),
-                    $"NEJLEPŠÍ ŘETĚZEC  {flow[5].Int}  ·  ×{flow[7].Float:0.#}  ·  OZVĚNA  {flow[8].Int} VYŘ.", caption);
         }
 
         void PaintPause(float w, float h)
@@ -221,31 +280,58 @@ namespace Trias.Native
             Fill(new Rect(0,0,w,h),new Color(.012f,.024f,.041f,.80f));
             CornerPanel(new Rect(x, y, 484, 477), Amber);
             DrawInsignia(new Vector2(x + 37, y + 35), 17, Amber);
-            GUI.Label(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
-            GUI.Label(new Rect(x + 24, y + 64, 436, 27), "Online zápas běží dál", caption);
-            var box = new Rect(x + 22, y + 94, 440, 34);
+            hudText.Draw(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
+            if (!practiceRoom && Preset(new Rect(x + 278, y + 20, 184, 32),
+                Time.unscaledTime < inviteCopiedUntil ? "Odkaz zkopírován" : "Kopírovat odkaz", null, false))
+                CopyInvite(Event.current.shift);
+            hudText.Draw(new Rect(x + 24, y + 64, 436, 27), state["directorBots"].Bool
+                ? "Online zápas běží dál  ·  Dynamické hlídky aktivní" : "Online zápas běží dál", caption);
+            DrawFeelOptions(new Rect(x + 22,y + 94,440,34));
+            bool waitingInvite = pendingInviteServer != null;
+            if (Preset(new Rect(x + 22, y + 367, waitingInvite ? 207 : 440, 39), "Zpět do zápasu", null, true)) Capture(true);
+            if (waitingInvite && Preset(new Rect(x + 239, y + 367, 223, 39), "Přijmout pozvánku", null, false)) EnterInvite();
+            if (Preset(new Rect(x + 22, y + 412, 440, 35), "Opustit místnost", null, false)) Disconnect(null);
+            hudText.Draw(new Rect(x + 24, y + 450, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
+        }
+
+        void DrawFeelOptions(Rect box)
+        {
             Option(box, "Zorné pole", "trias.fov", ref baseFov, 60, 95, false);
-            box.y += 34; Option(box, "Citlivost myši", "trias.sensitivity", ref sensitivity, .5f, 5, false, 1);
-            box.y += 34; Option(box, "Pohyb kamery", "trias.motion", ref cameraMotion, 0, 1, true);
-            box.y += 34; Option(box, "Hlasitost", "trias.volume", ref masterVolume, 0, 1, true);
-            box.y += 34; Option(box, "Atmosféra", "trias.ambience", ref ambienceVolume, 0, 1, true);
-            box.y += 34; Option(box, "Světelné efekty", "trias.visualEffects", ref visualEffects, 0, 1, true);
-            box.y += 34; Option(box, "Momentum HUD", "trias.momentum", ref momentumPresentation, 0, 1, true);
+            box.y += 30; Option(box, "Citlivost myši", "trias.sensitivity", ref sensitivity, .5f, 5, false, 1);
+            box.y += 30; Option(box, "Pohyb kamery", "trias.motion", ref cameraMotion, 0, 1, true);
+            box.y += 30; Option(box, "Hlasitost", "trias.volume", ref masterVolume, 0, 1, true);
+            box.y += 30; Option(box, "Atmosféra", "trias.ambience", ref ambienceVolume, 0, 1, true);
+            box.y += 30; Option(box, "Hudba v menu", "trias.music", ref musicVolume, 0, 1, true);
+            box.y += 30; Option(box, "Světelné efekty", "trias.visualEffects", ref visualEffects, 0, 1, true);
+            box.y += 30; Option(box, "Momentum HUD", "trias.momentum", ref momentumPresentation, 0, 1, true);
+            box.y += 30; Option(box, "Týmové rádio", "trias.radio", ref radioVolume, 0, 1, true);
             visor.Intensity = visualEffects;
+            effects.MusicMix(musicVolume);
             AudioListener.volume = masterVolume;
             effects.AmbienceMix(ambienceVolume, false);
-            if (Preset(new Rect(x + 22, y + 345, 440, 42), "Zpět do zápasu", null, true)) Capture(true);
-            if (Preset(new Rect(x + 22, y + 395, 440, 41), "Opustit místnost", null, false)) Disconnect(null);
-            GUI.Label(new Rect(x + 24, y + 444, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
         }
 
         void Option(Rect row, string name, string key, ref float value, float min, float max, bool percent, int decimals = 0)
         {
-            GUI.Label(new Rect(row.x, row.y + 1, 145, 28), name, section);
+            hudText.Draw(new Rect(row.x, row.y + 1, 145, 28), name, section);
             optionTrack ??= new GUIStyle { fixedHeight = 19 };
             optionThumb ??= new GUIStyle { fixedWidth = 12, fixedHeight = 19 };
             var control = new Rect(row.x + 156, row.y + 7, 219, 19);
-            float next = GUI.HorizontalSlider(control, value, min, max, optionTrack, optionThumb);
+            float next = GUI.HorizontalSlider(control,value,min,max,optionTrack,optionThumb);
+            if (world == null)
+            {
+                if (Event.current.type == EventType.Layout) lobbyControls.Add(key);
+                if (lobbyFocus == key)
+                {
+                    Fill(new Rect(control.x-4,control.center.y-7,control.width+8,1),Chalk);
+                    var evt = Event.current;
+                    if (evt.type == EventType.KeyDown && (evt.keyCode == KeyCode.LeftArrow || evt.keyCode == KeyCode.RightArrow))
+                    {
+                        next = Mathf.Clamp(value + (max-min)*.05f*(evt.keyCode == KeyCode.RightArrow ? 1 : -1),min,max);
+                        evt.Use();
+                    }
+                }
+            }
             if (Mathf.Abs(next - value) > .0001f)
             {
                 value = next;
@@ -257,7 +343,7 @@ namespace Trias.Native
             Fill(new Rect(rail - 3, control.center.y - 5, 6, 10), control.Contains(Event.current.mousePosition) ? Chalk : Amber);
             string readout = percent ? Mathf.RoundToInt(value * 100) + "%" : value.ToString(decimals == 0 ? "F0" : "F1");
             if (key == "trias.fov") readout += "°";
-            GUI.Label(new Rect(row.x + 385, row.y + 2, 54, 26), readout, caption);
+            hudText.Draw(new Rect(row.x + 385, row.y + 2, 54, 26), readout, caption);
         }
     }
 }

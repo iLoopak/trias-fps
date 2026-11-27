@@ -8,6 +8,7 @@ namespace Trias.Native
     {
         [Header("Signature systems")]
         [SerializeField] KeyCode echoActivation = KeyCode.X;
+        [SerializeField] KeyCode echoRecall = KeyCode.Z;
         [SerializeField, Range(0, 1)] float momentumPresentation = 1;
 
         sealed class EchoArt
@@ -16,6 +17,7 @@ namespace Trias.Native
             internal Material Material;
             internal Vector3 Position;
             internal Color Tint;
+            internal int Team;
         }
 
         static readonly string[] FlowTiers = { "MOMENTUM", "KINETIC", "SURGE", "OVERDRIVE", "FLOW STATE" };
@@ -33,20 +35,24 @@ namespace Trias.Native
 
         void ReadEcho(float now)
         {
-            if (!Input.GetKeyDown(echoActivation) || !state["signature"]["echo"].Bool || building) return;
+            bool recall = state["interactions"]["recall"].Bool && Input.GetKeyDown(echoRecall);
+            if ((!recall && !Input.GetKeyDown(echoActivation)) || !state["signature"]["echo"].Bool || building) return;
             if (now < echoAwaitUntil) return;
             if (activeEcho == 0 || now >= echoExpires || own[15].Int >= 0 || own[16].Int >= 0)
             {
                 EchoRejected("OZVĚNA NENÍ DOSTUPNÁ", now);
                 return;
             }
-            bool alt = own[9].Text == "scatter" && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
-            SendEcho(alt);
+            bool alt = HasAlternate(own[9].Text ?? "pulse") && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+            SendEcho(alt, recall);
         }
 
-        void SendEcho(bool alt)
+        void SendEcho(bool alt, bool recall = false)
         {
-            if (!socket.Send(FormattableString.Invariant($"{{\"type\":\"echo-fire\",\"echo\":{activeEcho},\"action\":{++echoAction},\"yaw\":{WebYaw:F5},\"pitch\":{WebPitch:F5},\"alt\":{(alt ? "true" : "false")}}}"))) return;
+            int action = ++echoAction;
+            string message = recall ? $"{{\"type\":\"echo-swap\",\"echo\":{activeEcho},\"action\":{action}}}"
+                : FormattableString.Invariant($"{{\"type\":\"echo-fire\",\"echo\":{activeEcho},\"action\":{action},\"yaw\":{WebYaw:F5},\"pitch\":{WebPitch:F5},\"alt\":{(alt ? "true" : "false")}}}");
+            if (!socket.Send(message)) return;
             echoSentAt = Time.unscaledTime;
             echoAwaitUntil = echoSentAt + Mathf.Clamp(.31f + latency * .0014f, .43f, 1.1f);
         }
@@ -67,7 +73,7 @@ namespace Trias.Native
                     {
                         art = CreateEcho(echo, echoShader);
                         bool fresh = echo[11].Float > lifetime - .16f;
-                        if (fresh) effects.Phase(art.Position, art.Tint, "form", false, visualEffects);
+                        if (fresh && (own[6].Int > 0 || SpectatorTeam(art.Team))) effects.Phase(art.Position, art.Tint, "form", false, visualEffects);
                     }
                     art.Material.SetFloat(EchoLife, Mathf.Clamp01(echo[11].Float / lifetime));
                     art.Material.SetFloat(EchoIntegrity, Mathf.Clamp01(echo[12].Float / Mathf.Max(1, frame["durability"].Float)));
@@ -105,23 +111,34 @@ namespace Trias.Native
             Color tint = mode == "ffa" ? Catalog.Tint(catalog.ffaColors[team * 4 + echo[7].Int]) : Catalog.Tint(catalog.teams[team].color);
             // The compact player row lets this pose reuse the exact in-game pilot and weapon silhouette.
             var row = WireValue.Parse(FormattableString.Invariant(
-                $"[\"echo\",\"Combat Echo\",{(echo[10].Bool ? 18 : 2)},{team},{echo[7].Int},\"{echo[8].Text}\",150,0,0,\"{echo[9].Text}\",[],0,0,1,0,-1,-1,0,{echo[2].Float},{echo[3].Float},{echo[4].Float},0,0,0,{echo[5].Float},0]"));
+                $"[\"echo\",\"Combat Echo\",{(echo[10].Bool ? 18 : 2)},{team},{echo[7].Int},\"{echo[8].Text}\",150,0,0,\"{echo[9].Text}\",[],0,0,1,0,-1,-1,0,{echo[2].Float},{echo[3].Float},{echo[4].Float},0,0,0,{echo[5].Float},0,0,0,0,0,0,null,\"{(echo[13].Text == "male" ? "male" : "female")}\"]"));
             var avatar = new Avatar(world, "echo", row, world.TeamLight[team]);
             avatar.Accept(row, Time.unscaledTime);
             avatar.Tick(Time.unscaledTime);
+            avatar.PlaceHands();
             foreach (var animation in avatar.Root.GetComponentsInChildren<Animation>())
                 animation.enabled = false;
             var material = new Material(shader);
             material.SetColor("_Tint", tint);
+            material.SetFloat("_Faction", mode == "ffa" ? -1 : team);
+            material.SetVector("_Anchor", avatar.Root.position);
+            material.SetVector("_Axis", avatar.Root.right);
+            var optical = new MaterialPropertyBlock();
             foreach (var renderer in avatar.Root.GetComponentsInChildren<Renderer>())
             {
+                if (!renderer.enabled) continue;
                 var slots = renderer.sharedMaterials;
+                for (int i = 0; i < slots.Length; i++)
+                {
+                    optical.SetFloat("_Shell", slots[i] == world.Porcelain || slots[i] == world.Insulation ? 1f : .16f);
+                    renderer.SetPropertyBlock(optical, i);
+                }
                 Array.Fill(slots, material);
                 renderer.sharedMaterials = slots;
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderer.receiveShadows = false;
             }
-            var art = new EchoArt { Root = avatar.Root, Material = material, Position = avatar.Position, Tint = tint };
+            var art = new EchoArt { Root = avatar.Root, Material = material, Position = avatar.Position, Tint = tint, Team = team };
             echoes.Add(echo[1].Int, art);
             return art;
         }
@@ -133,6 +150,15 @@ namespace Trias.Native
                 if (!echoes.Remove(id, out var art)) continue;
                 Destroy(art.Root.gameObject);
                 Destroy(art.Material);
+            }
+        }
+
+        void ShowEchoes(bool alive)
+        {
+            foreach (var art in echoes.Values)
+            {
+                bool visible = alive || SpectatorTeam(art.Team);
+                if (art.Root.gameObject.activeSelf != visible) art.Root.gameObject.SetActive(visible);
             }
         }
 
@@ -157,7 +183,7 @@ namespace Trias.Native
         {
             if (!echoes.TryGetValue(evt["echo"].Int, out var art)) return;
             string reason = evt["reason"].Text;
-            if (reason == "exit" || reason == "death" || reason == "replace") return;
+            if (reason is "exit" or "death" or "replace" or "recall" || own[6].Int <= 0 && !SpectatorTeam(art.Team)) return;
             effects.Phase(art.Position, art.Tint, reason, local && reason != "fire", visualEffects);
             if (local && reason == "rupture") AddNotice("Ozvěna zničena");
         }
@@ -176,13 +202,15 @@ namespace Trias.Native
             float now = Time.unscaledTime;
             if (activeEcho != 0 && now < echoExpires || now < echoRejectUntil)
             {
-                float x = w * .5f - 76, y = h * .5f + 48;
+                float width = state["interactions"]["recall"].Bool ? 234 : 172;
+                float x = (w - width) * .5f, y = h * .5f + 48;
                 float lifetime = Mathf.Max(.1f, state["signature"]["lifetime"].Float);
-                Color tint = now < echoRejectUntil ? Amber : Shield;
-                string label = now < echoRejectUntil ? echoStatus : echoActivation + "   OZVĚNA";
-                Fill(new Rect(x, y, 152, 25), Ink);
-                GUI.Label(new Rect(x + 5, y, 143, 23), label, center);
-                Segments(new Rect(x + 7, y + 22, 138, 2), 12, (echoExpires - now) / lifetime, tint);
+                Color tint = now < echoRejectUntil ? Amber : teamTint;
+                string label = now < echoRejectUntil ? echoStatus : state["interactions"]["recall"].Bool
+                    ? $"{echoActivation}  VÝSTŘEL    ·    {echoRecall}  NÁVRAT" : echoActivation + "   OZVĚNA";
+                Fill(new Rect(x, y, width, 25), Ink);
+                hudText.Draw(new Rect(x + 5, y, width - 10, 23), label, center);
+                Segments(new Rect(x + 7, y + 22, width - 14, 2), 12, (echoExpires - now) / lifetime, tint);
             }
             if (flow == null || momentumPresentation <= .01f || (flow[1].Int == 0 && flow[11].Int == 0)) return;
             bool live = flow[1].Int > 0;
@@ -190,14 +218,16 @@ namespace Trias.Native
             if (live && tier == 0) return;
             float left = Mathf.Clamp01((flow[4].Float - (now - flowStamp)) / chainWindow);
             float atX = w - 240, atY = h - 167;
-            Color edge = new Color(.37f + tier * .10f, .85f, 1f - tier * .12f, momentumPresentation);
+            Color edge = Color.Lerp(teamTint, Chalk, tier * .14f);
+            edge.a = momentumPresentation;
             Fill(new Rect(atX, atY, 213, 53), new Color(Ink.r, Ink.g, Ink.b, Ink.a * momentumPresentation));
-            Fill(new Rect(atX, atY, 24 + 30 * left, 2), edge);
+            Segments(new Rect(atX + 8, atY + 1, 180, 2), 3 + tier * 2, live ? left : 0, edge);
             string labelFlow = live ? $"{FlowTiers[tier]}  ×{flow[2].Float:0.#}   {flow[1].Int}" : $"ŘETĚZEC  {flow[11].Int}";
             var saved = GUI.color;
             GUI.color = new Color(1, 1, 1, momentumPresentation);
-            GUI.Label(new Rect(atX + 8, atY + 4, 201, 22), labelFlow, section);
-            GUI.Label(new Rect(atX + 8, atY + 26, 201, 23), FlowAction(flow[10][0].Text), caption);
+            hudText.Draw(new Rect(atX + 8, atY + 4, 179, 22), labelFlow, section);
+            if (mode != "ffa") DrawFaction(new Vector2(atX + 195,atY + 16), 8, own[3].Int, edge);
+            hudText.Draw(new Rect(atX + 8, atY + 26, 201, 23), FlowAction(flow[10][0].Text), caption);
             GUI.color = saved;
         }
 
@@ -207,7 +237,7 @@ namespace Trias.Native
             "launch" => "Odrazová plošina", "land" => "Rychlý dopad", "turn" => "Změna směru",
             "airHit" => "Zásah ze vzduchu", "airKill" => "Vyřazení ze vzduchu", "dodgeKill" => "Vyřazení po úskoku",
             "moveKill" => "Vyřazení za běhu", "echo" => "Výstřel z ozvěny", "echoHit" => "Zásah ozvěnou",
-            "echoKill" => "Vyřazení ozvěnou", _ => "",
+            "echoKill" => "Vyřazení ozvěnou", "intercept" => "Sestřel granátu", "launchHit" => "Zásah po odrazu", _ => "",
         };
     }
 }

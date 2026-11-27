@@ -10,6 +10,7 @@ namespace Trias.Native
         {
             internal float Interval, Reload, AltInterval;
             internal int Magazine, AltCost;
+            internal string AltName;
         }
 
         struct PendingShot
@@ -37,10 +38,13 @@ namespace Trias.Native
                 fireProfiles[key] = new FireProfile
                 {
                     Interval = profile[1].Float, Magazine = profile[2].Int, Reload = profile[3].Float,
-                    AltInterval = profile[4].Float, AltCost = profile[5].Int,
+                    AltInterval = profile[4].Float, AltCost = profile[5].Int, AltName = profile[6].Text,
                 };
             }
         }
+
+        bool HasAlternate(string key) =>
+            fireProfiles.TryGetValue(key, out var profile) ? profile.AltCost > 0 : key == "scatter";
 
         int VisibleAmmo(string key)
         {
@@ -66,7 +70,8 @@ namespace Trias.Native
         {
             string key = own[9].Text ?? "pulse";
             bool click = Input.GetMouseButtonDown(0);
-            bool alt = key == "scatter" && Input.GetKeyDown(KeyCode.F);
+            bool alt = HasAlternate(key) && own[15].Int < 0 && own[16].Int < 0 &&
+                (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.F));
             if (!predictedFire)
             {
                 if (click || alt)
@@ -120,14 +125,19 @@ namespace Trias.Native
         {
             tension = key == "scatter" || key == "rift" ? 1.45f : key == "lance" ? 1.16f : .77f;
             KickWeapon(key, alt);
-            effects.FireMuzzle(MuzzlePoint(), ShotTint(key), key, alt, visualEffects);
+            effects.FireMuzzle(MuzzlePoint(), ShotTint(key, alt), key, alt, visualEffects);
         }
 
-        Color ShotTint(string key) => Catalog.Tint(Catalog.Find(catalog.weapons, key)?.color ?? "#ffe49e");
+        Color ShotTint(string key, bool alternate = false)
+        {
+            Color baseTint = Catalog.Tint(Catalog.Find(catalog.weapons, key)?.color ?? "#ffe49e");
+            return alternate ? Color.Lerp(baseTint, Catalog.Tint(key == "rift" ? "#ffb56f" : "#f7fbff"), .43f) : baseTint;
+        }
 
         Vector3 MuzzlePoint()
         {
-            Vector3 muzzle = grip.TransformPoint(new Vector3(0, .04f, .32f));
+            float depth = PhaseArmory.Muzzle(own[9].Text);
+            Vector3 muzzle = grip.TransformPoint(new Vector3(0, .04f, depth));
             if (Physics.Linecast(view.transform.position, muzzle, out var block, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
                 muzzle = block.point + block.normal * .045f;
             return muzzle;

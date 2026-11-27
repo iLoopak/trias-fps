@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../match.js';
+import { PILOT_HP } from '../public/rules.js';
 
 const origin = { x: 0, y: 1, z: -24 };
 
@@ -57,7 +58,7 @@ test('orbital impact requires aim, gives advance warning and does not chain itse
   assert.equal(target.hp, 45);
   match.streaks.step(4.2);
   assert.equal(target.hp, 0);
-  assert.equal(ally.hp, 150);
+  assert.equal(ally.hp, PILOT_HP);
   assert.equal(pilot.chain, 7);
   assert.equal(match.streaks.snapshot(5).strikes.length, 0);
 });

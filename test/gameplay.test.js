@@ -1,9 +1,36 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
-import { ARENAS, PILOT_HP, WEAPONS, GANTRIES, GRENADE, LAUNCH_PADS, PICKUPS, TICK, TURRET, blocked, eyeHeight, movePlayer, wallDistance } from '../public/rules.js';
+import { ARENAS, PILOT_HP, WEAPONS, GANTRIES, GRENADE, LAUNCH_PADS, PICKUPS, TICK, TURRET, blocked, packCover, eyeHeight, movePlayer, wallDistance } from '../public/rules.js';
 
 const neutral = { x: 0, z: 0, yaw: 0 };
+
+test('two fully connected Scatter blasts leave a healthy unshielded pilot alive', () => {
+  const match = new Match('PACE', 'tdm', false, { ...ARENAS.relay, cover: [], launchPads: [] });
+  const shooter = match.addPlayer('shooter', 'Shooter', 0, 0, 0, false, 'bulwark');
+  const target = match.addPlayer('target', 'Target', 1, 0, 0);
+  Object.assign(shooter, { x: 0, y: 0, z: 0, yaw: 0, pitch: -.15 });
+  Object.assign(target, { x: 0, y: 0, z: -1.6, safeUntil: 0 });
+  for (let shot = 0; shot < 2; shot++) match.shoot(shooter, 2 + shot * WEAPONS.scatter.interval);
+  assert.equal(target.hp, PILOT_HP - 2 * WEAPONS.scatter.pattern.length * WEAPONS.scatter.damage);
+  assert(target.hp > 0);
+  match.shoot(shooter, 2 + 2 * WEAPONS.scatter.interval);
+  assert.equal(target.hp, 0);
+});
+
+test('PvP and Horde pilots cannot respawn before their published deployment delay', () => {
+  for (const [mode, delay] of [['tdm', 5], ['horde', 7]]) {
+    const match = new Match('PACE', mode, false);
+    const pilot = match.addPlayer('pilot', 'Pilot', 0, 0, 0);
+    const attacker = match.addPlayer('attacker', 'Attacker', 1, 0, 0);
+    assert.deepEqual(match.pace, { pilotHp: pilot.hp, respawn: delay });
+    assert(match.damage(attacker, pilot, PILOT_HP, 1, attacker, 'pulse').eliminated);
+    match.step(1 + delay - TICK);
+    assert.equal(pilot.hp, 0, mode);
+    match.step(1 + delay);
+    assert.equal(pilot.hp, PILOT_HP, mode);
+  }
+});
 
 test('all three launch pads reach their gantry and leave a route underneath', () => {
   for (const [i, pad] of LAUNCH_PADS.entries()) {
@@ -158,4 +185,52 @@ test('Scatter focused fire consumes two rounds and uses a single ray', () => {
   assert(shot.alt);
   assert.equal(shot.ends.length, 1);
   assert.equal(shooter.player.loadout.scatter.ammo, 4);
+});
+
+test('all five alternate shots use their own cost, cooldown and shot pattern', () => {
+  for (const [key, spec] of Object.entries(WEAPONS)) {
+    const room = new Match('ALT', 'tdm', false, { ...ARENAS.relay, cover: [], launchPads: [], pickups: [] });
+    const pilot = room.addPlayer('pilot', 'Pilot', 0, 0, 0);
+    pilot.weapon = key;
+    pilot.loadout[key] = { ammo: spec.magazine, reserve: spec.magazine };
+    Object.assign(pilot, { x: 0, y: 0, z: 0 });
+    const fire = (fireId, time) => {
+      room.trigger(pilot, { fireId, spawn: pilot.spawn, weapon: key, yaw: 0, pitch: 0, alt: true }, time);
+      room.step(time);
+    };
+    fire(1, 3);
+    const shot = room.events.find(event => event.type === 'shot');
+    assert.equal(shot?.alt, true, key);
+    assert.equal(shot.ends.length, spec.alt.pattern?.length ?? 0, key);
+    assert.equal(pilot.loadout[key].ammo, spec.magazine - spec.alt.cost, key);
+    assert.equal(pilot.fireAt, 3 + spec.alt.interval, key);
+    if (spec.alt.projectile) {
+      assert.equal(room.projectiles[0].spec.projectile, spec.alt.projectile);
+      assert(room.projectiles[0].alt);
+    }
+    room.events.length = 0;
+    fire(2, 3.1);
+    assert(!room.events.some(event => event.type === 'shot'), key);
+    assert.equal(pilot.loadout[key].ammo, spec.magazine - spec.alt.cost, key);
+    pilot.loadout[key].ammo = spec.alt.cost - 1;
+    fire(3, 5);
+    assert(!room.events.some(event => event.type === 'shot'), key);
+    assert.equal(pilot.loadout[key].ammo, spec.alt.cost - 1, key);
+  }
+});
+
+test('Lance penetration is attenuated and stops at armor and arena cover', () => {
+  for (const obstacle of ['none', 'shield', 'wall']) {
+    const cover = obstacle === 'wall' ? [{ x: 0, z: -6, w: 1.6, d: .4, h: 2, angle: 0 }] : [];
+    const room = new Match('PENETRATION', 'tdm', false, { ...ARENAS.relay, cover: packCover(cover), launchPads: [] });
+    const pilot = room.addPlayer('pilot', 'Pilot', 0, 0, 0, false, 'wraith');
+    const first = room.addPlayer('first', 'First', 1, 0, 0);
+    const second = room.addPlayer('second', 'Second', 1, 1, 0);
+    Object.assign(pilot, { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+    Object.assign(first, { x: 0, y: 0, z: -4, safeUntil: 0, armor: obstacle === 'shield' ? 50 : 0 });
+    Object.assign(second, { x: 0, y: 0, z: -8, safeUntil: 0 });
+    room.shoot(pilot, 3, true);
+    assert(first.hp < PILOT_HP, obstacle);
+    assert.equal(second.hp, PILOT_HP - (obstacle === 'none' ? 38 : 0), obstacle);
+  }
 });

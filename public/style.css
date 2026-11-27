@@ -88,6 +88,14 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .feed { position: absolute; top: 121px; right: 20px; width: min(34vw, 310px); display: grid; justify-items: end; gap: 4px; }
 .feed div { padding: 5px 8px; background: #081015c9; font-size: 12px; overflow-wrap: anywhere; max-width: 100%; text-align: right; }
 .feed b { color: var(--team); }
+.observer { position: absolute; inset: 0; display: grid; align-items: end; justify-items: center; padding: 0 14px clamp(26px, 8vh, 76px); pointer-events: none; }
+.observer[data-phase="replay"] { background: linear-gradient(180deg, #11102186 0, transparent 14%, transparent 70%, #100f20a8 100%); }
+.observer-card { width: min(100%, 340px); background: #0b121cef; border: 1px solid #526579; border-top: 2px solid var(--observer-accent, #bfd9ef); padding: 12px 16px; box-shadow: 0 10px 36px #0007; }
+.observer-top { display: flex; justify-content: space-between; gap: 12px; color: var(--observer-accent, #bfd9ef); font: 650 11px monospace; letter-spacing: .13em; }
+.observer-card strong { display: block; margin: 3px 0; color: #f8f9fd; font-size: clamp(20px, 4vw, 30px); overflow-wrap: anywhere; }
+.observer-card small { display: block; color: #bac8d5; font-size: 12px; }
+.observing .game-bottom, .observing .tactical-map { visibility: hidden; }
+.reentry { position: absolute; inset: 0; opacity: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 50%, var(--arrival, #68dce5) 150%); }
 .crosshair { position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); color: #edfef8; filter: drop-shadow(0 1px 2px #05100f); }
 .crosshair::before, .crosshair::after { content: ""; position: absolute; inset: 0; background: currentColor; clip-path: polygon(0 45%, 30% 45%, 30% 55%, 0 55%, 0 45%, 70% 45%, 100% 45%, 100% 55%, 70% 55%, 70% 45%); }
 .crosshair::after { transform: rotate(90deg); }

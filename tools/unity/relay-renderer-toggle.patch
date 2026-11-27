@@ -1,0 +1,37 @@
+--- a/Assets/Scripts/Native/BlenderParts.cs
++++ b/Assets/Scripts/Native/BlenderParts.cs
+@@ -73,6 +73,15 @@
+             return true;
+         }
+
++        internal static readonly List<(Transform Owner,Transform Combined)> ProfileRuns = new();
++
++        internal static void ProfileSetBatching(bool enabled)
++        {
++            foreach (var run in ProfileRuns)
++                foreach (Transform part in run.Owner)
++                    part.gameObject.SetActive(part == run.Combined ? enabled : !enabled);
++        }
++
+         internal bool FitEnvironmentRun(string[] keys, Transform parent, float length, float height, float thickness,
+             bool alongDepth, Func<string, Material> finish, List<Mesh> ownedMeshes, float lodScreenHeight)
+         {
+@@ -104,6 +113,9 @@
+                 Collect(parts[keys[i]+"_LOD1"],batches[1],matrix);
+             }
+
++            var combined = TriasWorld.Group(parent,"Profile batched geometry");
++            ProfileRuns.Add((parent,combined));
++            parent = combined;
+             var levels = parent.gameObject.AddComponent<LODGroup>();
+             levels.SetLODs(new[]
+             {
+@@ -112,7 +124,7 @@
+             });
+             levels.localReferencePoint = Vector3.up*height*.5f;
+             levels.size = lodSize;
+-            return true;
++            return false;
+
+             void Collect(Part part, Dictionary<Material,List<CombineInstance>> batch, Matrix4x4 matrix)
+             {
