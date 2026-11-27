@@ -44,7 +44,7 @@ Combat Echo využívá normály a lokální výšku pro převážně celistvý p
 - **Relay Station** kombinuje trojici vystředěných rozpojených stupňů, axiální světelný sloup, odstupňované fasády, vegetaci na servisních pylonech a obří osvětlenou planetu za obzorem.
 - **Vanta Foundry** má nízkou tepelnou komoru se šesti vrstvenými bloky a teplým světlem ze spojů. Zatmění, měděné odstíny a těžké výměníky určují atmosféru.
 - **Meridian Basin** má otevřený prostor mezi cíli, vytěžené žíly a ramena s rozpojenou tříčelisťovou hlavou. V pozadí zůstává nákladní trať a planeta s prstenci.
-- **Mechový ostrov** staví na terénu, vodě a zeleném obzoru. Drobné keramické přepážky označují místa, kde lidé dřív regulovali tok.
+- **Kordilera** staví na terénu, vodě a zeleném obzoru. Drobné keramické přepážky označují místa, kde lidé dřív regulovali tok.
 
 ## Původ a implementace
 
@@ -91,8 +91,10 @@ Ramena třetí osoby počítají úchop v souřadnicích nadřazené kosti. Rozd
 
 ## Rozšířené arény a modely prostředí
 
-Mechový ostrov má v průměru 95,6 m. Tři dřevěné přechody propojují údolí pod hřebenem. Řeka se rozšiřuje do dvou vodopádů. Povrch kombinuje vlhký břeh, trávu, půdu a odkrytou horninu podle sklonu. Siluetu ostrova tvoří více vrstev útesu, různé skalní výchozy a skupiny jehličnanů. Fauna a dekorace používají stejný výškopis jako herní pohyb.
+Kordilera má v průměru 95,6 m. Tři dřevěné přechody propojují údolí pod hřebenem. Řeka se rozšiřuje do dvou vodopádů. Povrch kombinuje vlhký břeh, trávu, půdu a odkrytou horninu podle sklonu. Siluetu ostrova tvoří více vrstev útesu, různé skalní výchozy a skupiny jehličnanů. Dekorace používají stejný výškopis jako herní pohyb.
 
 Relay Station má 68 m na šířku, Vanta Foundry 76 m a Meridian Basin 128 m. Okrajové trasy dostaly tlakové přepážky, výpusti pecí, chladicí lože nebo bloky rudy. Klíčové body a krytí uprostřed hřišť vycházejí ze stávajícího rozvržení. `Art/MapProps.blend` obsahuje editovatelné modely a `tools/blender/build-map-props.py` reprodukuje FBX import. V Unity modely vycházejí ze stejných rozměrů krytí jako autoritativní kolize.
 
 Po změně souřadnic, terénu nebo zbraní se katalog Unity obnovuje příkazem `node tools/export-unity-world.mjs`. Režim `--check` ověřuje, že katalog odpovídá sdíleným pravidlům.
+
+Dřevěné mosty mají různě sesazené fošny a samostatné kovové spoje. Útes používá světově promítanou texturu zvětralé horniny a skály mají odlomené vrstvy. Boční stěny Relay, Foundry a Meridianu mají tlakové uzávěry, výměníky a regály pro rudu. Čtyři opakovatelné povrchy reprodukuje `python3 tools/make-map-surfaces.py`.

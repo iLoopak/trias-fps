@@ -105,7 +105,7 @@ function welcome(socket, room, message, token, resumed = false) {
   socket.botRadio = socket.protocolVersion === NETWORK_VERSION && message.botRadio === true;
   const fireProfiles = socket.protocolVersion === NETWORK_VERSION && message.predictFire === true ? fireProfileData() : undefined;
   socket.send(JSON.stringify({ type: 'joined', id: socket.id, room: room.code, mode: room.mode, arena: room.layout.id, bots: room.bots,
-    worldExtent: room.layout.edgeRadius ?? room.layout.length, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion, fireProfiles, pace: room.pace,
+    arenaLabel: room.layout.label, worldExtent: room.layout.edgeRadius ?? room.layout.length, capacity: room.horde ? TEAM_SIZE : CAPACITY, v: socket.protocolVersion, fireProfiles, pace: room.pace,
     resume: token, resumeSeconds: token ? RESUME_SECONDS : undefined, resumed: resumed || undefined, training: Boolean(room.practice) }));
 }
 

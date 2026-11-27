@@ -34,7 +34,7 @@ Přebití animuje obě ruce a mechanismus zbraně. Pulse mění zásobník, Scat
 
 Úspěšný **Q** úskok za sebou na 2,5 s nechá ozvěnu. **X** vystřelí aktuální pěchotní zbraní z její pozice, **Shift+X** použije soustředěný Scatter. Platí běžná munice, kadence a kolize. Protivník může ozvěnu zničit. **Momentum Chain** boduje platné pohybové akce a potvrzené zásahy a vyřazení. Má vlastní výsledky v souhrnu kola a jeho intenzitu najdeš v nastavení. Klávesu ozvěny lze změnit na objektu **TRIAS client**. Serverové hodnoty a tabulka akcí jsou v `signature.js`. Volby `TRIAS_COMBAT_ECHO=0` a `TRIAS_MOMENTUM=0` vypínají systémy nezávisle.
 
-Světelné efekty ovládají přízemní mlhu, bloom a paprsky rozptýleného světla. Využívají hloubku obrazu a mají vlastní barvy a intenzitu pro každou arénu. Vantu rámují tavicí komora a vysoké výduchy, Meridian Basin pohyblivé těžební stroje a Mechový ostrov má chladný opar v nížinách.
+Světelné efekty ovládají přízemní mlhu, bloom a paprsky rozptýleného světla. Využívají hloubku obrazu a mají vlastní barvy a intenzitu pro každou arénu. Vantu rámují tavicí komora a vysoké výduchy, Meridian Basin pohyblivé těžební stroje a Kordilera má chladný opar v nížinách.
 
 Relay Station má pás galaxie, Vanta Foundry zatmění s oranžovou korónou a Meridian Basin planetu s prstenci. Textura `Assets/Resources/TRIAS/relay-galaxy.jpg` vznikla v ImageGen podle obrazové reference a zadání vytvořit široký pás hvězd s kobaltovým a fialovým prachem, jemným teplým jádrem a tmavými okraji pro přechod do oblohy.
 
@@ -61,7 +61,7 @@ Po skončení kola lze zůstat na automaticky spuštěné další kolo nebo se v
 
 - Pět modelů zbraní včetně Riftu pochází z [Kenney Blaster Kit](https://kenney.nl/assets/blaster-kit). Sdílejí atlas s doplněnými svítícími prvky pro výbavu TRIAS.
 - Čtyři třídy pilotů vycházejí z rigovaného kyborga a animačních klipů [Kenney Animated Characters Protagonists](https://kenney.nl/assets/animated-characters-protagonists). Třídy rozlišují siluety, výzbroj a úpravy obleku. Tým určují barevné prvky brnění.
-- Mechový ostrov používá stromy, skály, keře a květiny z [Kenney Nature Kit](https://kenney.nl/assets/nature-kit). Terén a poloha překážek vycházejí z herní mapy.
+- Kordilera používá stromy, skály, keře a květiny z [Kenney Nature Kit](https://kenney.nl/assets/nature-kit). Terén a poloha překážek vycházejí z herní mapy.
 - Mateřská loď, doprovodné stíhačky a těžební čluny používají modely z [Kenney Space Kit](https://kenney.nl/assets/space-kit) s materiály a doplňky pro TRIAS. Ze stejné sady jsou servisní hangáry a sledovací anténa na Relay Station, chladicí moduly ve Vanta Foundry a nákladní monorail v Meridian Basin. Stavby stojí za hranou arén.
 
 Všechny čtyři balíčky mají licenci CC0. Původní licenční soubory jsou u vybraných modelů v `Assets/Resources/TRIAS/Kit`.

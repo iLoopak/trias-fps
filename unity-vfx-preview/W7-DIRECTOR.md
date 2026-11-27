@@ -25,7 +25,7 @@ TRIAS_DIRECTOR_PRESENTATION=1 TRIAS_DIRECTOR_SEED=271828 npm start
 
 Taktické volby pracují s existujícími body mapy, last-known pozicemi z vlastní percepce botů a s rozestupy spojenců. Hra v klidnějších fázích dává přednost bezpečnému postavení a odstupu, při kontaktu se hlídky přesouvají blíž. Osobnost ovlivňuje individuální odezvu. Obtížnost, reakční časy, viditelnost, balistika a rozhodčí pravidla zápasu se řídí původními systémy.
 
-Kosmetické události mají krátké upozornění na HUD. Relay rozsvítí reaktor, Vanta zesílí tavicí komoru, Meridian zvýrazní těžební ramena a přelet konvoje a na Mechovém ostrově se zvýrazní odlesky hladiny. Online se dekorace a atmosféra odvozují z veřejného času, seedu a veřejné přípravy Hordy. Intenzita boje, informace z percepce a souřadnice cílů do kosmetického paketu nevstupují. Lokálně se atmosféra jemně promíchá i podle vlastních potvrzených zásahů.
+Kosmetické události mají krátké upozornění na HUD. Relay rozsvítí reaktor, Vanta zesílí tavicí komoru, Meridian zvýrazní těžební ramena a přelet konvoje a v Kordileře se zvýrazní odlesky hladiny. Online se dekorace a atmosféra odvozují z veřejného času, seedu a veřejné přípravy Hordy. Intenzita boje, informace z percepce a souřadnice cílů do kosmetického paketu nevstupují. Lokálně se atmosféra jemně promíchá i podle vlastních potvrzených zásahů.
 
 ## Zvuk a čitelnost frakcí
 

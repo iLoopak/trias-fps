@@ -6,7 +6,7 @@ import { ISLAND_CROSSINGS, ISLAND_SCALE as scale, ISLAND_TRAIL, islandHeight } f
 
 const island = ARENAS.island;
 
-test('Mechový ostrov keeps all match markers accessible inside a curved boundary', () => {
+test('Kordilera keeps all match markers accessible inside a curved boundary', () => {
   for (const { x, y = 0, z } of [...island.spawns.flat(), ...island.bases, ...island.points, ...island.pickups]) {
     assert.equal(blocked(x, z, BODY_RADIUS, y, island), false, `blocked match marker at ${x}, ${z}`);
   }

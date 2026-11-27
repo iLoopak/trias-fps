@@ -400,16 +400,6 @@ function wildlife(scene) {
     }
     hares.push({ body, spot, phase: i * 1.925 });
   }
-  const ducks = [];
-  for (let i = 0; i < 3; i++) {
-    const body = new THREE.Group();
-    scene.add(body);
-    mesh(body, round, white, [0, 0.15, 0.12], [0.33, 0.23, 0.50]);
-    mesh(body, round, white, [0, 0.42, -0.22], [0.21, 0.20, 0.21]);
-    mesh(body, cube, new THREE.MeshStandardMaterial({ color: '#e49a45' }), [0, 0.36, -0.42], [0.24, 0.082, 0.17]);
-    for (const side of [-1, 1]) mesh(body, round, black, [side * 0.12, 0.475, -0.35], [0.03, 0.03, 0.03]);
-    ducks.push({ body, phase: i * 0.85 });
-  }
   return seconds => {
     for (const { body, spot, phase } of hares) {
       const age = seconds * 0.47 + phase;
@@ -417,15 +407,6 @@ function wildlife(scene) {
       const z = spot[1] * ISLAND_SCALE + Math.sin(age) * 1.14;
       body.position.set(x, islandHeight(x, z) + Math.max(0, Math.sin(age * 7)) * 0.36, z);
       body.rotation.y = Math.atan2(Math.sin(age), -Math.cos(age));
-    }
-    for (const { body, phase } of ducks) {
-      const age = seconds * 0.12 + phase * 0.21;
-      const x = 8.4 + Math.sin(age) * 3.5 + phase * 0.43;
-      const z = riverCenter(x) + Math.sin(phase) * 0.32;
-      const slope = riverCenter(x + 0.09) - riverCenter(x - 0.09);
-      const direction = Math.sign(Math.cos(age));
-      body.position.set(x, 0.045 + Math.sin(seconds * 3.9 + phase) * 0.055, z);
-      body.rotation.y = Math.atan2(-direction, -slope / 0.18 * direction);
     }
   };
 }

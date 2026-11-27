@@ -24,7 +24,6 @@ namespace Trias.Native
         internal const int TerrainMask = ~(1 << Decor);
         readonly List<Mesh> meshes = new List<Mesh>();
         readonly List<Transform> spinning = new List<Transform>();
-        readonly List<Transform> animals = new List<Transform>();
         readonly Material water;
         readonly bool island, ribbonShader;
         float waterEffects = -1, waterWind = -1;
@@ -147,6 +146,7 @@ namespace Trias.Native
                         body.GetComponent<Renderer>().enabled = false;
                         continue;
                     }
+                    DressRouteCover(box, home, h);
                     if (Spec.id == "relay")
                     {
                         DressRelayCover(box, home, h);
@@ -264,6 +264,8 @@ namespace Trias.Native
             var deck = MaterialAt(basin ? "#b8a498" : foundry ? "#b67660" : "#828c9d", false,
                 basin ? "basin" : foundry ? "foundry-deck" : "deck");
             deck.mainTextureScale = Vector2.one * (basin ? 22 : 15);
+            var serviceDeck = MapSurface(basin ? "#8f7469" : foundry ? "#9a6d57" : "#79909c", "brushed-deck", .56f, .29f);
+            serviceDeck.mainTextureScale = new Vector2(3, 1);
             float d = Spec.length * 2;
             Part(Root, deck, new Vector3(0, -0.44f, 0), new Vector3(d, 0.88f, d), PrimitiveType.Cube, true);
             for (int i = 0; i < 4; i++)
@@ -279,6 +281,7 @@ namespace Trias.Native
                     else
                         Part(wall, TeamNeutral, new Vector3(x + 1.4f, 3.05f, Spec.length - 0.03f), new Vector3(1.7f, 0.045f, 0.035f));
                 }
+                DressServiceWall(wall, i, serviceDeck);
             }
             if (!IsRelayArt) BuildInfrastructure();
             BuildStationDistrict();
@@ -342,9 +345,13 @@ namespace Trias.Native
             if (terrainShader != null)
             {
                 ground.shader = terrainShader;
-                ground.SetTexture("_Detail", Resources.Load<Texture2D>("TRIAS/meadow-macro"));
+                var meadowDetail = Resources.Load<Texture2D>("TRIAS/meadow-macro");
+                var stoneDetail = Resources.Load<Texture2D>("TRIAS/SurfaceDetail/fractured-stone");
+                ground.SetTexture("_Detail", meadowDetail);
+                ground.SetTexture("_Stone", stoneDetail);
                 earth.shader = terrainShader;
-                earth.SetTexture("_Detail", Resources.Load<Texture2D>("TRIAS/meadow-macro"));
+                earth.SetTexture("_Detail", meadowDetail);
+                earth.SetTexture("_Stone", stoneDetail);
             }
             float scale = Spec.IslandScale;
             var hill = Spec.terrain;
@@ -470,16 +477,6 @@ namespace Trias.Native
                     new Vector3(x, y - .06f, z), R(360f));
             }
             BuildGrasses();
-            var milk = MaterialAt("#fff7db");
-            var bill = MaterialAt("#ffc34a");
-            for (int i = 0; i < 3; i++)
-            {
-                var duck = Group(Root, "River duck");
-                Part(duck, milk, new Vector3(0, 0.15f, 0), new Vector3(0.64f, 0.39f, 0.79f), PrimitiveType.Sphere);
-                Part(duck, milk, new Vector3(0, 0.36f, 0.3f), Vector3.one * 0.32f, PrimitiveType.Sphere);
-                Part(duck, bill, new Vector3(0, 0.33f, 0.47f), new Vector3(0.15f, 0.09f, 0.23f), PrimitiveType.Sphere);
-                animals.Add(duck);
-            }
         }
 
         void IslandCover(BoxSpec box, Transform parent, float h)
@@ -585,13 +582,6 @@ namespace Trias.Native
                     }
                 }
                 else water.mainTextureOffset = new Vector2(0, -time * .12f * effects % 1);
-                for (int i = 0; i < animals.Count; i++)
-                {
-                    float x = (3.7f + Mathf.Sin(time * .40f + i * .23f) * 3f + i * 2f) * Spec.IslandScale;
-                    float z = Motor.IslandRiver(x, Spec.IslandScale);
-                    animals[i].position = new Vector3(x, Mathf.Sin(time * 3 + i) * (0.04f + .015f * arenaPulse) + 0.017f, z - 0.33f);
-                    animals[i].rotation = Quaternion.Euler(0, Mathf.Cos(time * .4f + i * .23f) > 0 ? 66 : -114, 0);
-                }
             }
         }
 

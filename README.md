@@ -32,7 +32,7 @@ Vercel Functions podporují WebSockety, ale dvě připojení mohou skončit v r�
 - **Relay Station** je orbitální aréna s prasklým reaktorem, zavěšenými lávkami a otevřeným bojem o střed.
 - **Vanta Foundry** je slévárna s tavicími kanály, bočními mosty a nízkými servisními průchody pro přikrčené piloty. Po obvodu jsou tři pevná energetická hnízda. Mají omezený úhel míření a při dlouhé střelbě se přehřívají. Klávesa **E** obsluhu přepíná.
 - **Meridian Basin** měří 112 × 112 herních metrů. Široký okruh a tři paprsky mezi doky spojují tři sektory. Barevné servisní pruhy, odpalovací podložky a horní lávky dávají pěchotě kratší cestu a přístup ke zbraním. Antény v Dominanci a vlajky v CTF řeší pěchota. Zelené opravárenské plochy opravují obsazené vozidlo po zastavení. Minimapa ukazuje okruh, cíle a spojence.
-- **Mechový ostrov** je kulatá pěší aréna na malé plovoucí planetě. Písková pěšina vede přes jižní hřeben k vyhlídkám nad dvěma vodopády. Na hřebeni leží Rift. V údolí vede přes řeku trojice dřevěných mostků a brod, který zpomaluje běh. Na březích poskakují zajíci a po proudu plavou kachny.
+- **Kordilera** je kulatá pěší aréna na malé plovoucí planetě. Písková pěšina vede přes jižní hřeben k vyhlídkám nad dvěma vodopády. Na hřebeni leží Rift. V údolí vede přes řeku trojice dřevěných mostků a brod, který zpomaluje běh. Na webu se na březích občas objeví zajíc.
 
 Výběr pilota určuje vzhled, animace a výzbroj po každém oživení. Týmy mají stejné herní parametry pohybu, zdraví a hitboxy.
 
@@ -57,6 +57,8 @@ Klávesa **E** nastupuje a vystupuje. **W/S** ovládá jízdu vpřed a vzad, **A
 V arénách můžeš bez ohledu na pilota získat **Scatter**, **Lance**, **Arc** i **Rift**. Jeho energetická koule má dobu letu. Dopad odhodí blízké soupeře a kryt zachytí účinek výbuchu. První sebrání zbraň rovnou vybaví. Další sebrání doplní munici. Po vyřazení se obnoví tvoje startovní výzbroj. Scatter může místo rozptylu vystřelit soustředěnou dávku na delší vzdálenost za dva náboje. Každý pilot má na jedno oživení jeden impulsní granát s krátkou pojistkou a odrazy od stěn.
 
 Zbraně mají vlastní zpětný ráz, výšleh, animaci podavače a zvuk manipulace. Diodový ukazatel na modelu odpovídá stavu nabité munice. Po vyčerpání nábojů specialistu HUD připomene přepnutí na Pulse.
+
+Po vyřazení **kill cam** krátce zrekonstruuje zásah ze záznamu serveru. **Mezerníkem** kameru přeskočíš. V týmových režimech pak sleduješ živého spoluhráče a klávesou **E** mezi nimi přepínáš. Respawn dál určuje server.
 
 Oranžové odpalovací podložky tě vynesou na vnější lávky. Můžeš je podběhnout nebo pokračovat dvojskokem na vnitřní lávky pod reaktorem. Uvolněný stojan ukazuje odpočet v posledních devíti sekundách před návratem předmětu.
 
@@ -128,7 +130,7 @@ Ilustrace lobby `public/orbit.jpg`, textura krytů `public/bulkhead.jpg`, textur
 
 > Use case: stylized-concept. Asset type: square seamless terrain albedo texture for Meridian Basin, a fictional orbital mining yard arena. Orthographic top-down fine compressed basalt regolith with slate-gray volcanic grit and thin layered desaturated rust-brown abrasion in the dust. Hard-packed and traversable, dry and matte, compact quiet middle tones, subtle mineral granules, a few faint abrasion streaks, no rocks casting shadows, no boulders, no gravel patches large enough to look like obstacles, no graphic markings, no text, absolutely no environment or perspective. Uniform soft diffuse light for a repeatable game material.
 
-**Louka Mechového ostrova**
+**Louka Kordilery**
 
 > Use case: stylized-concept. Asset type: seamless square ground albedo for the playable grass of an original whimsical tiny-planet arena. Direct perpendicular orthographic view of soft short meadow grass and velvety emerald moss, warm sunlit olive and fresh spring green, very finely scattered pale clover specks, tiny rust flecks, painterly hand-brushed texture with gentle organic variation and one restrained consistent brightness. No tall grass, no foliage casting shadows, no bushes, no large flowers, no perspective, no environment, no paths, no labels or graphic shapes. A quiet repeatable surface that stays legible in a 3D game.
 

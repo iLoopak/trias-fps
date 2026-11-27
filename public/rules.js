@@ -319,7 +319,7 @@ export const ARENAS = {
     footZones: basinFootZones, roadRadius: 47.8, siege: BASIN_SIEGE,
   },
   island: {
-    id: 'island', length: 50, edgeRadius: ISLAND_RADIUS, islandScale: ISLAND_SCALE, terrain: islandHeight, label: 'Mechový ostrov',
+    id: 'island', length: 50, edgeRadius: ISLAND_RADIUS, islandScale: ISLAND_SCALE, terrain: islandHeight, label: 'Kordilera',
     description: 'Zalesněná miniplaneta s horským hřebenem, říčními přechody a vodopády.',
     cover: islandCover, launchPads: [], gantries: [], pickups: islandPickups, bases: islandBases,
     points: islandPoints, spawns: islandSpawns, turrets: [],

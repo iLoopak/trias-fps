@@ -10,7 +10,7 @@ const existing = readFileSync(target,'utf8');
 const catalog = JSON.parse(existing);
 const clean = value => JSON.parse(JSON.stringify(value,(key,v) => typeof v === 'number' ? +v.toFixed(5) : v));
 const cover = ({min, max, cos, sin, radius, ...shape}) => shape;
-const coordinates = ['length','description','edgeRadius','islandScale','cover','launchPads','pickups','bases','points',
+const coordinates = ['length','label','description','edgeRadius','islandScale','cover','launchPads','pickups','bases','points',
   'turrets','vehicles','repairs','roadRadius','siege'];
 
 for (const map of catalog.maps) {

@@ -15,7 +15,7 @@ namespace Trias.Native
                 "relay" => "RELAY / TRANSFER",
                 "foundry" => "VANTA / HOT ZONE",
                 "basin" => "MERIDIAN / ORE LINE",
-                _ => "MOSS / FIELD LAB"
+                _ => "KORDILERA / FIELD LAB"
             };
             var ink = MaterialAt(Spec.id == "foundry" ? "#e18957" : Spec.id == "basin" ? "#dbc099"
                 : island ? "#e1c97e" : "#c5e0dc", true);
