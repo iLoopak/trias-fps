@@ -135,7 +135,7 @@ namespace Trias.Native
             sessionEndpoint = endpoint;
             practiceRequested = intent == "practice";
             socket = new TriasSocket();
-            var request = new JoinCommand { type = "join", v = 2, room = code.Trim(), name = player.Trim(), mode = game, arena = map, geometry = Array.Find(catalog.maps, arena => arena.id == "relay")?.revision, character = kit, frame = male ? "male" : "female", intent = intent, bots = bots, predictFire = true, signature = true, botRadio = true, hordeBots = hordeBots, resume = true };
+            var request = new JoinCommand { type = "join", v = 2, room = code.Trim(), name = player.Trim(), mode = game, arena = map, layoutSet = catalog.layoutSet, geometry = Array.Find(catalog.maps, arena => arena.id == "relay")?.revision, character = kit, frame = male ? "male" : "female", intent = intent, bots = bots, predictFire = true, signature = true, botRadio = true, hordeBots = hordeBots, resume = true };
             socket.Start(endpoint, JsonUtility.ToJson(request));
             joinedAt = Time.unscaledTime;
             status = "Připojuji se k serveru…";
@@ -143,7 +143,7 @@ namespace Trias.Native
 
         [Serializable] sealed class JoinCommand
         {
-            public string type, room, name, mode, arena, character, frame, intent, ticket, geometry;
+            public string type, room, name, mode, arena, character, frame, intent, ticket, geometry, layoutSet;
             public int v;
             public bool bots, predictFire, signature, botRadio, hordeBots, resume;
         }
@@ -347,7 +347,11 @@ namespace Trias.Native
                 case "joined":
                     var arena = Array.Find(catalog.maps, a => a.id == message["arena"].Text);
                     string geometry = message["geometry"].Text;
-                    if (arena?.id == "relay" && string.IsNullOrEmpty(geometry)) arena = catalog.relayService;
+                    if (arena?.id == "relay")
+                    {
+                        if (string.IsNullOrEmpty(geometry)) arena = catalog.relayService;
+                        else if (geometry == catalog.relayHorde?.revision) arena = catalog.relayHorde;
+                    }
                     if (message["v"].Int != 2 || arena == null || (geometry ?? "") != (arena.revision ?? ""))
                     {
                         Disconnect("Server nemá kompatibilní verzi TRIAS.");
@@ -836,6 +840,9 @@ namespace Trias.Native
                     }
                     else AddNotice(notice);
                     break;
+                case "hazard":
+                    if (local) damageTint = Amber;
+                    break;
                 case "kill":
                     var body = evt["body"];
                     Vector3 spot = AtObject(body);
@@ -843,15 +850,16 @@ namespace Trias.Native
                         ? Catalog.Tint(catalog.teams[body["team"].Int].color) : Catalog.Tint("#ff5555");
                     Material casualtyPaint = body["hordeType"].Text == null ? world.TeamLight[body["team"].Int] : world.Hostile;
                     bool mine = evt["victimId"].Text == identity;
+                    bool environment = key == "fall" || key == "plasma";
                     if (key != "fall" && (own[6].Int > 0 || mine || SpectatorTeam(body["team"].Int) && body["hordeType"].Text == null))
                     {
                         var corpse = new FallenPilot(world,body,casualtyPaint,casualtyTint,mine);
                         if (corpse.Visible) fallen.Add(corpse);
                         else effects.Elimination(spot,casualtyTint,visualEffects);
                     }
-                    AddKill(evt["attacker"].Text, evt["victim"].Text, key == "fall" ? "Pád" : key, evt["team"].Int, now);
-                    if (mine && key == "fall") { killer = "Šachta reaktoru"; replayUntil = 0; }
-                    if (mine && own[6].Int <= 0 && key != "fall")
+                    AddKill(evt["attacker"].Text, evt["victim"].Text, key == "fall" ? "Pád" : key == "plasma" ? "Plazma" : key, evt["team"].Int, now);
+                    if (mine && environment) { killer = evt["attacker"].Text; replayUntil = 0; }
+                    if (mine && own[6].Int <= 0 && !environment)
                     {
                         killer = evt["attacker"].Text;
                         killerWeapon = key switch

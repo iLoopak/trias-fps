@@ -1,4 +1,4 @@
-import { PILOT_HP, TICK, TURRET, WEAPONS, aimVector, blocked, canDodge, distanceSquared, eyeHeight, floorBelow, radial, turretYaw, wallDistance } from './public/rules.js';
+import { PILOT_HP, TICK, TURRET, WEAPONS, aimVector, blocked, canDodge, distanceSquared, eyeHeight, floorBelow, radial, touchesHazard, turretYaw, wallDistance } from './public/rules.js';
 import { brainFor, roll, WEAPON_ROLES } from './bot-profiles.js';
 import { bearing, inView, senseBots, visible } from './bot-perception.js';
 import { chooseObjective, chooseWeapon, retreatPoint } from './bot-choices.js';
@@ -27,25 +27,34 @@ function navigationFor(layout) {
   return grid;
 }
 
-// Layered Relay routes use the same solid footprints as movement. Adjacent cells can
+// Layered routes use the same solid footprints as movement. Adjacent cells can
 // link only across a walkable riser, even when two decks overlap in the horizontal plane.
 const shaftNavigation = new WeakMap();
 function shaftGrid(layout) {
   if (shaftNavigation.has(layout)) return shaftNavigation.get(layout);
   const width = Math.ceil(layout.length * 2 / .8);
   const step = layout.length * 2 / width;
-  const support = layout.cover.filter(box => ['service','gallery','bridge','hub','arrival','stair'].includes(box.structure));
+  const support = layout.cover.filter(box => ['service','gallery','bridge','hub','arrival','stair','bank','channel','catwalk','timber'].includes(box.structure));
   const cells = new Array(width * width);
   const nodes = [];
   for (let z = 0; z < width; z++) for (let x = 0; x < width; x++) {
     const px = (x + .5) * step - layout.length, pz = (z + .5) * step - layout.length;
     const band = [];
+    if (layout.fallY === undefined) {
+      const y = layout.terrain?.(px,pz) ?? 0;
+      if (!blocked(px,pz,.45,y,layout)) {
+        const node = { id:nodes.length, x:px, y, z:pz, ground:true, edges:[] };
+        band.push(node);
+        nodes.push(node);
+      }
+    }
     for (const box of support) {
       const dx = px - box.x, dz = pz - box.z;
       const margin = box.structure === 'stair' ? .16 : .13;
       if (Math.abs(dx * box.cos - dz * box.sin) >= box.w / 2 + margin ||
           Math.abs(dx * box.sin + dz * box.cos) >= box.d / 2 + margin) continue;
-      if (band.some(node=> Math.abs(node.y-box.h) < .001) || blocked(px,pz,.45,box.h,layout)) continue;
+      if (band.some(node=> Math.abs(node.y-box.h) < .001) || blocked(px,pz,.45,box.h,layout)
+        || touchesHazard(layout.hazard,px,box.h,pz,.43)) continue;
       const node = { id:nodes.length, x:px, y:box.h, z:pz, edges:[] };
       band.push(node);
       nodes.push(node);
@@ -58,9 +67,11 @@ function shaftGrid(layout) {
     for (const node of band) for (const [nx,nz] of near) {
       if (nx < 0 || nx >= width || nz < 0 || nz >= width) continue;
       for (const next of cells[nz * width + nx]) {
-        if (Math.abs(node.y-next.y) > .351) continue;
-        const y = Math.max(node.y,next.y), tx=(node.x+next.x)/2, tz=(node.z+next.z)/2;
-        if (blocked(tx,tz,.43,y,layout) || floorBelow(tx,tz,y,.16,layout) < y - .35) continue;
+        const terrainEdge = layout.terrain && (node.ground || next.ground);
+        if (Math.abs(node.y-next.y) > (terrainEdge ? .72 : .351)) continue;
+        const tx=(node.x+next.x)/2, tz=(node.z+next.z)/2;
+        const y = node.ground && next.ground && terrainEdge ? layout.terrain(tx,tz) : Math.max(node.y,next.y);
+        if (blocked(tx,tz,.43,y,layout) || touchesHazard(layout.hazard,tx,y,tz,.32) || floorBelow(tx,tz,y,.16,layout) < y - (terrainEdge ? .6 : .35)) continue;
         node.edges.push(next);
       }
     }
@@ -127,7 +138,8 @@ function nearestCell(position, { cells, edges, width, step, length }) {
 }
 
 export function route(from, to, layout) {
-  if (layout.fallY !== undefined) return shaftRoute(from,to,layout);
+  const elevated = point => Math.abs((point.y ?? 0) - (layout.terrain?.(point.x,point.z) ?? 0)) > .45;
+  if (layout.fallY !== undefined || layout.walkways && (elevated(from) || elevated(to))) return shaftRoute(from,to,layout);
   const grid = navigationFor(layout);
   const { cells, edges } = grid;
   const start = nearestCell(from, grid);
@@ -324,13 +336,15 @@ export function botInput(room, player, now) {
   let goal = brain.objective.point;
   const core = brain.objective.core;
   const seesCore = core && distanceSquared(player,core)<spec.range ** 2 && visible(player,core,layout);
-  const shaft = layout.fallY !== undefined;
+  const exposed = layout.fallY !== undefined;
+  const shaft = exposed || layout.walkways &&
+    [player, goal].some(at => Math.abs((at.y ?? 0) - (layout.terrain?.(at.x,at.z) ?? 0)) > .45);
   if (now >= brain.routeAt) {
     brain.routeAt = now + .64 + roll(brain) * .54;
     brain.path = !shaft && directionIsClear(player,goal,layout) ? [] : route(player,goal,room.layout);
   }
   while (brain.path.length && distanceSquared(player,brain.path[0]) < (shaft ? .49 : 1.0) ** 2 &&
-    (!shaft || Math.abs(player.y - brain.path[0].y) < .085)) brain.path.shift();
+    (!shaft || brain.path[0].y === undefined || Math.abs(player.y - brain.path[0].y) < (layout.terrain ? .43 : .085))) brain.path.shift();
   const inner = room.layout.gantries[player.team*2+1];
   const flight = now - player.launchAt;
   const airborneRoute = inner && (brain.traits.mobility > .57 || brain.kind === 'marksman') && !player.grounded && flight > .29 && flight < 1.57;
@@ -369,10 +383,13 @@ export function botInput(room, player, now) {
     x *= speed;
     z *= speed;
   }
-  if (shaft && player.grounded && (x || z)) {
+  if (exposed && player.grounded && (x || z)) {
     const c = Math.cos(aim.yaw), s = Math.sin(aim.yaw);
     const dx = x*c - z*s, dz = -x*s-z*c;
-    if (floorBelow(player.x+dx*.70,player.z+dz*.70,player.y+.35,.17,layout) < player.y-.58) {
+    const nextX = player.x+dx*.70, nextZ = player.z+dz*.70;
+    const enteringHazard = !touchesHazard(layout.hazard,player.x,player.y,player.z)
+      && touchesHazard(layout.hazard,nextX,player.y,nextZ);
+    if (enteringHazard || floorBelow(nextX,nextZ,player.y+.35,.17,layout) < player.y-.58) {
       x = 0;
       z = 0;
     }

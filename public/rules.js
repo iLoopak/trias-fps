@@ -1,4 +1,4 @@
-import { ISLAND_RADIUS, ISLAND_SCALE, islandFord, islandHeight, islandTerrainDistance } from './island-terrain.js';
+import { ISLAND_RADIUS, ISLAND_SCALE, islandFord, islandHeight, islandTerrainDistance, riverCenter } from './island-terrain.js';
 export { ISLAND_CROSSINGS, creekCenter, islandFord, riverCenter } from './island-terrain.js';
 
 export const TICK = 1 / 30;
@@ -154,41 +154,49 @@ export function packCover(cover) {
 
 export const COVER = packCover(relayCover);
 
-const foundryGantries = TEAMS.flatMap((team, sector) => [
-  { ...radial(team.angle, 14.8, -5.4), w: 3.4, d: 8.4, bottom: 2.34, h: 2.85, angle: team.angle, sector, gantry: true },
-  { ...radial(team.angle, 6.8, -4.05), w: 3.8, d: 3.0, bottom: 3.12, h: 3.65, angle: team.angle, sector, gantry: true },
+const foundryShell = [
+  ...[-1,1].flatMap(side => [
+    routeBox(side*21.7,0,32.6,76,-3.95,0,'bank'),
+    routeBox(0,side*34.1,10.8,7.8,-3.95,0,'bank'),
+  ]),
+  routeBox(0,0,10.8,61,-4.1,-3.3,'channel'),
+];
+const foundryCrossings = [-10,10].map(z => routeBox(0,z,30.4,5.2,2.55,3.3,'bridge'));
+const foundryRoutes = [-1,1].flatMap(side => [
+  ...stairFlight({x:0,z:side*21.55},side>0 ? 0 : Math.PI,4.5,-3.3,0),
+  ...foundryCrossings.flatMap(({z}) => stairFlight({x:side*23.65,z},side>0 ? -Math.PI/2 : Math.PI/2,4.65,0,3.3)),
+  ...foundryCrossings.flatMap(({z}) => [-1,1].map(edge =>
+    routeBox(side*7.65,z+edge*2.51,14.3,.18,3.3,4.15,'rail'))),
 ]);
-const foundryPads = LAUNCH_PADS.map((pad, i) => ({ ...pad, ...radial(TEAMS[i].angle, 21, -5.4) }));
 const foundryPickups = [
-  ...TEAMS.flatMap((team, i) => {
-    const deck = foundryGantries[i * 2];
-    return [
-      { ...radial(team.angle, 13.2, -5.4), y: deck.h, type: ARMORY[i + 1] },
-      { ...radial(team.angle, 18.2, 4.15), y: 0, type: 'med' },
-      { ...radial(team.angle + Math.PI / 3, 18.2), y: 0, type: 'shield' },
-    ];
-  }),
-  { ...foundryGantries[1], y: foundryGantries[1].h, type: 'rift' },
-  { x: 0, y: 3.2, z: 0, type: 'surge' },
+  { x:0, y:3.3, z:-10, type:'lance' }, { x:0, y:3.3, z:10, type:'rift' },
+  { x:-3.2, y:-3.3, z:-.7, type:'surge' },
+  ...[-1,1].flatMap(side => [
+    { x:side*17.2,y:0,z:0,type:'med' }, { x:side*24.5,y:0,z:0,type:'shield' },
+    { x:side*13,y:0,z:side*21,type:'scatter' },
+  ]),
 ];
 const foundryCover = packCover([
-  ...foundryGantries,
+  ...foundryShell, ...foundryCrossings, ...foundryRoutes,
+  ...utilityBuilding(-27.6,19.5,0,0,'quench-wall'),
+  ...utilityBuilding(27.6,-19.5,0,Math.PI,'quench-wall'),
   ...TEAMS.flatMap((team, sector) => [
     { ...radial(team.angle, 20.1, 7.4), w: 2.65, d: 4.4, h: 3.3, angle: team.angle, sector, profile: 'pylon' },
-    { ...radial(team.angle, 16.8), w: 3.4, d: 3.7, bottom: 1.27, h: 1.66, angle: team.angle, sector, duct: true },
+    { ...radial(team.angle, 16.8, 11.35), w: 3.4, d: 3.7, bottom: 1.27, h: 1.66, angle: team.angle, sector, duct: true },
     { ...radial(team.angle, 14.5, 4.9), w: 1.05, d: 5.5, h: 2.4, angle: team.angle + 0.20, sector, profile: 'baffle' },
-    { ...radial(team.angle + Math.PI / 3, 22), w: 5.3, d: 2.75, h: 3.4, angle: team.angle + Math.PI / 3, sector: -1, profile: 'pylon' },
-    { ...radial(team.angle + Math.PI / 3, 8.75), w: 1.85, d: 4.6, h: 1.85, angle: team.angle + Math.PI / 3, sector: -1, profile: 'baffle' },
+    { ...radial(team.angle + Math.PI / 3, 26, 7.2), w: 5.3, d: 2.75, h: 3.4, angle: team.angle + Math.PI / 3, sector: -1, profile: 'pylon' },
+    { ...radial(team.angle + Math.PI / 3, 12.8, 6.6), w: 1.85, d: 4.6, h: 1.85, angle: team.angle + Math.PI / 3, sector: -1, profile: 'baffle' },
     { ...radial(team.angle + Math.PI / 3, 4.1), w: 2.15, d: 2.3, h: 1.35, angle: team.angle + Math.PI / 3, sector, terrace: true },
   ]),
   ...TEAMS.flatMap((team,sector) => [
     {...radial(team.angle+Math.PI/3,31,-4.1),w: 4.1,d: 4.3,h: 3.4,angle: team.angle+Math.PI/3,sector,profile:'kiln'},
     {...radial(team.angle+Math.PI/3,33,5.5),w: 3.4,d: 2.35,h: 1.8,angle: team.angle+Math.PI/3,sector,profile:'slag'},
   ]),
-  { x: 0, z: 0, w: 3.3, d: 3.3, h: 3.2, sector: -1, relay: true },
+  ...[-1,1].map(side => routeBox(side*5.76,0,1.2,5.8,0,6.45,'support')),
+  ...[-1,1].map(side => routeBox(side*3.3,side*5.7,1.65,2.25,-3.3,-1.95,'baffle')),
 ]);
 
-const foundryBases = TEAMS.map(team => radial(team.angle, 29));
+const foundryBases = TEAMS.map(team => radial(team.angle, 30.84));
 const foundrySpawns = TEAMS.map(team =>
   [-3.6,-1.2,1.2,3.6].map(offset => radial(team.angle,31.8,offset))
 );
@@ -224,8 +232,21 @@ const basinVehicles = TEAMS.flatMap((team, sector) => [
 ]);
 const basinRepairs = TEAMS.map(team => ({ ...radial(team.angle + Math.PI / 3, 42.5), radius: 3.65 }));
 const basinFootZones = [...basinPoints.map(p => ({ ...p, radius: 3.95 })), ...basinBases.map(p => ({ ...p, radius: 3.35 }))];
+// Three conveyor galleries cross the excavation without narrowing the vehicle loop.
+const basinGalleries = TEAMS.map(team => deckSection(team.angle,24.725,16.4,5.6,10.01,2.67,3.3,'catwalk'));
+const basinRoutes = TEAMS.flatMap(team => [
+  ...stairFlight(radial(team.angle,38.1,16.4),team.angle+Math.PI,5.65,0,3.3),
+  ...stairFlight(radial(team.angle,11.4,16.4),team.angle,5.65,0,3.3),
+  ...[-1,1].map(edge => deckSection(team.angle,24.725,16.4+edge*2.7,.2,8.0,3.3,4.19,'rail')),
+  ...[20.3,29.1].map(along => deckSection(team.angle,along,18.6,1.0,1.5,0,2.67,'support')),
+]);
+basinPickups.push(...basinGalleries.map((gallery,i) => ({x:gallery.x,z:gallery.z,y:gallery.h,type:i===0?'surge':'shield'})));
 const basinCover = packCover([
-  ...basinGantries,
+  ...basinGantries, ...basinGalleries, ...basinRoutes,
+  ...TEAMS.flatMap(team=> {
+    const at = radial(team.angle,55,-12);
+    return utilityBuilding(at.x,at.z,0,team.angle,'survey-wall');
+  }),
   ...TEAMS.flatMap((team, sector) => [
     { ...radial(team.angle, 33.7, 6.3), w: 2.2, d: 6.5, h: 2.85, angle: team.angle, sector, profile: 'baffle' },
     { ...radial(team.angle, 32.7, -5.6), w: 1.9, d: 5.8, h: 2.6, angle: team.angle + 0.42, sector, profile: 'baffle' },
@@ -309,39 +330,66 @@ const RELAY_MID = 3.3;
 const RELAY_HIGH = 6.6;
 const relayPlatforms = [];
 const relaySteps = [];
-function relayDeck(angle, along, lateral, w, d, bottom, h, structure) {
+function deckSection(angle, along, lateral, w, d, bottom, h, structure) {
   return { ...radial(angle, along, lateral), angle, w, d, bottom, h, structure, sector: -1 };
 }
+function routeBox(x, z, w, d, bottom, h, structure, angle = 0) {
+  return { x, z, w, d, bottom, h, angle, structure, sector: -1 };
+}
+function utilityBuilding(x, z, y, angle, style, footing = 0) {
+  const section = (lx, lz, w, d, bottom, top, part) => routeBox(
+    x + Math.cos(angle)*lx + Math.sin(angle)*lz, z - Math.sin(angle)*lx + Math.cos(angle)*lz,
+    w, d, y+bottom, y+top, part, angle);
+  return [
+    section(0,0,9.3,6.6,2.89,3.35,'roof'),
+    section(-4.4,0,.54,6.5,-footing,2.89,style),
+    section(4.4,1.73,.54,3.05,-footing,2.89,style),
+    section(0,3.0,8.3,.52,-footing,2.89,style),
+    section(-2.87,-3,2.55,.52,-footing,2.89,style),
+    section(2.87,-3,2.55,.52,-footing,2.89,style),
+  ];
+}
+function stairFlight(start, angle, width, bottom, top) {
+  return Array.from({ length:10 }, (_,i) => routeBox(
+    start.x + Math.sin(angle)*i*.94, start.z + Math.cos(angle)*i*.94,
+    width, .96, bottom, bottom + (top-bottom)*(i+1)/10, 'stair', angle));
+}
+
 for (let quarter = 0; quarter < 4; quarter++) {
   const angle = quarter * Math.PI / 2;
   // Four slabs leave a square shaft open from the roof down.
-  relayPlatforms.push(relayDeck(angle, 23.5, 0, quarter % 2 ? 26 : 68, 21, -.84, 0, 'service'));
-  relayPlatforms.push(relayDeck(angle, 17, 0, quarter % 2 ? 27 : 41, 7, 2.67, RELAY_MID, 'gallery'));
-  relayPlatforms.push(relayDeck(angle, 11.93, 0, 5.6, 16.9, 5.88, RELAY_HIGH, 'bridge'));
-  relayPlatforms.push(relayDeck(angle, 2.7, 0, quarter % 2 ? 4.2 : 7, 1.6, 5.88, RELAY_HIGH, 'hub'));
+  relayPlatforms.push(deckSection(angle, 23.5, 0, quarter % 2 ? 26 : 68, 21, -.84, 0, 'service'));
+  relayPlatforms.push(deckSection(angle, 17, 0, quarter % 2 ? 27 : 41, 7, 2.67, RELAY_MID, 'gallery'));
+  relayPlatforms.push(deckSection(angle, 11.93, 0, 5.6, 16.9, 5.88, RELAY_HIGH, 'bridge'));
+  relayPlatforms.push(deckSection(angle, 2.7, 0, quarter % 2 ? 4.2 : 7, 1.6, 5.88, RELAY_HIGH, 'hub'));
   for (const side of [-1, 1]) {
-    relayPlatforms.push(relayDeck(angle, 16.3, side * 10.4, 2.4, 1.05, RELAY_MID, 4.45, 'baffle'));
-    relayPlatforms.push(relayDeck(angle, 31.25, side * 11.5, 2.64, 3.25, 0, 2.65, 'pylon'));
+    relayPlatforms.push(deckSection(angle, 16.3, side * 10.4, 2.4, 1.05, RELAY_MID, 4.45, 'baffle'));
+    relayPlatforms.push(deckSection(angle, 31.25, side * 11.5, 2.64, 3.25, 0, 2.65, 'pylon'));
   }
-  relayPlatforms.push(relayDeck(angle, 6.75, -2.70, .20, 6.3, RELAY_HIGH, 7.47, 'rail'));
-  relayPlatforms.push(relayDeck(angle, 17.20, -2.70, .20, 6.2, RELAY_HIGH, 7.47, 'rail'));
-  relayPlatforms.push(relayDeck(angle, 15.17, 2.70, .20, 10.1, RELAY_HIGH, 7.47, 'rail'));
-  relayPlatforms.push(relayDeck(angle, 5.49, 2.70, .20, 3.95, RELAY_HIGH, 7.47, 'rail'));
-  relayPlatforms.push(relayDeck(angle, 8.45, 4.91, 4.64, 1.4, 6.1, RELAY_HIGH, 'arrival'));
+  relayPlatforms.push(deckSection(angle, 6.75, -2.70, .20, 6.3, RELAY_HIGH, 7.47, 'rail'));
+  relayPlatforms.push(deckSection(angle, 17.20, -2.70, .20, 6.2, RELAY_HIGH, 7.47, 'rail'));
+  relayPlatforms.push(deckSection(angle, 15.17, 2.70, .20, 10.1, RELAY_HIGH, 7.47, 'rail'));
+  relayPlatforms.push(deckSection(angle, 5.49, 2.70, .20, 3.95, RELAY_HIGH, 7.47, 'rail'));
+  relayPlatforms.push(deckSection(angle, 8.45, 4.91, 4.64, 1.4, 6.1, RELAY_HIGH, 'arrival'));
   // Both flights gain 3.3 m without requiring jump. The second starts near the inner gallery rim.
   for (let tread = 0; tread < 10; tread++) {
     const rise = (tread+1) * .33;
-    relaySteps.push(relayDeck(angle, 29.55 - tread * .94, 0, 4.55, .95, 0, rise, 'stair'));
-    relaySteps.push(relayDeck(angle, 17.8 - tread * .94, 5.2, 4.55, .95, RELAY_MID, RELAY_MID + rise, 'stair'));
+    relaySteps.push(deckSection(angle, 29.55 - tread * .94, 0, 4.55, .95, 0, rise, 'stair'));
+    relaySteps.push(deckSection(angle, 17.8 - tread * .94, 5.2, 4.55, .95, RELAY_MID, RELAY_MID + rise, 'stair'));
   }
 }
 relayPlatforms.push({ x:0,z:0,angle:0,w:3.7,d:3.7,bottom:-16,h:14.8,structure:'spine',sector:-1 });
 
 const relayShaft = {
-  ...RELAY_SERVICE, revision: 'relay-shaft-1', fallY: -14,
+  ...RELAY_SERVICE, revision: 'relay-shaft-3', fallY: -14,
   description: 'Servisní paluba, přestupní galerie a čtyři lávky nad šachtou reaktoru.',
-  cover: packCover([...relayPlatforms, ...relaySteps]),
+  cover: packCover([
+    ...relayPlatforms, ...relaySteps,
+    ...utilityBuilding(-23,-24,0,.5,'relay-wall'),
+    ...utilityBuilding(26,28,0,Math.PI+.5,'relay-wall'),
+  ]),
   gantries: [],
+  bases:TEAMS.map(team=>radial(team.angle,23.5,4.9)),
   spawns: TEAMS.map(team => [-7.2,-4.7,4.7,7.2].map(offset=>radial(team.angle,29.2,offset))),
   launchPads: Array.from({ length:4 }, (_,i) => {
     const angle=i*Math.PI/2;
@@ -356,7 +404,7 @@ const relayShaft = {
   pickups: [
     ...TEAMS.flatMap((team,i)=>[
       { ...radial(team.angle,25.5,5.2), y:0, type:'med' },
-      { ...radial(i*Math.PI/2,17,-10.5), y:RELAY_MID, type:ARMORY[i+1] },
+      { ...radial(i*Math.PI/2,17,-8.7), y:RELAY_MID, type:ARMORY[i+1] },
     ]),
     { x:0,z:8.5,y:RELAY_HIGH,type:'rift' },
     { x:0,z:-8.5,y:RELAY_HIGH,type:'surge' },
@@ -365,28 +413,65 @@ const relayShaft = {
   ],
 };
 
+// Dry cliff-to-cliff path, separate from the low fords. The upper end runs into the hillside.
+const cordilleraBridgeX = 14;
+const cordilleraRiverZ = riverCenter(cordilleraBridgeX);
+const cordilleraRoutes = [
+  ...utilityBuilding(18,-5,2.23,Math.PI,'refuge-wall',.48),
+  ...utilityBuilding(-21,11,5.75,-.4,'refuge-wall',1.9),
+  routeBox(cordilleraBridgeX,cordilleraRiverZ,4.8,17,2.5,3.15,'timber'),
+  ...stairFlight({ x:cordilleraBridgeX,z:cordilleraRiverZ-17 },0,4.4,0,3.15),
+  ...[-1,1].map(side => routeBox(cordilleraBridgeX+side*2.32,cordilleraRiverZ,.16,16,3.15,4.03,'rail')),
+  ...[-1,1].map(side => routeBox(cordilleraBridgeX,cordilleraRiverZ+side*6.7,4.35,2.1,.35,2.5,'support')),
+];
+
+export const RELAY_HORDE = {
+  ...relayShaft, revision:'relay-defense-2',
+  description:'Obrana převodního jádra na jižní galerii se dvěma schodišti.',
+  cover:[...relayShaft.cover, ...packCover(stairFlight({x:11.2,z:-29.55},0,4.25,0,RELAY_MID))],
+  bases:[{x:6.6,y:RELAY_MID,z:-17.7}, ...relayShaft.bases.slice(1)],
+  spawns:[[-10,-7.6,4,9].map(x=>({x,y:RELAY_MID,z:-18.9})), ...relayShaft.spawns.slice(1)],
+  construction:[
+    {x:-.1,y:RELAY_MID,z:-18.9,angle:0}, {x:11.2,y:RELAY_MID,z:-18.9,angle:0},
+    {x:7.6,y:RELAY_MID,z:-14.8,angle:Math.PI/2},
+    {x:-7.7,y:RELAY_MID,z:-15.3,angle:Math.PI/2},
+    {x:14.8,y:RELAY_MID,z:-18,angle:Math.PI/2},
+  ],
+};
+
+export const LAYOUT_SET = 'linked-decks-2';
 export const DEFAULT_ARENA = 'relay';
 export const ARENAS = {
   relay: relayShaft,
   foundry: {
-    id: 'foundry', length: FOUNDRY_SIZE, label: 'Vanta Foundry', description: 'Otevřená slévárna s dlouhými tavicími kanály a bočními mosty.',
-    cover: foundryCover, launchPads: foundryPads, gantries: foundryGantries, pickups: foundryPickups,
-    bases: foundryBases, points: POINTS, spawns: foundrySpawns, turrets: foundryTurrets,
+    id: 'foundry', length: FOUNDRY_SIZE, revision:'foundry-channel-2', fallY:-13, label: 'Vanta Foundry', description: 'Dvě výrobní paluby, spodní chladicí kanál a mosty nad licí linkou.',
+    hazard: { x:0, z:0, y:-3.3, w:3.3, d:33, damage:22, interval:.25 },
+    cover: foundryCover, launchPads: [], gantries: [], pickups: foundryPickups,
+    bases: foundryBases, points: [
+      {x:0,z:-10,y:3.3,label:"A"}, {x:3.1,z:.7,y:-3.3,label:"B"}, {x:0,z:10,y:3.3,label:"C"},
+    ], spawns: foundrySpawns, turrets: foundryTurrets,
   },
   basin: {
-    id: 'basin', length: BASIN_SIZE, label: 'Meridian Basin',
-    description: 'Těžební údolí s vozidly, širokým okruhem a krytými cestami pro pěchotu.',
+    id: 'basin', length: BASIN_SIZE, revision:'basin-conveyor-2', walkways:true, label: 'Meridian Basin',
+    description: 'Těžební údolí s okruhem pro vozidla a zvýšenými dopravníky pro pěchotu.',
     cover: basinCover, launchPads: basinPads, gantries: basinGantries, pickups: basinPickups, bases: basinBases,
     points: basinPoints, spawns: basinSpawns, turrets: [], vehicles: basinVehicles, repairs: basinRepairs,
     footZones: basinFootZones, roadRadius: 47.8, siege: BASIN_SIEGE,
   },
   island: {
-    id: 'island', length: 50, edgeRadius: ISLAND_RADIUS, islandScale: ISLAND_SCALE, terrain: islandHeight, label: 'Kordilera',
-    description: 'Zalesněná miniplaneta s horským hřebenem, říčními přechody a vodopády.',
-    cover: islandCover, launchPads: [], gantries: [], pickups: islandPickups, bases: islandBases,
+    id: 'island', length: 50, revision:'kordilera-span-2', walkways:true, edgeRadius: ISLAND_RADIUS, islandScale: ISLAND_SCALE, terrain: islandHeight, label: 'Kordilera',
+    description: 'Horský říční zářez s brody, vodopády a lávkou zavázanou do skalních svahů.',
+    cover: [...islandCover, ...packCover(cordilleraRoutes)], launchPads: [], gantries: [],
+    pickups: [...islandPickups,{x:cordilleraBridgeX,y:3.15,z:cordilleraRiverZ,type:"shield"}], bases: islandBases,
     points: islandPoints, spawns: islandSpawns, turrets: [],
   },
 };
+
+export function touchesHazard(hazard, x, y, z, clearance = 0) {
+  return hazard && y >= hazard.y - .04 && y <= hazard.y + .22
+    && Math.abs(x - hazard.x) < hazard.w / 2 + clearance
+    && Math.abs(z - hazard.z) < hazard.d / 2 + clearance;
+}
 
 function coversPoint(box, x, z, radius) {
   if (box.structure === 'stair') radius = Math.min(radius,.16);
@@ -497,7 +582,7 @@ export function movePlayer(player, input, dt = TICK, layout = RELAY_SERVICE) {
   let stepHeight = currentY;
   const moveY = Math.max(currentY, nextY);
   const walkingTerrain = layout.terrain && player.grounded;
-  const mayStep = layout.fallY !== undefined && player.grounded && player.vy <= 0;
+  const mayStep = (layout.walkways || layout.fallY !== undefined) && player.grounded && player.vy <= 0;
   const stairAt = (x, z) => {
     if (!mayStep) return stepHeight;
     let top = stepHeight;

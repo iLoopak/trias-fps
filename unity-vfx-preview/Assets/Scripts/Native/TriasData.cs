@@ -6,7 +6,8 @@ namespace Trias.Native
     [Serializable] internal sealed class Catalog
     {
         public ArenaSpec[] maps;
-        public ArenaSpec relayService;
+        public ArenaSpec relayService, relayHorde;
+        public string layoutSet;
         public Choice[] modes, pilots, weapons, powerups, teams;
         public string[] ffaColors;
         internal static Color Tint(string value) => ColorUtility.TryParseHtmlString(value, out var color) ? color : Color.white;
@@ -55,14 +56,19 @@ namespace Trias.Native
         }
         public string id, label, description, revision;
         public float length, edgeRadius, roadRadius, islandScale, fallY;
+        public bool walkways;
         internal bool Shaft => fallY < 0;
+        internal bool Walkways => Shaft || walkways;
         internal float IslandScale => islandScale > 0 ? islandScale : 1;
         public BoxSpec[] cover;
         public PadSpec[] launchPads;
         public Site[] pickups, bases, points, turrets, repairs, river, creek, trail, crossings;
         public HeightData terrain;
         public SiegeSpec siege;
+        public HazardSpec hazard;
     }
+
+    [Serializable] internal sealed class HazardSpec : Site { public float w, d; }
 
     [Serializable] internal sealed class BoxSpec : Site
     {

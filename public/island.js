@@ -317,6 +317,15 @@ function nature(scene, layout) {
     .map(color => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true }));
   const random = randomFrom(3117);
   for (const site of layout.cover) {
+    if (site.structure) {
+      const height = site.h - site.bottom;
+      const material = site.structure === 'support' ? deepStone : site.structure === 'rail' ? rootWood : plank;
+      const deck = mesh(scene, cube, material,
+        [site.x, site.bottom + height/2, site.z], [site.w, height, site.d]);
+      deck.rotation.y = site.angle;
+      deck.castShadow = deck.receiveShadow = true;
+      continue;
+    }
     const root = new THREE.Group();
     root.position.set(site.x, site.ground, site.z);
     const height = site.h - site.ground;

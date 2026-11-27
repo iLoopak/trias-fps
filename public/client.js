@@ -5,7 +5,7 @@ import { boardingVehicle, moveVehicle, VEHICLES } from './vehicles.js';
 import { GameAudio } from './game-audio.js';
 import {
   ARENAS, ARMORY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, DODGE_COOLDOWN, GRENADE, MODES,
-  PILOT_HP, POWERUPS, RELAY_SERVICE, TEAMS, TICK, TURRET, WEAPONS, canDodge, distanceSquared, eyeHeight, movePlayer, pilotColor, roomCode, turretYaw,
+  PILOT_HP, POWERUPS, LAYOUT_SET, RELAY_SERVICE, TEAMS, TICK, TURRET, WEAPONS, canDodge, distanceSquared, eyeHeight, movePlayer, pilotColor, roomCode, turretYaw,
 } from './rules.js';
 
 const $ = id => document.getElementById(id);
@@ -220,7 +220,7 @@ $('join-form').addEventListener('submit', async event => {
     if (socket === connection && !joined) endMatch('Server neodpověděl včas.');
   }, 5000);
   connection.addEventListener('open', () => connection.send(JSON.stringify({
-    type: 'join', v: NETWORK_VERSION, geometry: ARENAS.relay.revision, room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
+    type: 'join', v: NETWORK_VERSION, layoutSet: LAYOUT_SET, geometry: ARENAS.relay.revision, room, name, mode: selectedMode, arena: selectedMap, character: selectedPilot, bots: $('bots').checked,
   })));
   connection.addEventListener('message', event => {
     if (socket !== connection) return;
@@ -618,6 +618,7 @@ function onState(message) {
   arena.snapshot(message, player, joined.mode);
   for (const event of message.events) {
     if (event.type === 'shot' || event.type === 'burst' || event.type === 'collision') playShot(event);
+    else if (event.type === 'hazard' && event.id === own.id) receiveHit(0, 0, event.hits[0]);
     else if ((event.type === 'wreck' || event.type === 'core-wreck')) {
       arena.wreck(event);
       const { distance, pan } = spatial(event.position);

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
-import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, RELAY_SERVICE, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
+import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, LAYOUT_SET, RELAY_HORDE, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
 import { fireProfileData, Match } from './match.js';
 import { interactionFlags } from './interactions.js';
 import { directorOptions } from './combat-director.js';
@@ -172,8 +172,9 @@ wss.on('connection', (socket, request) => {
     const name = typeof message.name === 'string'
       ? Array.from(message.name.replace(/[\p{Cc}\p{Cf}]/gu, '').trim()).slice(0, 18).join('') : '';
     let room = rooms.get(code);
-    if (room?.layout.revision && message.geometry !== room.layout.revision)
-      return reject(socket, 'Tahle verze klienta nemá nové rozložení Relay Station.');
+    const supports = layout => !layout.revision || message.layoutSet === LAYOUT_SET;
+    const outdated = () => reject(socket, 'Pro tuto mapu potřebuješ aktuální verzi TRIAS.');
+    if (room && !supports(room.layout)) return outdated();
     if (message.intent === 'resume') {
       if (!native || !room?.sessions.attach(socket, message.ticket, time))
         return reject(socket, 'Místo v zápase již nelze obnovit.');
@@ -187,9 +188,9 @@ wss.on('connection', (socket, request) => {
       const mode = training ? 'tdm' : message.mode === 'horde' && native
         ? 'horde' : pick(MODES, message.mode, DEFAULT_MODE);
       const arena = training ? 'relay' : MODES[mode]?.arena ?? pick(ARENAS, message.arena, DEFAULT_ARENA);
-      if (arena === 'relay' && !training && mode !== 'horde' && message.geometry !== ARENAS.relay.revision)
-        return reject(socket, 'Tahle verze klienta nemá nové rozložení Relay Station.');
-      room = new Match(code, mode, !training && message.bots !== false, training ? RELAY_SERVICE : ARENAS[arena], {
+      const layout = mode === 'horde' ? RELAY_HORDE : ARENAS[arena];
+      if (!supports(layout)) return outdated();
+      room = new Match(code, mode, !training && message.bots !== false, layout, {
         echo: training || process.env.TRIAS_COMBAT_ECHO !== '0', momentum: process.env.TRIAS_MOMENTUM !== '0',
         botDifficulty: process.env.TRIAS_BOT_DIFFICULTY, botDebug: process.env.TRIAS_BOT_DEBUG === '1',
         interactions: training ? undefined : interactionFlags(process.env),

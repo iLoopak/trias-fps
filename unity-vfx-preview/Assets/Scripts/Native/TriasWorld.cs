@@ -124,6 +124,7 @@ namespace Trias.Native
                 BuildHangar();
                 return;
             }
+            if (Spec.Walkways) ConfigureLinkedRoutes();
             if (island) Meadow();
             else
             {
@@ -139,8 +140,12 @@ namespace Trias.Native
                     new Vector3(box.x, box.bottom, box.z));
                 home.localRotation = Quaternion.Euler(0, box.angle * Mathf.Rad2Deg, 0);
                 float h = box.h - box.bottom;
-                if (island) IslandCover(box, home, h);
-                else if (Spec.Shaft && box.structure != null) DressShaftBox(box, home, h);
+                if (box.structure != null)
+                {
+                    if (IsRelayArt && box.structure != "roof" && box.structure != "relay-wall") DressShaftBox(box, home, h);
+                    else DressLinkedRoute(box, home, h);
+                }
+                else if (island) IslandCover(box, home, h);
                 else
                 {
                     var alloy = IsRelayArt ? (box.gantry ? Graphite : box.relay ? Hardware : walls)
@@ -273,8 +278,8 @@ namespace Trias.Native
             var serviceDeck = MapSurface(basin ? "#8f7469" : foundry ? "#9a6d57" : "#79909c", "brushed-deck", .56f, .29f);
             serviceDeck.mainTextureScale = new Vector2(3, 1);
             float d = Spec.length * 2;
-            if (Spec.Shaft) BuildRelayShaft();
-            else Part(Root, deck, new Vector3(0, -0.44f, 0), new Vector3(d, 0.88f, d), PrimitiveType.Cube, true);
+            if (Spec.Shaft && IsRelayArt) BuildRelayShaft();
+            if (!Spec.Shaft) Part(Root, deck, new Vector3(0, -0.44f, 0), new Vector3(d, 0.88f, d), PrimitiveType.Cube, true);
             for (int i = 0; i < 4; i++)
             {
                 var wall = Group(Root, "Perimeter");
@@ -324,15 +329,7 @@ namespace Trias.Native
                 {
                     BuildCrucible();
                     BuildFoundryStacks();
-                    var hot = MaterialAt("#ff7138", true);
-                    for (int i = 0; i < 3; i++)
-                    {
-                        var channel = Group(Root, "Molten channel");
-                        channel.rotation = Quaternion.Euler(0, i * 120, 0);
-                        Part(channel, hot, new Vector3(0, 0.018f, 19), new Vector3(2.3f, 0.022f, 23));
-                        Part(channel, Dark, new Vector3(-1.20f, 0.023f, 19), new Vector3(0.18f, 0.029f, 23));
-                        Part(channel, Dark, new Vector3(1.20f, 0.023f, 19), new Vector3(0.18f, 0.029f, 23));
-                    }
+                    BuildFoundryChannel();
                 }
                 else
                 {
@@ -571,6 +568,7 @@ namespace Trias.Native
             AnimateLandmark(time, arenaPulse);
             AnimateOrbitalTraffic(time, arenaPulse);
             AnimateStationDistrict(time);
+            AnimatePlasma(time);
             for (int i = 0; i < spinning.Count; i++)
             {
                 var item = spinning[i];

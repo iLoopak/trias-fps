@@ -1,6 +1,6 @@
 import {
   aimVector, ARENAS, ARMORY, CAPACITY, CHARACTERS, DEFAULT_CHARACTER, DEFAULT_WEAPON, distanceSquared, eyeHeight, floorBelow,
-  GRENADE, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RELAY_SERVICE, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, turretYaw, wallDistance, WEAPONS,
+  GRENADE, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RELAY_HORDE, RELAY_SERVICE, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, touchesHazard, turretYaw, wallDistance, WEAPONS,
 } from './public/rules.js';
 import { botInput } from './bots.js';
 import { normalizeDifficulty } from './bot-profiles.js';
@@ -30,7 +30,7 @@ export class Match {
     this.code = code;
     this.mode = mode;
     this.pace = { pilotHp: PILOT_HP, respawn: mode === 'horde' ? HORDE_RESPAWN : RESPAWN };
-    this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' ? RELAY_SERVICE : layout;
+    this.layout = mode === 'siege' ? ARENAS.basin : mode === 'horde' && layout === ARENAS.relay ? RELAY_HORDE : layout;
     this.bots = bots;
     this.botDifficulty = normalizeDifficulty(signature.botDifficulty);
     this.botDebug = signature.botDebug === true;
@@ -98,7 +98,7 @@ export class Match {
     }
     Object.assign(player, start, {
       hp: this.siege && !this.siege.alive(player.team) ? 0 : PILOT_HP, armor: 0, surgeUntil: 0, y: start.y ?? 0, vx: 0, vy: 0, vz: 0, grounded: true, airJump: true,
-      dodgeCooldown: 0, dodgeTime: 0, airDodge: true, padCooldown: 0, crouch: false, grenades: 1, turret: -1, vehicle: -1, vehiclePlanAt: -100, impactAt: 0,
+      dodgeCooldown: 0, dodgeTime: 0, airDodge: true, padCooldown: 0, crouch: false, grenades: 1, turret: -1, vehicle: -1, vehiclePlanAt: -100, impactAt: 0, hazardAt: 0,
       weapon: kit.weapon, loadout,
       yaw: Math.atan2(start.x - toward.x, start.z - toward.z), pitch: 0, fireAt: now + 0.2,
       safeUntil: now + 1.4, reloadAt: 0, respawnAt: 0, input: EMPTY, inputAt: now, fireRequest: false, reloadRequest: false, jumpRequest: false, dodgeRequest: false, altRequest: false, grenadeRequest: false, useRequest: false, weaponRequest: null,
@@ -305,21 +305,21 @@ export class Match {
     const health = Math.min(target.hp, amount - absorbed);
     target.hp -= health;
     if (health + absorbed > 0) this.director?.record(now, health + absorbed, target.hp === 0);
-    noteBotHit(attacker,target.id,health,now);
+    const environment = weapon === 'fall' ? 'Pád' : weapon === 'plasma' ? 'Plazmový kanál' : null;
+    if (!environment) noteBotHit(attacker,target.id,health,now);
     if (!target.hp) {
       this.signature.respawn(target);
-      const falling = weapon === 'fall';
-      if (!falling) this.streaks.kill(attacker, target, direct);
+      if (!environment) this.streaks.kill(attacker, target, direct);
       if (target.hordeType) this.horde.salvage(target);
-      if (!falling) attacker.kills++;
+      if (!environment) attacker.kills++;
       target.deaths++;
       target.respawnAt = now + this.pace.respawn;
       this.unmount(target);
       this.fleet.release(target, now);
       this.dropFlag(target, now);
-      if (this.mode === 'tdm' && !falling) this.scores[attacker.team]++;
-      this.events.push({ type: 'kill', attacker: falling ? 'Šachta reaktoru' : attacker.name, victim: target.name, team: falling ? -1 : attacker.team,
-        attackerId: falling ? null : attacker.id, victimId: target.id, weapon, impact,
+      if (this.mode === 'tdm' && !environment) this.scores[attacker.team]++;
+      this.events.push({ type: 'kill', attacker: environment ?? attacker.name, victim: target.name, team: environment ? -1 : attacker.team,
+        attackerId: environment ? null : attacker.id, victimId: target.id, weapon, impact,
         body: { x: target.x, y: target.y, z: target.z, vx: target.vx, vy: target.vy, vz: target.vz,
           yaw: target.yaw, crouch: target.crouch, team: target.team, slot: target.slot, character: target.character, frame: target.frame,
           weapon: target.weapon, hordeType: target.hordeType, from: [origin.x, origin.y, origin.z] },
@@ -747,6 +747,17 @@ export class Match {
           this.damage(player, player, player.hp + player.armor, now, player, 'fall');
           this.clearRequests(player);
           continue;
+        }
+        const hazard = this.layout.hazard;
+        if (now >= player.hazardAt && touchesHazard(hazard,player.x,player.y,player.z)) {
+          player.hazardAt = now + hazard.interval;
+          const position = [player.x, player.y + .08, player.z];
+          const hit = this.damage(player, player, hazard.damage, now, player, 'plasma', position, false);
+          this.events.push({ type:'hazard', id:player.id, source:'plasma', position, hits:[hit] });
+          if (player.hp <= 0) {
+            this.clearRequests(player);
+            continue;
+          }
         }
         this.signature.movement(player, pose, signal, now);
         if (signal === 'dodge') this.practice?.dodge(player);

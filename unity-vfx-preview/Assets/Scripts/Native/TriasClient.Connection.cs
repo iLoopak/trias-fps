@@ -89,7 +89,7 @@ namespace Trias.Native
                 reconnectAttempt++;
                 var request = new JoinCommand { type = "join", v = 2, room = room, intent = "resume", ticket = reconnectTicket,
                     signature = true, predictFire = true, botRadio = true,
-                    geometry = Array.Find(catalog.maps, arena => arena.id == "relay")?.revision };
+                    layoutSet = catalog.layoutSet, geometry = Array.Find(catalog.maps, arena => arena.id == "relay")?.revision };
                 socket = new TriasSocket();
                 joinedAt = lastPacket = now;
                 socket.Start(sessionEndpoint, JsonUtility.ToJson(request));

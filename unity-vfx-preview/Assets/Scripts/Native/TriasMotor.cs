@@ -96,7 +96,7 @@ namespace Trias.Native
 
             bool slope = map.terrain != null && Grounded;
             float moveY = Mathf.Max(old, next), stepHeight = old;
-            bool mayStep = map.Shaft && Grounded && Velocity.y <= 0;
+            bool mayStep = map.Walkways && Grounded && Velocity.y <= 0;
             float x = Position.x + Velocity.x * Tick, z = Position.z + Velocity.z * Tick;
             if (StepAllowed(map, x, Position.z, moveY, height, slope, mayStep, old, ref stepHeight)) Position.x = x;
             else Velocity.x = 0;

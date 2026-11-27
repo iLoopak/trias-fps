@@ -38,12 +38,14 @@ export class Horde {
 
   reset(now) {
     for (const pilot of this.room.players.values()) if (pilot.hordeType) this.room.players.delete(pilot.id);
-    this.core = { ...this.room.layout.bases[0], y: .78, hp: CORE_HP, maxHp: CORE_HP };
+    const base = this.room.layout.bases[0];
+    this.core = { ...base, y: (base.y ?? 0) + .78, hp: CORE_HP, maxHp: CORE_HP };
     this.wave = this.remaining = 0;
     this.scrap = 40;
     this.votes = new Map();
     this.lastSupport = null;
-    this.structures = SITES.map(([x, z, angle], id) => ({ id, x, z, angle, kind: null }));
+    const sites = this.room.layout.construction ?? SITES.map(([x,z,angle])=>({x,y:0,z,angle}));
+    this.structures = sites.map((site,id)=>({ ...site,id,kind:null }));
     this.layout = this.room.layout;
     this.nextEnemy = this.nextEnemy ?? 0;
     this.nextWaveAt = now + PREPARATION;
@@ -91,20 +93,20 @@ export class Horde {
     if (!pilot || pilot.bot || pilot.hp <= 0 || this.room.restartAt || !this.nextWaveAt || now >= this.nextWaveAt)
       return 'Stavět můžeš jen během přípravy.';
     if (!site || !spec || site.kind) return 'Vyber volné stavební místo.';
-    if (distanceSquared(pilot, site) > BUILD_RANGE ** 2 || Math.abs(pilot.y) > 2)
+    if (distanceSquared(pilot, site) > BUILD_RANGE ** 2 || Math.abs(pilot.y - site.y) > 1.4)
       return 'Přibliž se ke stavebnímu místu.';
     if (this.scrap < spec.cost) return 'Týmu chybí šrot.';
     const { w, d, h, hp, cost } = spec;
-    const [box] = packCover([{ x: site.x, z: site.z, angle: site.angle, w, d, h }]);
+    const [box] = packCover([{ x: site.x, z: site.z, angle: site.angle, w, d, bottom:site.y, h:site.y + h }]);
     if ([...this.room.players.values()].some(p => {
-      if (p.hp <= 0 || p.y >= h) return false;
+      if (p.hp <= 0 || p.y >= site.y + h || p.y + 1.78 <= site.y) return false;
       const dx = p.x - site.x, dz = p.z - site.z;
       return Math.abs(dx * box.cos - dz * box.sin) < w / 2 + .43 && Math.abs(dx * box.sin + dz * box.cos) < d / 2 + .43;
     })) return 'Na stavebním místě někdo stojí.';
     Object.assign(site, { kind, box, hp, maxHp: hp, yaw: 0, pitch: 0, readyAt: now, builder: pilot });
     this.scrap -= cost;
     this.refreshCover();
-    this.room.events.push({ type: 'built', position: [site.x, .25, site.z], kind });
+    this.room.events.push({ type: 'built', position: [site.x, site.y + .25, site.z], kind });
     return null;
   }
 
@@ -117,15 +119,15 @@ export class Horde {
   damageStructure(site, damage) {
     site.hp = Math.max(0, site.hp - damage);
     if (site.hp) return;
-    this.room.events.push({ type: 'wreck', position: [site.x, .42, site.z] });
-    this.structures[site.id] = { id: site.id, x: site.x, z: site.z, angle: site.angle, kind: null };
+    this.room.events.push({ type: 'wreck', position: [site.x, site.y + .42, site.z] });
+    this.structures[site.id] = { id: site.id, x: site.x, y: site.y, z: site.z, angle: site.angle, kind: null };
     this.refreshCover();
   }
 
   fireTurrets(now, active) {
     for (const site of this.structures) {
       if (site.kind !== 'turret' || now < site.readyAt) continue;
-      const from = { x: site.x, y: 1.27, z: site.z };
+      const from = { x: site.x, y: site.y + 1.27, z: site.z };
       let target, best = 19;
       for (const enemy of active) {
         if (enemy.hp <= 0 || enemy.safeUntil > now) continue;
@@ -203,7 +205,7 @@ export class Horde {
     const type = TYPES[enemy.hordeType];
     const core = this.core;
     const around = (enemy.hordeSlot / MAX_ACTIVE) * Math.PI * 2;
-    const approach = { x: core.x + Math.cos(around) * 1.05, z: core.z + Math.sin(around) * 1.05 };
+    const approach = { x: core.x + Math.cos(around) * 1.05, y:core.y - .78, z: core.z + Math.sin(around) * 1.05 };
     const position = target => ({ x: target.x, y: target === core ? core.y : target.y ?? 0, z: target.z });
     let focus;
     if (enemy.attack) {
@@ -212,7 +214,7 @@ export class Horde {
     } else {
       const inReach = target => distanceSquared(enemy, target) <= type.reach ** 2 && Math.abs(enemy.y - (target.y ?? 0)) <= 1.25;
       const barricade = this.structures.find(site => site.kind && inReach(site)
-        && attackLine(enemy, site, .72, this.room.layout));
+        && attackLine(enemy, site, site.y + .72, this.room.layout));
       const coreInReach = inReach(core) && attackLine(enemy, core, core.y, this.layout);
       const defender = [...this.room.players.values()].find(pilot => this.room.hostile(enemy, pilot)
         && !pilot.away && pilot.safeUntil <= now && inReach(pilot) && attackLine(enemy, pilot, pilot.y + .8, this.layout));
@@ -230,10 +232,15 @@ export class Horde {
       enemy.routeAt = now + .48 + enemy.slot * .07;
       enemy.path = route(enemy, approach, this.room.layout);
     }
-    while (enemy.path.length && distanceSquared(enemy, enemy.path[0]) < 1.1 ** 2) enemy.path.shift();
+    const layered = this.room.layout.fallY !== undefined;
+    while (enemy.path.length && distanceSquared(enemy, enemy.path[0]) < (layered ? .43 : 1.1) ** 2
+      && (!layered || Math.abs(enemy.y - enemy.path[0].y) < .085)) enemy.path.shift();
     const target = focus ?? enemy.path[0] ?? approach;
     const yaw = Math.atan2(enemy.x - target.x, enemy.z - target.z);
-    return { x: 0, z: focus ? 0 : type.pace, yaw, pitch: 0 };
+    const pace = layered && enemy.path.length
+      ? Math.min(type.pace, Math.sqrt(distanceSquared(enemy,target)) * 1.69 + .07)
+      : type.pace;
+    return { x: 0, z: focus ? 0 : pace, yaw, pitch: 0 };
   }
 
   release(enemy, type, now) {
@@ -329,6 +336,6 @@ export class Horde {
       council: this.council ? { counts: this.supportCounts(), votes: [...this.votes] } : undefined,
       support: this.lastSupport ?? undefined,
       build: { scrap: this.scrap, range: BUILD_RANGE, types: STRUCTURES,
-        sites: this.structures.map(({ id, x, z, angle, kind, hp, maxHp, yaw, pitch }) => ({ id, x, z, angle, kind, hp, maxHp, yaw, pitch })) } };
+        sites: this.structures.map(({ id, x, y, z, angle, kind, hp, maxHp, yaw, pitch }) => ({ id, x, y, z, angle, kind, hp, maxHp, yaw, pitch })) } };
   }
 }

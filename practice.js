@@ -5,13 +5,14 @@ export class Practice {
     this.room = room;
     this.pilot = pilot;
     this.phase = 0;
+    this.lane = room.layout.revision ? 6.8 : 0;
     this.placePilot();
     this.target = room.addPlayer('practice-target', 'Cvičný terč', 1, 0, now);
     Object.assign(this.target, { hp: 0, away: true, respawnAt: Infinity });
   }
 
   placePilot() {
-    Object.assign(this.pilot, { x: 0, y: 0, z: -24, yaw: -Math.PI, pitch: 0, weapon: 'pulse' });
+    Object.assign(this.pilot, { x: this.lane, y: 0, z: this.lane ? -28 : -24, yaw: -Math.PI, pitch: 0, weapon: 'pulse' });
     this.pilot.loadout.pulse = { ammo: WEAPONS.pulse.magazine, reserve: Infinity };
   }
 
@@ -38,7 +39,7 @@ export class Practice {
       this.lineReady = true;
     }
     this.room.spawn(this.target, now);
-    Object.assign(this.target, { x: 0, y: 0, z: -14 - (this.pilot.chain % 3) * 1.35,
+    Object.assign(this.target, { x: this.lane, y: 0, z: (this.lane ? -20.5 : -14) - (this.pilot.chain % 3) * 1.35,
       yaw: 0, hp: 65, safeUntil: now });
     this.targetAt = now + .8;
   }

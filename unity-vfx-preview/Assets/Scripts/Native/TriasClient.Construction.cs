@@ -62,7 +62,7 @@ namespace Trias.Native
                 int id = entry["id"].Int;
                 if (!sites.TryGetValue(id, out var site))
                 {
-                    var at = new Vector3(entry["x"].Float, 0, entry["z"].Float);
+                    var at = new Vector3(entry["x"].Float, entry["y"].Float, entry["z"].Float);
                     var marker = TriasWorld.Group(world.Root, "Construction socket " + id, at);
                     marker.rotation = Quaternion.Euler(0, entry["angle"].Float * Mathf.Rad2Deg, 0);
                     TriasWorld.Part(marker, world.Dark, Vector3.up * .035f, new Vector3(1.65f, .035f, 1.65f), PrimitiveType.Cylinder);
@@ -102,7 +102,7 @@ namespace Trias.Native
             float w = shape["w"].Float, d = shape["d"].Float, h = shape["h"].Float;
             var size = new Vector3(w, h, d);
             var at = site.Marker.position;
-            site.Box = new BoxSpec { x = at.x, z = at.z, w = w, d = d, h = h, angle = entry["angle"].Float };
+            site.Box = new BoxSpec { x = at.x, z = at.z, w = w, d = d, bottom = at.y, h = at.y + h, angle = entry["angle"].Float };
             bool tower = site.Kind == "turret";
             site.Model = TriasWorld.Group(world.Root, tower ? "Sentry turret" : "Barricade", at);
             site.Model.rotation = site.Marker.rotation;
@@ -130,6 +130,7 @@ namespace Trias.Native
                 site.Marker.gameObject.SetActive(CanBuild && site.Kind == null);
                 if (!building || !captured || site.Kind != null) continue;
                 Vector3 point = site.Marker.position;
+                if (Mathf.Abs(point.y - display.y) > 1.4f) continue;
                 if (Vector2.Distance(new Vector2(point.x, point.z), new Vector2(display.x, display.z)) > range) continue;
                 Vector3 aim = point + Vector3.up * .20f - view.transform.position;
                 float angle = Vector3.Dot(view.transform.forward, aim.normalized);

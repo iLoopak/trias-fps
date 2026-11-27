@@ -69,7 +69,7 @@ function supplyFor(room, player, brain, now) {
   const radius = 6 + brain.traits.supply * 9;
   for (const [i, pickup] of room.layout.pickups.entries()) {
     if (room.pickups[i] > now || room.horde && !room.horde.available(pickup)
-      || (room.layout.fallY === undefined && Math.abs(pickup.y - (room.layout.terrain?.(pickup.x, pickup.z) ?? 0)) > .1)) continue;
+      || ((!room.layout.walkways || room.mode === 'siege') && room.layout.fallY === undefined && Math.abs(pickup.y - (room.layout.terrain?.(pickup.x, pickup.z) ?? 0)) > .1)) continue;
     const dist = distanceSquared(player, pickup);
     if (dist > radius * radius) continue;
     const kind = pickup.type;

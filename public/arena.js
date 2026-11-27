@@ -166,9 +166,16 @@ function buildMap(scene, renderer, layout) {
     batches.get(material).push(matrix);
   };
   const porcelain = new THREE.MeshStandardMaterial({ color: '#938d82', roughness: 0.61, metalness: 0.24 });
+  if (layout.hazard) {
+    const {x,y,z,w,d} = layout.hazard;
+    const spill = new THREE.Mesh(new THREE.BoxGeometry(w,.035,d),
+      new THREE.MeshStandardMaterial({color:'#e84f17',emissive:'#ff6817',emissiveIntensity:1.55,roughness:.65}));
+    spill.position.set(x,y+.025,z);
+    scene.add(spill);
+  }
   for (const c of layout.cover) {
     if (c.structure) {
-      const paint = c.structure === 'service' ? floor.material : c.structure === 'rail' ? steel :
+      const paint = ['service','bank','channel'].includes(c.structure) ? floor.material : c.structure === 'rail' ? steel :
         ['spine','pylon','gallery','bridge','hub','arrival'].includes(c.structure) ? porcelain : panel;
       add(paint,c.w,c.h-c.bottom,c.d,c.x,(c.h+c.bottom)/2,c.z,c.angle);
       continue;
