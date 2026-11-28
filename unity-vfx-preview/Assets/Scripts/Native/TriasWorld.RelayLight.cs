@@ -136,7 +136,7 @@ namespace Trias.Native
             var outside = new Color(inside.r,inside.g,inside.b,0);
             foreach (var box in Spec.cover)
             {
-                if (Mathf.Abs(box.bottom) > .02f || box.structure != null) continue;
+                if (Mathf.Abs(box.bottom) > .02f || box.structure != null || box.collider) continue;
                 AddContactSkirt(points,colors,triangles,new Vector3(box.x,.012f,box.z),box.angle,box.w*.5f,box.d*.5f,-.05f,.34f,inside,outside);
             }
             var mesh = new Mesh { name = "Ground contact and wear" };

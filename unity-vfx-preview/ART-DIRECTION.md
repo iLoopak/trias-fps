@@ -359,13 +359,18 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
   - **Středový podstavec Meridianu:** distribuční stroj má servisní plošinu přes celý půdorys na čtyřech sloupcích. Z 32 na 0.
 - **Skály Kordilery – zamítnuto:** skály z `Nature.fbx` mají ukloněné vrstvy a vrchol ustupující na stranu. Horní plochu kvádru tak pokrývají asi z třetiny (21–76 zásahů, mezera 1–2 m).
   - Krycí deska přes celý půdorys snížila zásahy na polovinu, ale ze skal udělala hřiby na tenkých nohách a z blízké skály obří zelenou plochu.
-  - Oprava bez ztráty vzhledu vyžaduje změnit herní collidery skal (nižší nebo stupňovité kvádry v `public/rules.js`). To je herní rozhodnutí.
+  - **Řešení v pravidlech:** skály mají stupňovité collidery.
+    - Sonda `TRIAS_ART_ROCKS=1` naměřila u čtyř tvarů z kitu výškovou mapu viditelného vrchu (16 × 16) a `ROCK_TOPS` v `public/rules.js` ji nese.
+    - Každá skála má v `cover` tři kvádry `collider: true`: základ asi 0,5 m nad terénem, střed a hřeben. Každý je největší obdélník, nad kterým kámen sahá do jeho výšky (tolerance 5 % výšky skály).
+    - Celá skála zůstává v novém seznamu `scenery`, ze kterého ji kreslí Unity, web i taktická mapa. Vzhled se nezměnil.
+    - Zbraně týmů leží na nejvyšším volném stupni, ne nad středem skály. U chaty Horní útulna je to nižší stupeň u svahu: zbraň Arc dřív visela 0,69 m nad kamenem.
+    - Sonda: z 21–76 zásahů na skálu na 1–2 na hranách.
 - **Zbraně zblízka:** pět zbraní ve stejné klidové póze v chladném světle Relay a teplém světle Vanty (`weapon-*`).
   - Lance, Arc a Rift jsou jednoznačné. Pulse a Scatter měly z pohledu hráče stejnou světlou keramickou střechu s jedním černým podélným prvkem.
   - Scatter má teď čtyři příčná chladicí žebra a jeho jediná oranžová fázová mezera vede přes celou šířku střechy. Dřív byla zapuštěná a z oka neviditelná.
 - **Vedlejší rekvizity:** zdravotní kanystr, odpalovací rampa, vozidla, roboti Hordy i pilot jsou čitelní. Nejslabší je power-up štítu, plochá šedá deska s jednou tenkou azurovou linkou.
 
 **Zbývající slabiny.**
-- Skály Kordilery mají horní plochu collideru z velké části nad viditelným kamenem (viz výše). Řešení je herní změna colliderů.
+- Kmeny stromů v Kordileře mají kvádr 4,9 m, který končí pod korunou nebo vedle ní (5–9 zásahů na strom). Zábradlí mostu u x = 16,3 hlásí 9 zásahů a pod ním nic viditelného není.
 - Občasné snímky přes 25 ms zatím nikdo neprofiloval (vykreslování, fyzika, kompozitor).
 - Power-up štítu je ze všech sběratelných předmětů nejméně výrazný.

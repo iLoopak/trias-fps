@@ -293,6 +293,37 @@ namespace Trias.Native
                             var start = d.z != 0 ? new Vector3(a, y, -d.z * (extent + 5)) : new Vector3(-d.x * (extent + 5), y, a);
                             Check(new Ray(start, d), extent * 2 + 10);
                         }
+                    // TRIAS_ART_ROCKS=1 (with the collider probe) samples each Kordilera rock's visible top as a
+                    // normalized height map over its gameplay box, to fit stepped rock colliders to the stone.
+                    if (Environment.GetEnvironmentVariable("TRIAS_ART_ROCKS") == "1")
+                        foreach (var box in world.Spec.scenery ?? world.Spec.cover)
+                        {
+                            if (box.nature != "rock") continue;
+                            Transform home = null;
+                            foreach (Transform child in world.Root)
+                                if (child.name == "rock" && (child.position - new Vector3(box.x, box.bottom, box.z)).sqrMagnitude < .01f) home = child;
+                            if (home == null) continue;
+                            int vx = Mathf.RoundToInt(box.x * 17), vz = Mathf.RoundToInt(box.z * 23), variant = Mathf.Abs((vx ^ vz) % 12);
+                            string stone = box.strata ? "RockOutcrop" : variant % 3 == 0 ? "RockShelf" : variant % 3 == 1 ? "RockSplit" : "RockErased";
+                            float foot = Mathf.Max(0, box.ground - box.bottom - .6f), bottomY = box.bottom + foot, span = box.h - bottomY;
+                            const int N = 16;
+                            var rows = new System.Text.StringBuilder();
+                            for (int j = 0; j < N; j++)
+                            {
+                                for (int i = 0; i < N; i++)
+                                {
+                                    float u = (i + .5f) / N - .5f, v = (j + .5f) / N - .5f;
+                                    var at = home.TransformPoint(new Vector3(u * box.w, 0, v * box.d));
+                                    at.y = box.h + 6;
+                                    float frac = -1;
+                                    foreach (var hit in Physics.RaycastAll(at, Vector3.down, 30, 1 << VisualLayer, QueryTriggerInteraction.Ignore))
+                                        if (hit.collider.transform.IsChildOf(home)) frac = Mathf.Max(frac, (hit.point.y - bottomY) / span);
+                                    rows.Append(frac < 0 ? "-" : Mathf.Clamp(Mathf.FloorToInt(frac * 10), 0, 9).ToString());
+                                }
+                                rows.Append(j < N - 1 ? "/" : "");
+                            }
+                            log.Add($"  rock-top {stone} at=({box.x:F2},{box.z:F2}) w={box.w:F2} d={box.d:F2} span={span:F2} rows={rows}");
+                        }
                     foreach (var proxy in proxies) Destroy(proxy);
                     foreach (var pair in flagged.OrderByDescending(p => p.Value.Count))
                     {

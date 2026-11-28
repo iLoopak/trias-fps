@@ -278,6 +278,56 @@ const onIsland = ({ x: localX, z: localZ, y = 0, ...props }) => {
   const x = localX * ISLAND_SCALE, z = localZ * ISLAND_SCALE;
   return { ...props, x, z, y: islandHeight(x, z) + y };
 };
+// Visible top of each Kordilera rock form, sampled from the Unity kit meshes (TRIAS_ART_ROCKS in the
+// art-review probe): 16 rows across the rock's depth, 16 columns across its width, each digit the stone's
+// height in tenths of its span above the buried foot ('-' = no stone). Rock collision is built from it as
+// stepped boxes that never stand above the visible stone, so pilots do not stand on air over a receding
+// crown; the full rock box stays in `scenery` for presentation only.
+const ROCK_TOPS = {
+  RockShelf: '----2222222222--/--333333444432--/--3445566655422-/--3456777776532-/-235678888765321/-345688887765421/-345789887765421/-345799988765422/3455799988775432/3455799988766432/3455899988766432/3456899988866432/3446899888876532/-245788888765530/--2355578875532-/-----111334442--',
+  RockSplit: '-0001122222220--/122212233333332-/2222223444455430/2222224556665543/2222234666666654/2222235666777776/2222245667899887/1222345678889987/0112345678889987/-012446678889987/--22446778899986/--2344567889998-/--2345567899996-/--3445578899993-/--344567899996--/---35555544444--',
+  RockErased: '--346666332-----/-235788775432---/-2468888765432--/-3469888865433--/046899888655431-/1468998887654320/1468998888654320/1468998888755420/2468998888765420/2569998888865430/3579998888876530/3589988888865430/2689998888655420/169999988554431-/-7887754444331--/-544433322000---',
+  RockOutcrop: '---12111----00--/-11234322111222-/1112445544353332/1123455676655332/1123456677665432/1133556777776532/1233566778876432/1234567788865332/1244567789855321/0244567789765310/-34456778986531-/-34557788986532-/-24567789987532-/--455778998652--/--245777663221--/---444333220----',
+};
+
+// Same pick as the Unity client's EnvironmentVariant, so the collider and the drawn form agree.
+function rockStone(box) {
+  const x = Math.round(box.x * 17), z = Math.round(box.z * 23);
+  return box.strata ? 'RockOutcrop' : ['RockShelf', 'RockSplit', 'RockErased'][Math.abs((x ^ z) % 12) % 3];
+}
+
+function rockSteps(rock) {
+  const rows = ROCK_TOPS[rock.stone].split('/').map(row => [...row].map(c => c === '-' ? -1 : +c));
+  const n = rows.length, foot = Math.max(0, rock.ground - .6), span = rock.h - foot;
+  // Largest rectangle of cells whose stone reaches `need` tenths (a 5 % span tolerance).
+  const largest = need => {
+    let best = null;
+    for (let j0 = 0; j0 < n; j0++) for (let i0 = 0; i0 < n; i0++)
+      for (let j1 = j0; j1 < n && rows[j1][i0] >= need; j1++)
+        for (let i1 = i0; i1 < n; i1++) {
+          let ok = true;
+          for (let j = j0; j <= j1 && ok; j++) ok = rows[j][i1] >= need;
+          if (!ok) break;
+          const area = (j1 - j0 + 1) * (i1 - i0 + 1);
+          if (!best || area > best.area) best = { i0, i1, j0, j1, area };
+        }
+    return best;
+  };
+  const needAt = height => Math.max(1, Math.ceil(((height - foot) / span - .05) * 10));
+  let top = 9;
+  while (top > 1 && (largest(top)?.area ?? 0) < 8) top--;
+  const base = Math.min(needAt(rock.ground + .5), top), middle = Math.round((base + top) / 2);
+  return [...new Set([base, middle, top])].map(need => {
+    const r = largest(need);
+    const u = ((r.i0 + r.i1 + 1) / 2 / n - .5) * rock.w, v = ((r.j0 + r.j1 + 1) / 2 / n - .5) * rock.d;
+    return {
+      x: rock.x + rock.cos * u + rock.sin * v, z: rock.z - rock.sin * u + rock.cos * v, angle: rock.angle,
+      w: (r.i1 - r.i0 + 1) / n * rock.w, d: (r.j1 - r.j0 + 1) / n * rock.d, bottom: rock.bottom, ground: rock.ground,
+      h: Math.min(rock.h, foot + (need / 10 + .05) * span), sector: rock.sector, collider: true,
+    };
+  });
+}
+
 const islandBases = TEAMS.map(team => onIsland(radial(team.angle, 22.2)));
 const islandPoints = TEAMS.map((team, i) => onIsland({ ...radial(team.angle, 10.7), label: 'ABC'[i] }));
 const islandSpawns = TEAMS.map(team => [-3.0, -1.0, 1.0, 3.0].map(offset => onIsland(radial(team.angle, 25.7, offset))));
@@ -295,7 +345,7 @@ const islandTreeSites = [
   [-3.6,21], [3.7,23.2], [9.5,24.3], [12.4,20.8], [18.3,17.4], [19.3,12.4],
   [17.6,-17.4],[5.6,-25.2],[-5.7,-23.9],[-11.4,-24.4],
 ];
-const islandCover = packCover([
+const islandSites = [
   ...islandRocks,
   ...islandTreeSites.map(([x, z], i) => ({ x, z, w: i % 4 ? 0.64 : 0.87, d: 0.59, h: 3.62, nature: 'tree' })),
   { x: 3.5, z: -1.5, w: 3.12, d: 2.18, h: 1.9, angle: 0.44, nature: 'rock' },
@@ -308,19 +358,41 @@ const islandCover = packCover([
   const x = box.x * ISLAND_SCALE, z = box.z * ISLAND_SCALE;
   const ground = islandHeight(x, z);
   const spread = box.nature === 'tree' ? 1 : 1.15;
-  return { ...box, x, z, w: box.w * spread, d: box.d * spread, ground, bottom: Math.max(0, ground - 1.3), h: ground + box.h };
-}));
-const islandPickups = [
+  const site = { ...box, x, z, w: box.w * spread, d: box.d * spread, ground, bottom: Math.max(0, ground - 1.3), h: ground + box.h };
+  return site.nature === 'rock' ? { ...site, stone: rockStone(site) } : site;
+});
+const islandScenery = packCover(islandSites.filter(site => site.nature === 'rock'));
+const islandRockSteps = islandScenery.map(rock => packCover(rockSteps(rock)));
+const islandCover = packCover([
+  ...islandSites.filter(site => site.nature !== 'rock'),
+  ...islandRockSteps.flat(),
+]);
+// Each team's weapon rests on the centre of its rock's highest step that stands clear of the slope and
+// of nearby structures: the stone's real crown, which on a split rock lies off the rock's centre.
+const islandRockPerch = (index, layout) => {
+  const steps = [...islandRockSteps[index]].sort((a, b) => b.h - a.h);
+  for (const step of steps) {
+    const spots = [[0, 0], [-.3, 0], [.3, 0], [0, -.3], [0, .3], [-.3, -.3], [.3, .3], [-.3, .3], [.3, -.3]].map(([u, v]) => ({
+      x: step.x + step.cos * u * step.w + step.sin * v * step.d, z: step.z - step.sin * u * step.w + step.cos * v * step.d,
+    }));
+    const spot = spots.find(({ x, z }) => islandHeight(x, z) < step.h - .05 && !blocked(x, z, BODY_RADIUS, step.h, layout));
+    if (spot) return { ...spot, y: step.h };
+  }
+  throw new Error(`No clear perch on Kordilera rock ${index}`);
+};
+const islandPickups = layout => [
   ...TEAMS.flatMap((team, i) => [
-    { ...radial(team.angle, 15.1, -5.2), y: islandRocks[4 * i].h, type: ARMORY[i + 1] },
-    { ...radial(team.angle, 18.8, 2.3), y: 0, type: 'med' },
-    { ...radial(team.angle, 11.5, -4.15), y: 0, type: 'shield' },
+    { ...islandRockPerch(4 * i, layout), type: ARMORY[i + 1] },
+    onIsland({ ...radial(team.angle, 18.8, 2.3), y: 0, type: 'med' }),
+    onIsland({ ...radial(team.angle, 11.5, -4.15), y: 0, type: 'shield' }),
   ]),
-  { x: 8.1, z: -14.2, type: 'rift' },
-  { x: -3.6, z: 3.25, y: 0, type: 'surge' },
-  { x: 20.2, z: 16.2, type: 'shield' }, { x: -18.3, z: 14.8, type: 'med' },
-  { x: -9.1, z: -16.3, type: 'lance' },
-].map(onIsland);
+  ...[
+    { x: 8.1, z: -14.2, type: 'rift' },
+    { x: -3.6, z: 3.25, y: 0, type: 'surge' },
+    { x: 20.2, z: 16.2, type: 'shield' }, { x: -18.3, z: 14.8, type: 'med' },
+    { x: -9.1, z: -16.3, type: 'lance' },
+  ].map(onIsland),
+];
 
 export const RELAY_SERVICE = {
   id: 'relay', length: MAP_SIZE, label: 'Relay Station', description: 'Servisní paluba reaktoru.',
@@ -462,8 +534,8 @@ export const ARENAS = {
   island: {
     id: 'island', length: 50, revision:'kordilera-span-2', walkways:true, edgeRadius: ISLAND_RADIUS, islandScale: ISLAND_SCALE, terrain: islandHeight, label: 'Kordilera',
     description: 'Horský říční zářez s brody, vodopády a lávkou zavázanou do skalních svahů.',
-    cover: [...islandCover, ...packCover(cordilleraRoutes)], launchPads: [], gantries: [],
-    pickups: [...islandPickups,{x:cordilleraBridgeX,y:3.15,z:cordilleraRiverZ,type:"shield"}], bases: islandBases,
+    cover: [...islandCover, ...packCover(cordilleraRoutes)], scenery: islandScenery, launchPads: [], gantries: [],
+    pickups: [...islandPickups({ edgeRadius: ISLAND_RADIUS, cover: [...islandCover, ...packCover(cordilleraRoutes)] }),{x:cordilleraBridgeX,y:3.15,z:cordilleraRiverZ,type:"shield"}], bases: islandBases,
     points: islandPoints, spawns: islandSpawns, turrets: [],
   },
 };

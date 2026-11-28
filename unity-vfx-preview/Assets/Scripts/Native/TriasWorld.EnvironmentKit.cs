@@ -231,7 +231,8 @@ namespace Trias.Native
                 // Keep branch clearance and the visible rootstock close to the legacy trunk footprint.
                 return NatureMesh(species, parent, Vector3.up * (foot + previousSize.y * .5f), previousSize);
             }
-            string stone = box.strata ? "RockOutcrop" : variant % 3 == 0 ? "RockShelf"
+            // The rules name the form (its stepped collision is fitted to it); older data falls back to the hash.
+            string stone = !string.IsNullOrEmpty(box.stone) ? box.stone : box.strata ? "RockOutcrop" : variant % 3 == 0 ? "RockShelf"
                 : variant % 3 == 1 ? "RockSplit" : "RockErased";
             // Avoid making walkable-looking ledges beyond the authored rock blocker.
             Vector3 size = new Vector3(box.w * 1.025f, previousSize.y, box.d * 1.025f);

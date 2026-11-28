@@ -316,7 +316,8 @@ function nature(scene, layout) {
   const foliage = ['#519c59', '#7caf52', '#93bc56', '#548963', '#d19d61']
     .map(color => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true }));
   const random = randomFrom(3117);
-  for (const site of layout.cover) {
+  // Rock steps are collision only; the rocks themselves are drawn from `scenery`.
+  for (const site of [...layout.cover.filter(site => !site.collider), ...(layout.scenery ?? [])]) {
     if (site.structure) {
       const height = site.h - site.bottom;
       const material = site.structure === 'support' ? deepStone : site.structure === 'rail' ? rootWood : plank;

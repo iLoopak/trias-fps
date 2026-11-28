@@ -61,6 +61,9 @@ namespace Trias.Native
         internal bool Walkways => Shaft || walkways;
         internal float IslandScale => islandScale > 0 ? islandScale : 1;
         public BoxSpec[] cover;
+        // Presentation-only sites (Kordilera rocks): drawn in full, while their collision lives in
+        // `cover` as stepped boxes that stay under the visible stone.
+        public BoxSpec[] scenery;
         public PadSpec[] launchPads;
         public Site[] pickups, bases, points, turrets, repairs, river, creek, trail, crossings;
         public HeightData terrain;
@@ -73,8 +76,8 @@ namespace Trias.Native
     [Serializable] internal sealed class BoxSpec : Site
     {
         public float w, d, h, bottom, ground;
-        public bool gantry, terrace, relay, strata;
-        public string nature, profile, structure;
+        public bool gantry, terrace, relay, strata, collider;
+        public string nature, profile, structure, stone;
         internal bool Overlaps(float px, float pz, float radius)
         {
             if (structure == "stair") radius = Mathf.Min(radius,.16f);

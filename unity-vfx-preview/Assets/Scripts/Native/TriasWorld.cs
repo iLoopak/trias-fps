@@ -158,10 +158,17 @@ namespace Trias.Native
             BuildBoundaryVapor();
             foreach (var box in Spec.cover)
             {
-                var home = Group(Root, box.nature ?? (box.gantry ? "Suspended gantry" : box.relay ? "Reactor plinth" : "Cover"),
+                var home = Group(Root, box.collider ? "Rock step" : box.nature ?? (box.gantry ? "Suspended gantry" : box.relay ? "Reactor plinth" : "Cover"),
                     new Vector3(box.x, box.bottom, box.z));
                 home.localRotation = Quaternion.Euler(0, box.angle * Mathf.Rad2Deg, 0);
                 float h = box.h - box.bottom;
+                if (box.collider)
+                {
+                    // Collision only: the stone it stands for is drawn from Spec.scenery.
+                    Part(home, Dark, Vector3.up * h / 2, new Vector3(box.w, h, box.d), PrimitiveType.Cube, true)
+                        .GetComponent<Renderer>().enabled = false;
+                    continue;
+                }
                 if (box.structure != null)
                 {
                     if (IsRelayArt && box.structure != "roof" && box.structure != "relay-wall") DressShaftBox(box, home, h);
@@ -193,6 +200,12 @@ namespace Trias.Native
                             new Vector3(0, h - 0.25f, sign * (box.d * 0.5f + 0.071f)), new Vector3(box.w * 0.7f, 0.046f, 0.022f));
                     }
                 }
+            }
+            foreach (var box in Spec.scenery ?? System.Array.Empty<BoxSpec>())
+            {
+                var home = Group(Root, box.nature ?? "Scenery", new Vector3(box.x, box.bottom, box.z));
+                home.localRotation = Quaternion.Euler(0, box.angle * Mathf.Rad2Deg, 0);
+                IslandCover(box, home, box.h - box.bottom, solid: false);
             }
             if (IsRelayArt) BuildRelayContacts();
             else BuildGroundContacts();
@@ -516,10 +529,11 @@ namespace Trias.Native
             BuildGrasses();
         }
 
-        void IslandCover(BoxSpec box, Transform parent, float h)
+        void IslandCover(BoxSpec box, Transform parent, float h, bool solid = true)
         {
-            var solid = Part(parent, Dark, Vector3.up * h / 2, new Vector3(box.w, h, box.d), PrimitiveType.Cube, true);
-            solid.GetComponent<Renderer>().enabled = false;
+            if (solid)
+                Part(parent, Dark, Vector3.up * h / 2, new Vector3(box.w, h, box.d), PrimitiveType.Cube, true)
+                    .GetComponent<Renderer>().enabled = false;
             bool tree = box.nature == "tree";
             string asset = tree ? (box.sector == 1 ? "tree_oak" : "tree_pineRoundC")
                 : (box.sector == 1 ? "rock_largeB" : "rock_largeD");
