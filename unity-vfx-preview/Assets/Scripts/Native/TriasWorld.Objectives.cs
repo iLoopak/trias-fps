@@ -10,6 +10,7 @@ namespace Trias.Native
             internal LineRenderer Boundary, Progress;
             internal MeshRenderer Signal;
             internal Transform Lens;
+            internal float LensHeight = .28f;
             internal Material Tint;
             internal int Step = -1;
             internal bool Contested, Linked;
@@ -34,6 +35,7 @@ namespace Trias.Native
         }
 
         ControlHardware[] controlHardware;
+        static BlenderParts objectiveParts;
         CoreHardware[] coreHardware;
         CoreHardware defenseHardware;
         FlagHardware[] flagHardware;
@@ -55,8 +57,19 @@ namespace Trias.Native
             }
             terminal.Block(Graphite,Vector3.up*.073f,new Vector3(.30f,.14f,.30f),Quaternion.Euler(0,45,0));
             terminal.Mount(this,panel);
-            art.Lens=Group(panel,"Phase lens",Vector3.up*.28f);
-            var lens=Part(art.Lens,TeamNeutral,Vector3.zero,new Vector3(.25f,.19f,.25f));
+            // A slender relay mast lifts the phase lens to 2.35 m so the objective reads across the arena;
+            // it is far narrower than a pilot, so it never reads as cover. The low terminal is the fallback.
+            objectiveParts ??= new BlenderParts("TRIAS/Objectives/Objectives");
+            if (objectiveParts.Has("ControlRelay"))
+            {
+                objectiveParts.Bind("ControlRelay",Group(panel,"Relay mast"),slot => slot switch
+                {
+                    "Ceramic" => Porcelain, "Alloy" => Hardware, _ => Graphite,
+                },true);
+                art.LensHeight=2.35f;
+            }
+            art.Lens=Group(panel,"Phase lens",Vector3.up*art.LensHeight);
+            var lens=Part(art.Lens,TeamNeutral,Vector3.zero,art.LensHeight>1 ? new Vector3(.30f,.24f,.30f) : new Vector3(.25f,.19f,.25f));
             lens.localRotation=Quaternion.Euler(25,45,28);
             art.Signal=lens.GetComponent<MeshRenderer>();
             art.Signal.shadowCastingMode=ShadowCastingMode.Off;
@@ -206,7 +219,7 @@ namespace Trias.Native
                 foreach(var art in controlHardware)
                 {
                     float lift=(art.Contested?.039f:.02f)*Mathf.Sin(seconds*(art.Contested?4f:2f))*motion;
-                    art.Lens.localPosition=Vector3.up*(.28f+lift);
+                    art.Lens.localPosition=Vector3.up*(art.LensHeight+lift);
                     art.Lens.localRotation=Quaternion.Euler(0,seconds*(art.Linked?22f:9f)*motion,0);
                 }
             if(coreHardware!=null)

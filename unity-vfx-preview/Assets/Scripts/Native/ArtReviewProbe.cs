@@ -130,6 +130,11 @@ namespace Trias.Native
             // Meridian towards its ringed planet (west, about 32 degrees up), so the gallery keeps its landmark.
             new Shot { Key = "site-meridian", Arena = "basin", Weapon = "lance", Fov = 75, Eye = P(14, 1.58f, -4), Aim = P(-13.6f, 11.2f, -15.4f) },
             new Shot { Key = "site-meridian-b", Arena = "basin", Weapon = "lance", Fov = 75, Eye = P(20, 1.58f, 8), Aim = P(-8, 10.5f, -3) },
+            // Objectives: a domination relay terminal and a CTF flag dock, seen from two metres at eye height.
+            new Shot { Key = "obj-dom", Arena = "relay", Mode = "dom", Weapon = "pulse", Fov = 60,
+                Eye = w => w.Zones[0].position + new Vector3(2.6f, 1.58f, -2.6f), Aim = w => w.Zones[0].position + Vector3.up * .5f },
+            new Shot { Key = "obj-flag", Arena = "island", Mode = "ctf", Weapon = "pulse", Fov = 60,
+                Eye = w => w.Flags[0].position + new Vector3(2.2f, 1.58f, -2.2f), Aim = w => w.Flags[0].position + Vector3.up * .9f },
             new Shot { Key = "kordilera-crossing", Arena = "island", Mode = "ctf", Eye = G(27.5f, 11.3f, 1.58f), Aim = G(23.4f, 6.6f, .68f) },
         };
 

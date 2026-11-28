@@ -53,6 +53,14 @@ Shader "TRIAS/Island Terrain"
             half strata = sin(bedding) * .5 + .5;
             strata = strata * .66 + sin(bedding * 3.08) * .12 + .18;
             half3 grass = lerp(TRIAS_SRGB(half3(.23,.32,.17)), TRIAS_SRGB(half3(.43,.45,.245)), meadow);
+            // Slopes turned to the low sun dry out to straw, lee slopes stay lush, and broad irregular patches
+            // (a low-frequency detail lookup, not the regular sine meadow) break the single green into a landscape.
+            // Value as well as hue changes, so the hill forms also separate in grayscale.
+            const float3 sun = float3(-.889, .188, .405);
+            half sunward = saturate(dot(normalize(IN.worldNormal), sun) * 1.7);
+            half patch = tex2D(_Detail, p.xz * .021).g;
+            half straw = saturate(sunward * .8 + (patch - .5) * 1.4 + grade * .3 - .2);
+            grass = lerp(grass * lerp(.74, 1.04, sunward), TRIAS_SRGB(half3(.58,.53,.31)), straw * .72);
             // A low, olive-grey wet shelf gives way to drier ochre alluvium.
             half wetBank = smoothstep(.46,.87,bank + (detail - .5) * .18);
             half3 silt = lerp(TRIAS_SRGB(half3(.41,.335,.22)), TRIAS_SRGB(half3(.205,.225,.158)), wetBank);
