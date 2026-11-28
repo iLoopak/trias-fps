@@ -23,6 +23,9 @@ namespace Trias.Preview
         readonly float[] haloDuration = new float[16];
         readonly float[] haloExtent = new float[16];
         readonly bool[] haloConverges = new bool[16];
+        // Metres per second of eased displacement over a halo's life (zero for the classic in-place rings).
+        readonly Vector3[] haloDrift = new Vector3[16];
+        readonly Vector3[] haloOrigin = new Vector3[16];
         Mesh ceramicFragments;
         readonly MeshFilter[] haloFilters = new MeshFilter[16];
         readonly Mesh[] factionGlyphs = new Mesh[3];
@@ -237,6 +240,12 @@ namespace Trias.Preview
                 haloRenderers[i].enabled = progress < 1;
                 float travel = haloConverges[i] ? 1f - progress : progress;
                 halos[i].localScale = Vector3.one * haloExtent[i] * Mathf.Lerp(.24f, 1, travel);
+                if (haloDrift[i] != Vector3.zero)
+                {
+                    // Controlled separation: fast release that settles, rather than a linear slide.
+                    float eased = 1f - (1f - progress) * (1f - progress);
+                    halos[i].position = haloOrigin[i] + haloDrift[i] * (eased * haloDuration[i]);
+                }
             }
             flash.intensity = pulseLevel * Mathf.Exp(-9f * Mathf.Max(0f, time - flashAt));
         }
@@ -587,9 +596,17 @@ namespace Trias.Preview
             if (intensity > .01f)
             {
                 bool forming = action == "form";
-                int count = rupture ? 16 : firing ? 10 : forming ? 8 : 4;
+                int count = rupture ? 7 : firing ? 10 : forming ? 8 : 4;
                 Emit(impact, at + Vector3.up * .86f, tint, Mathf.CeilToInt(count * intensity), rupture ? .95f : .60f);
-                if (intensity > .5f)
+                if (rupture && intensity > .5f)
+                {
+                    // A ruptured echo splits into two shells pushed apart sideways, not a particle star.
+                    var side = listener != null ? Vector3.Cross(Vector3.up, at - listener.position).normalized : Vector3.right;
+                    for (int half = -1; half <= 1; half += 2)
+                        Ring(at + Vector3.up*(.9f + half*.18f), tint, Quaternion.Euler(half*28, 30 + half*50, half*12), .5f, 1.0f,
+                            ceramicFragments, false, side*half*.9f + Vector3.up*.25f);
+                }
+                else if (intensity > .5f)
                 {
                     float height = rupture ? .97f : firing ? 1.16f : .63f;
                     Ring(at + Vector3.up*height, tint, Quaternion.Euler(rupture ? 32 : 0,firing ? 30 : 0,0),
@@ -704,9 +721,18 @@ namespace Trias.Preview
         public void Elimination(Vector3 position, Color tint, float intensity = 1)
         {
             if (intensity <= .01f) return;
-            Emit(impact, position + Vector3.up*.39f, Color.Lerp(Matter, tint, .28f), Mathf.CeilToInt(14*intensity));
-            Ring(position + Vector3.up*.18f, Color.Lerp(Matter,tint,.34f),
-                Quaternion.Euler(-8,23,10), .31f, .94f*intensity, ceramicFragments);
+            // Phase fracture: the suit's shell shears into three detached plate layers at body height.
+            // The upper layers lift and twist away, the lowest settles, so the event reads as a body
+            // coming apart out of phase rather than a spark burst. A faction imprint stays on the floor.
+            Emit(impact, position + Vector3.up*.9f, Color.Lerp(Matter, tint, .28f), Mathf.CeilToInt(8*intensity), .7f);
+            for (int layer = 0; layer < 3; layer++)
+            {
+                float lift = (layer - .6f) * .55f;
+                Ring(position + Vector3.up*(.32f + layer*.56f), Color.Lerp(Matter, tint, .5f + layer*.15f),
+                    Quaternion.Euler(layer*9 - 9, 23 + layer*41, layer*6 - 4), .62f + layer*.1f, (.78f + layer*.2f)*intensity,
+                    ceramicFragments, false, new Vector3(0, lift, 0));
+            }
+            Ring(position + Vector3.up*.05f, tint, Quaternion.identity, .8f, 1.45f*intensity);
         }
 
         void Ring(Vector3 position, Color tint)
@@ -715,9 +741,12 @@ namespace Trias.Preview
         void ProjectFaction(Vector3 position, Color tint, int faction, float life, float extent)
             => Ring(position + Vector3.up*.067f,tint,Quaternion.Euler(-90,0,0),life,extent,factionGlyphs[faction]);
 
-        void Ring(Vector3 position, Color tint, Quaternion rotation, float lifetime, float extent, Mesh shape = null, bool converge = false)
+        void Ring(Vector3 position, Color tint, Quaternion rotation, float lifetime, float extent, Mesh shape = null, bool converge = false,
+            Vector3 drift = default)
         {
             int i = ringIndex++ % halos.Length;
+            haloDrift[i] = drift;
+            haloOrigin[i] = position;
             haloFilters[i].sharedMesh = shape == null ? haloMesh : shape;
             halos[i].SetPositionAndRotation(position, rotation);
             haloConverges[i] = converge;

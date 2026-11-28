@@ -25,7 +25,18 @@ namespace Trias.Native
             // Spawns review props (Horde bodies, vehicles) under the given parent.
             internal Action<TriasWorld, Transform> Extras;
             internal float Fov = 70;
+            // Fires a gameplay event through the shipped RelayEffects and captures it EventAge seconds later.
+            internal Action<Trias.Preview.RelayEffects, TriasWorld> Event;
+            internal float EventAge;
         }
+
+        // Set by Trias.Preview.ArtReview before the probe starts; null leaves event shots out.
+        public static Trias.Preview.RelayEffects Effects;
+        static readonly Vector3 EventSpot = new Vector3(-.6f, 6.6f, -9.2f);
+        static Shot EventShot(string key, float age, Action<Trias.Preview.RelayEffects, TriasWorld> fire) => new Shot
+        {
+            Key = key, Arena = "relay", Eye = P(1.4f, 8.18f, -14.6f), Aim = P(-.6f, 7.4f, -9.2f), Fov = 60, Event = fire, EventAge = age,
+        };
 
         static Func<TriasWorld, Vector3> P(float x, float y, float z) => _ => new Vector3(x, y, z);
         static Func<TriasWorld, Vector3> G(float x, float z, float lift) => w => new Vector3(x, w.Height(x, z) + lift, z);
@@ -72,7 +83,16 @@ namespace Trias.Native
             new Shot { Key = "vanta-approach", Arena = "foundry", Weapon = "arc", Eye = P(-10, 1.58f, -24.5f), Aim = P(-6, 1.5f, -16),
                 Pilots = new[] { ("bulwark", 0, P(-7.3f, 0, -15.8f), 200f) } },
             new Shot { Key = "vanta-works", Arena = "foundry", Weapon = "scatter", Eye = P(5, 1.58f, -22), Aim = P(0, 7, 30) },
+            new Shot { Key = "vanta-terrace", Arena = "foundry", Weapon = "pulse", Eye = P(1.5f, 1.58f, -9.5f), Aim = P(-1.5f, .8f, -2) },
+            new Shot { Key = "meridian-terrace", Arena = "basin", Weapon = "arc", Eye = P(-3, 1.58f, -15), Aim = P(0, .9f, -6.4f) },
             new Shot { Key = "meridian-approach", Arena = "basin", Weapon = "lance", Eye = P(-8.8f, 1.58f, -37.4f), Aim = P(-5.3f, 1.4f, -31) },
+            EventShot("fx-elimination", .14f, (fx, w) => fx.Elimination(EventSpot, w.TeamLight[1].color)),
+            EventShot("fx-elimination-mid", .3f, (fx, w) => fx.Elimination(EventSpot, w.TeamLight[1].color)),
+            EventShot("fx-elimination-late", .55f, (fx, w) => fx.Elimination(EventSpot, w.TeamLight[1].color)),
+            EventShot("fx-respawn", .22f, (fx, w) => fx.Reentry(EventSpot, w.TeamLight[0].color, false, 0)),
+            EventShot("fx-dodge", .1f, (fx, w) => fx.Motion(EventSpot, w.TeamLight[2].color, MotionCue.Dodge, false, 1, 2)),
+            EventShot("fx-echo-rupture-late", .36f, (fx, w) => fx.Phase(EventSpot, w.TeamLight[0].color, "rupture", false, 1)),
+            EventShot("fx-echo-rupture", .16f, (fx, w) => fx.Phase(EventSpot, w.TeamLight[0].color, "rupture", false, 1)),
             new Shot { Key = "kordilera-crossing", Arena = "island", Mode = "ctf", Eye = G(27.5f, 11.3f, 1.58f), Aim = G(23.4f, 6.6f, .68f) },
         };
 
@@ -193,6 +213,22 @@ namespace Trias.Native
                     {
                         world.Animate(40 + frame / 60f, 1, 0, eye, 1, 1, 40 + frame / 60f, 719);
                         yield return null;
+                    }
+                    if (shot.Event != null)
+                    {
+                        if (Effects == null) log.Add($"{shot.Key}: event skipped (no effects)");
+                        else
+                        {
+                            Effects.listener = view.transform;
+                            Effects.ClearTransient();
+                            shot.Event(Effects, world);
+                            float fired = Time.time;
+                            while (Time.time - fired < shot.EventAge)
+                            {
+                                world.Animate(41, 1, 0, eye, 1, 1, 41, 719);
+                                yield return null;
+                            }
+                        }
                     }
                     // TRIAS_ART_PICK=1 logs the nearest renderer (by bounds) under a 5x4 screen grid; =2 also admits large distant structures.
                     string pickMode = Environment.GetEnvironmentVariable("TRIAS_ART_PICK");

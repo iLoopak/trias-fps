@@ -236,11 +236,29 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
   - Hodnoty p95 jsou v editoru šumivé (až 7,8 ms), mediány jsou stabilní.
 - `TRIAS_ART_PICK=2` přijme i velké vzdálené stavby a k objektu vypíše jeho hranice. Pomohl odhalit, že strop nad dolní palubou je deska šachty, ne kryt.
 
+**Šestá vlna (kryty sektorů, skály, události, vozidla).** Záběry jsou v `output/beyond/` (`i-*` terasy, `j-plinth-compare.png`, `k-rock`, `l-fx*` události, `m-veh` vozidla).
+- **Kryty teras ve Vantě a Meridianu** (`terrace`, bez profilu) dostaly z kitu tepelný a tlakový kontejner místo holých kvádrů. Na obou dlouhých stranách si nechávají sektorový pruh barvy týmu.
+  - Zamítnuto: `MachineExtraction` vypadal o metr nižší než kolize 1,56 m, takže by šlo o klamavý kryt.
+- **Středový podstavec Meridianu** (`relay` box 5,8 × 5,8 × 3,6 m) je `MachineDistribution` s achátovými panely.
+  - Zamítnuto: otevřený rám `MachineStabilizer` (mezerami prosvítá neviditelná kolize) a `MachineProcessor`, který četl jako krabice s víkem.
+- **Skály Kordilery:** materiál se volí podle normál vyhlazených přes sousední plochy. Mech tvoří souvislé polštáře na římsách, žádné kosočtverce.
+- **Události** se teď dají revidovat. `ArtReview` vytvoří herní `RelayEffects` přes `BuildTrias.CreateEffects` a záběry `fx-*` spustí událost a vyfotí ji po zadaném čase.
+  - **Likvidace** je fázový lom: tři vrstvy odtržených keramických plátů v tónu frakce se rozepnou a rozjedou vertikálně (horní stoupají, spodní sedá) a na podlaze zůstane otisk. Dřív to byl záblesk a pár střepů, které zmizely za 0,4 s.
+  - **Prasknutí Echa** jsou dvě skořepiny odtlačené do stran místo hvězdice částic. Prstence mají volitelný drift s doběhem.
+  - Oživení (sbíhající se pláty) a úskok (glyf frakce) zůstaly beze změny.
+- **Vozidla:**
+  - **Bastion:** střecha ze tří keramických plátů se spárou, velitelský poklop, zadní úložný box, dvě prutové antény, kouřové granátomety, světla a tažná oka.
+  - **Skimmer:** šikmé ocasní ploutve, boční sání a světla.
+- **Měření proti stavu PR #7** (`TRIAS_ART_PERF=60`, CPU `Camera.Render` v editoru):
+  - Terasa ve Vantě: 2,99 → 3,11 ms, 607 → 644 draw callů.
+  - Střed Meridianu: 2,53 → 2,63 ms, 648 → 712 draw callů.
+  - Vozidla: 3,60 → 3,63 ms, +34 tis. trojúhelníků.
+  - Kordilera: beze změny.
+
 **Zbývající slabiny.**
-- Signální události (Echo, řetěz hybnosti, oživení, likvidace, úskok) a pohyb zbraně z první osoby nebyly v této vlně upraveny. Sonda je umí jen staticky, chybí záznam pohybu.
-- Kryty ve Vantě na mostě jsou pořád světlé kvádry. Paluba Meridianu a přední bedny jsou prosté plochy.
-- Skála v řece na Kordileře čte jako vrstvené desky s maskovacím vzorem mechu. Kopce jsou hladké.
+- Pohyb a přechody zbraně z první osoby (vytažení, přebití, doskok) zatím nikdo neupravoval. Sonda umí snímek v čase, ne záznam pohybu.
+- Řetěz hybnosti, rána do štítu a odpalovací rampa nemají vlastní revizní záběr `fx-*`.
+- Kopce Kordilery jsou hladké. Paluba Meridianu je prostá plocha.
 - Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
-- Herní texty mohou Hordu dál nazývat „nakažení“.
-- Vozidla jsou tvarově jednodušší než zbraně. Kanystr lékárničky je z boku hladký.
-- Hra s boty, záznam pohybu a měření snímkové frekvence v nativním přehrávači chybí. Windows build se nespouštěl.
+- Herní texty mohou Hordu dál nazývat „nakažení“. Kanystr lékárničky je z boku hladký.
+- Hra s boty, měření snímkové frekvence v nativním přehrávači a spuštění Windows buildu chybí.

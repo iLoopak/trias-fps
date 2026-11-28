@@ -27,7 +27,23 @@ namespace Trias.Preview
             camera.farClipPlane = 235f;
             camera.fieldOfView = 67f;
 
-            var fx = new GameObject("TRIAS effects", typeof(RelayEffects)).GetComponent<RelayEffects>();
+            var fx = CreateEffects(camera.transform);
+
+            var client = new GameObject("TRIAS client", typeof(TriasClient)).GetComponent<TriasClient>();
+            client.view = camera;
+            client.effects = fx;
+            EditorSceneManager.SaveScene(arena, Scene);
+            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(Scene, true), new EditorBuildSettingsScene(BuildRelay.Scene, true) };
+            Selection.activeGameObject = client.gameObject;
+        }
+
+        // Shared by the game scene and the art review fixture, so reviewed event effects are the shipped ones.
+        internal static RelayEffects CreateEffects(Transform listener)
+        {
+            // Built inactive so Awake sees the assigned emitters when it is created during play mode.
+            var holder = new GameObject("TRIAS effects");
+            holder.SetActive(false);
+            var fx = holder.AddComponent<RelayEffects>();
             Material dust = BuildPreview.ParticleMaterial();
             var tint = new Color(.27f,.95f,.90f);
             fx.muzzle = BuildPreview.Emitter("Muzzle", Vector3.zero, tint, dust, .18f, 2.6f, .12f, .15f);
@@ -45,14 +61,9 @@ namespace Trias.Preview
             fx.haloMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Preview Art/Teal tubes.mat");
             fx.haloMesh = AssetDatabase.LoadAssetAtPath<Mesh>("Assets/Preview Art/Respawn ring.asset");
             fx.flash = BuildPreview.Point("Combat lighting", Vector3.zero, tint, 0, 8.8f);
-            fx.listener = camera.transform;
-
-            var client = new GameObject("TRIAS client", typeof(TriasClient)).GetComponent<TriasClient>();
-            client.view = camera;
-            client.effects = fx;
-            EditorSceneManager.SaveScene(arena, Scene);
-            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(Scene, true), new EditorBuildSettingsScene(BuildRelay.Scene, true) };
-            Selection.activeGameObject = client.gameObject;
+            fx.listener = listener;
+            holder.SetActive(true);
+            return fx;
         }
 
         public static void BuildMac()

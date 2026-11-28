@@ -401,8 +401,18 @@ def geology(style, detail):
     # foot, one thin iron-stained bed, weathered dry stone everywhere else.
     top=max(v.co.z for v in rock.vertices) or 1
     band=.36+(seed%5)*.03
+    # Decide finishes on neighbourhood-smoothed normals: per-triangle normals after weathering
+    # alternate from face to face and made moss read as diamond camouflage on the river rocks.
+    around={}
     for polygon in rock.polygons:
-        n,c=polygon.normal,polygon.center
+        for v in polygon.vertices:
+            around.setdefault(v,[]).append(polygon.index)
+    smooth=[p.normal.copy()*p.area for p in rock.polygons]
+    for _ in range(3):
+        vertex_sum={v:sum((smooth[f] for f in faces),Vector()) for v,faces in around.items()}
+        smooth=[sum((vertex_sum[v] for v in p.vertices),Vector()) for p in rock.polygons]
+    for polygon,soft in zip(rock.polygons,smooth):
+        n,c=(soft.normalized() if soft.length>0 else polygon.normal),polygon.center
         rel=c.z/top
         if n.z>.6 and rel>.3 and style not in ("Seam","Phase","Cliff"):
             polygon.material_index=2

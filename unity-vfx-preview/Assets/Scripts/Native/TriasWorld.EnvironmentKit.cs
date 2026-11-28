@@ -57,19 +57,32 @@ namespace Trias.Native
 
         bool DressEnvironmentCover(BoxSpec box, Transform frame, float height)
         {
+            // Meridian's central plinth is a solid distribution machine instead of a bare ivory block. An open
+            // stabiliser frame was rejected: its gaps showed through a solid collider.
+            if (!IsRelayArt && Spec.id == "basin" && box.relay)
+                return FitLongFace("MachineDistribution", frame, box, height, lod: true);
             if (box.gantry || box.relay || box.profile == "airlock") return false;
             int variation = EnvironmentVariant(box);
             if (!IsRelayArt)
             {
                 string industrial = (Spec.id, box.profile) switch
                 {
+                    // Sector cover on the central terraces: process equipment instead of bare blocks.
+                    ("foundry", null) when box.terrace => variation % 2 == 0 ? "ContainerThermal" : "ContainerPressure",
+                    ("basin", null) when box.terrace => variation % 2 == 0 ? "ContainerThermal" : "ContainerPressure",
                     ("foundry", "pylon") => "SupportHeavy",
                     ("foundry", "baffle") => variation % 2 == 0 ? "CoverReinforced" : "CoverEquipment",
                     ("basin", "pylon") => "SupportMechanical",
                     ("basin", "baffle") => variation % 2 == 0 ? "CoverWeathered" : "CoverCeramic",
                     _ => null
                 };
-                return industrial != null && FitLongFace(industrial, frame, box, height, lod: true);
+                if (industrial == null || !FitLongFace(industrial, frame, box, height, lod: true)) return false;
+                if (box.terrace && box.sector >= 0)
+                    // Keep the sector colour that marks the terrace's owner on both long faces.
+                    for (int sign = -1; sign <= 1; sign += 2)
+                        Part(frame, TeamLight[box.sector], new Vector3(0, height + .012f, sign * (box.d * .5f - .06f)),
+                            new Vector3(box.w * .7f, .022f, .05f));
+                return true;
             }
             string key = box.structure switch
             {
