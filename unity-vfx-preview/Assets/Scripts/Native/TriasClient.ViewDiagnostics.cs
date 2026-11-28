@@ -19,7 +19,7 @@ namespace Trias.Native
         bool sweep, cleanView, sweepTrigger;
         int fpsTarget = -1;
         string burstPath, sweepPhase = "play";
-        float sweepStarted = -1, sweepYaw, sweepPitch;
+        float sweepStarted = -1, sweepFirst = -1, sweepYaw, sweepPitch;
 
         sealed class PhaseStats
         {
@@ -68,6 +68,7 @@ namespace Trias.Native
             if (own[6].Int <= 0 || state["winner"]["label"].Text != null) { sweepStarted = -1; sweepPhase = "dead"; return; }
             if (!captured && Application.isFocused) Capture(true);
             if (sweepStarted < 0) { sweepStarted = now; sweepYaw = yaw; sweepPitch = 2; }
+            if (sweepFirst < 0) sweepFirst = now;
             float t = now - sweepStarted, local = Mathf.Repeat(t, 4);
             int slot = (int)(Mathf.Repeat(t, 24) / 4);
             sweepPhase = slot switch { 0 => "still", 1 => "rotate", 2 => "strafe", 3 => "pitch", 4 => "track", _ => "run" };
@@ -129,7 +130,7 @@ namespace Trias.Native
 
         void NoteCorrection(float metres)
         {
-            if (frameLogPath == null || metres <= .001f) return;
+            if (frameLogPath == null || metres <= .001f || own[6].Int <= 0) return;
             corrections++;
             correctionSum += metres;
             correctionMax = Mathf.Max(correctionMax, metres);
@@ -166,8 +167,8 @@ namespace Trias.Native
         void UpdateBurst(float now)
         {
             if (burstPath == null || !sweep || burstIndex >= 0) return;
-            if (sweepPhase != "rotate" && sweepPhase != "strafe" && sweepPhase != "track") return;
-            if (burstTaken.Contains(sweepPhase) || now - sweepStarted < 30) return;
+            if (sweepPhase != "rotate" && sweepPhase != "strafe" && sweepPhase != "track" && sweepPhase != "run") return;
+            if (burstTaken.Contains(sweepPhase) || now - sweepFirst < 20) return;
             float local = Mathf.Repeat(now - sweepStarted, 4);
             if (local < 1.6f || local > 2.4f) return;
             burstTaken.Add(sweepPhase);
