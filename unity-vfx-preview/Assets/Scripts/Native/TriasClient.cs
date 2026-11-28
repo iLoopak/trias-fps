@@ -877,14 +877,14 @@ namespace Trias.Native
                         if (corpse.Visible) fallen.Add(corpse);
                         else effects.Elimination(spot,casualtyTint,visualEffects);
                     }
-                    AddKill(evt["attacker"].Text, evt["victim"].Text, key == "fall" ? "Pád" : key == "plasma" ? "Plazma" : key, evt["team"].Int, now);
+                    AddKill(evt["attacker"].Text, evt["victim"].Text, CauseLabel(key) ?? key, evt["team"].Int, now);
                     if (mine && environment) { killer = evt["attacker"].Text; replayUntil = 0; }
                     if (mine && own[6].Int <= 0 && !environment)
                     {
                         killer = evt["attacker"].Text;
                         killerWeapon = key switch
                         {
-                            "claw" => "Úder nakaženého", "spore" => "Plivanec", "rubble" => "Troska",
+                            "claw" or "spore" or "rubble" => CauseLabel(key),
                             _ => Catalog.Find(catalog.weapons,key)?.label
                         };
                         deathReplayLength = Mathf.Min(1.85f, own[29].Float);

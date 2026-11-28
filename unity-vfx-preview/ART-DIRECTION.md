@@ -265,10 +265,17 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - `WeaponHandling.Grip` skládá pózu úchopu pro hru i pro sondu stejným kódem. Záběry `motion-*` simulují časovou řadu výměny a doskoku na 240 Hz a vyrenderují zvolené okamžiky.
 - Neověřeno: pocit v ruce při hře. Výchylky jsou záměrně malé, aby nerušily míření, a před vydáním je musí posoudit člověk ve Feel Lab.
 
+**Osmá vlna (odpalovací rampa, límce pilotů, web).** Záběry jsou v `output/beyond/` (`p-pad*`, `q-pick`, `r-site*`, `site-final`).
+- **Odpalovací rampa** (`tools/blender/build-launchpad.py`, FBX `TRIAS/LaunchPad`) nahrazuje tmavý kotouč se dvěma kroužky. Má grafitový podstavec, šest keramických segmentů límce se zlatými spárami, zapuštěnou studnu, radiální urychlovací cívky a zlaté jádro. Průměr 1,85 m zůstal, výška je pod 8 cm, aby nečetla jako schod. Vnější zlatý kroužek zůstává jako signál na dálku. Rampa je jen vizuál, spouštění řídí server.
+- **Límec pilotů:** portréty pro web ukázaly, že helmy všech pilotů sedí na dlouhém tenkém krku. Polstrovaný límec s keramickou deskou, vyšší vzadu (`build-pilots.py`, `build-vektor.py`), je teď spojuje s rameny.
+- **Lékárnička:** kříž je na všech čtyřech stranách a přibyla svislá upínací žebra, takže čte i z boku.
+- **Texty Hordy:** kill feed dřív ukazoval surové klíče `claw`, `spore` a `rubble`. Teď zobrazí „Úder robota“, „Výstřik chladiva“ a „Troska“ (`TriasClient.CauseLabel`).
+- **Web:** galerie arén má nové záběry z enginu bez HUD v rozlišení 1280×720 s popiskem „In-engine capture“. Portréty pilotů (`pilots.webp`) jsou rendery skutečných modelů s jejich zbraněmi. Původ obrázků popisuje `website/DESIGN.md`.
+  - Záběr Meridianu míří k prstencové planetě (na západ, ~32° nad obzorem), protože ta je hlavním poznávacím znakem arény.
+
 **Zbývající slabiny.**
 - Přebíjení a výstřel mají společné časování. Jejich pohyb ze sedmé vlny posoudil jen člověk ve Feel Lab, ne sonda.
-- Řetěz hybnosti, rána do štítu a odpalovací rampa nemají vlastní revizní záběr `fx-*`.
+- Řetěz hybnosti a rána do štítu se odehrávají ve visoru a ve zbrani z první osoby, takže sonda je nezachytí.
 - Kopce Kordilery jsou hladké. Paluba Meridianu je prostá plocha.
 - Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
-- Herní texty mohou Hordu dál nazývat „nakažení“. Kanystr lékárničky je z boku hladký.
 - Hra s boty, měření snímkové frekvence v nativním přehrávači a spuštění Windows buildu chybí.

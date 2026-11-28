@@ -16,6 +16,7 @@ namespace Trias.Native
         internal readonly Material WeaponCeramic, WeaponGraphite, WeaponAlloy;
         internal readonly Material[] Team = new Material[3];
         internal readonly Material[] TeamLight = new Material[3];
+        static BlenderParts launchPadParts;
         internal readonly Transform[] Pickups, Zones, Flags, Cores, CoreShield, Turrets;
         internal readonly LineRenderer[] Links;
         internal readonly Transform DefendedCore;
@@ -195,8 +196,21 @@ namespace Trias.Native
             }
             if (IsRelayArt) BuildRelayContacts();
             var gold = MaterialAt("#ffae62", true);
+            launchPadParts ??= new BlenderParts("TRIAS/LaunchPad/LaunchPad");
             foreach (var pad in Spec.launchPads)
             {
+                // Authored accelerator (segmented ceramic collar, coils, gold emitter); the outer gold ring
+                // stays as the long-range signal. Visual only: the server owns the trigger.
+                if (launchPadParts.Has("LaunchPad"))
+                {
+                    var mount = Group(Root, "Launch pad", pad.Position);
+                    launchPadParts.Bind("LaunchPad", mount, slot => slot switch
+                    {
+                        "Ceramic" => Porcelain, "Alloy" => Hardware, "Glow" => gold, _ => Graphite,
+                    }, false);
+                    Ring(Root, pad.Position + Vector3.up * 0.04f, 0.935f, gold, 0.03f);
+                    continue;
+                }
                 Part(Root, Dark, pad.Position + Vector3.up * 0.035f, new Vector3(1.85f, 0.04f, 1.85f), PrimitiveType.Cylinder);
                 Ring(Root, pad.Position + Vector3.up * 0.083f, 0.92f, gold, 0.055f);
                 Ring(Root, pad.Position + Vector3.up * 0.087f, 0.55f, gold);

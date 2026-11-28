@@ -30,7 +30,17 @@ namespace Trias.Native
             internal float EventAge;
             // "equip" or "land": renders the first-person timeline through WeaponHandling.Grip at fixed times.
             internal string Motion;
+            // Weapon the review pilots hold (pulse by default).
+            internal string PilotWeapon;
         }
+
+        // Website portrait: one pilot on the Relay transfer deck, chest-high camera, signature weapon.
+        static Shot Portrait(string kit, int team, string weapon) => new Shot
+        {
+            Key = "portrait-" + kit, Arena = "relay", Weaponless = true, Fov = 30, PilotWeapon = weapon,
+            Eye = P(.55f, 8.3f, -14.6f), Aim = P(-.3f, 7.82f, -11f),
+            Pilots = new[] { (kit, team, P(-.3f, 6.6f, -11f), 197f) },
+        };
 
         static readonly float[] EquipFrames = { 0, .06f, .12f, .18f, .24f, .32f, .45f, .7f };
         static readonly float[] LandFrames = { 0, .03f, .06f, .1f, .16f, .26f, .4f };
@@ -105,6 +115,21 @@ namespace Trias.Native
             new Shot { Key = "motion-rift-equip", Arena = "relay", Weapon = "rift", Motion = "equip", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
             new Shot { Key = "motion-scatter-land", Arena = "relay", Weapon = "scatter", Motion = "land", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
             new Shot { Key = "motion-lance-land", Arena = "relay", Weapon = "lance", Motion = "land", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
+            // Launch pad at rest and firing; the eye stands two metres off the first pad.
+            new Shot { Key = "relay-launchpad", Arena = "relay", Weaponless = true, Fov = 50,
+                Eye = w => w.Spec.launchPads[0].Position + new Vector3(2.1f, 1.5f, -2.1f), Aim = w => w.Spec.launchPads[0].Position + Vector3.up * .2f },
+            new Shot { Key = "fx-launch", Arena = "relay", Weaponless = true, Fov = 50, EventAge = .18f,
+                Eye = w => w.Spec.launchPads[0].Position + new Vector3(2.1f, 1.5f, -2.1f), Aim = w => w.Spec.launchPads[0].Position + Vector3.up * .5f,
+                Event = (fx, w) =>
+                {
+                    var at = w.Spec.launchPads[0].Position;
+                    fx.SurfacePulse(at + Vector3.up * .12f, new Color(1f, .68f, .38f), true, 1, false);
+                    fx.Motion(at, w.TeamLight[0].color, MotionCue.Launch, false, 1, 0);
+                } },
+            Portrait("vector", 0, "pulse"), Portrait("bulwark", 1, "scatter"), Portrait("wraith", 2, "lance"), Portrait("kestrel", 0, "arc"),
+            // Meridian towards its ringed planet (west, about 32 degrees up), so the gallery keeps its landmark.
+            new Shot { Key = "site-meridian", Arena = "basin", Weapon = "lance", Fov = 75, Eye = P(14, 1.58f, -4), Aim = P(-13.6f, 11.2f, -15.4f) },
+            new Shot { Key = "site-meridian-b", Arena = "basin", Weapon = "lance", Fov = 75, Eye = P(20, 1.58f, 8), Aim = P(-8, 10.5f, -3) },
             new Shot { Key = "kordilera-crossing", Arena = "island", Mode = "ctf", Eye = G(27.5f, 11.3f, 1.58f), Aim = G(23.4f, 6.6f, .68f) },
         };
 
@@ -218,7 +243,7 @@ namespace Trias.Native
                         world.Kit.Pilot(root, pilot.Kit, world.TeamLight[pilot.Team], pilot.Team, pilot.Kit == "vector" || pilot.Kit == "bulwark", out var rig);
                         var gun = TriasWorld.Group(root, "Pulse", new Vector3(.17f, 1.36f, .34f));
                         gun.localScale = Vector3.one * .9f;
-                        TriasModels.Gun(world, gun, "pulse", world.TeamLight[pilot.Team]);
+                        TriasModels.Gun(world, gun, shot.PilotWeapon ?? "pulse", world.TeamLight[pilot.Team]);
                         if (rig != null && rig["idle"] != null) { var s = rig["idle"]; s.enabled = true; s.weight = 1; s.time = .4f; rig.Sample(); s.enabled = false; }
                         props.Add(root.gameObject);
                     }
