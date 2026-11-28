@@ -273,9 +273,15 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - **Web:** galerie arén má nové záběry z enginu bez HUD v rozlišení 1280×720 s popiskem „In-engine capture“. Portréty pilotů (`pilots.webp`) jsou rendery skutečných modelů s jejich zbraněmi. Původ obrázků popisuje `website/DESIGN.md`.
   - Záběr Meridianu míří k prstencové planetě (na západ, ~32° nad obzorem), protože ta je hlavním poznávacím znakem arény.
 
+**Devátá vlna (cíle a terén Kordilery).** Záběry jsou v `output/beyond/` (`s-obj*` a `t-*`, k tomu srovnání v odstínech šedi).
+- **Bod nadvlády** byl 30 cm vysoký terminál s kostkou, který u schodů zanikal. Teď nese štíhlý reléový stožár (`tools/blender/build-objectives.py`, FBX `TRIAS/Objectives`) s grafitovým stěžněm, třemi keramickými žebry a kolébkou. Fázová čočka v barvě vlastníka se vznáší ve 2,35 m a je vidět přes arénu. Stožár je mnohem užší než pilot, takže nepůsobí jako kryt. Původní nízký terminál zůstává jako záloha.
+- **Terén Kordilery:** svahy obrácené k nízkému slunci jsou sušší a slámové, závětrné svěží a tmavší. Velké nepravidelné skvrny z nízkofrekvenčního vzorku přidávají krajině proměnlivost a narušují pravidelné sinusové louky.
+  - První síla změny (zesvětlení 0,5) byla vidět jen v barvě. Přijatá síla (0,72 se ztmavením závětří na 0,74) mění i hodnotu, takže se tvary kopců oddělí i v šedi. Dřívější výškový gradient trávy se zamítl, protože v šedi nic neměnil.
+- **Vlajka CTF** je čitelná a zůstala beze změny.
+
 **Zbývající slabiny.**
 - Přebíjení a výstřel mají společné časování. Jejich pohyb ze sedmé vlny posoudil jen člověk ve Feel Lab, ne sonda.
 - Řetěz hybnosti a rána do štítu se odehrávají ve visoru a ve zbrani z první osoby, takže sonda je nezachytí.
-- Kopce Kordilery jsou hladké. Paluba Meridianu je prostá plocha.
+- Kopce Kordilery mají tvarově hladkou geometrii (barevně už ne). Paluba Meridianu je prostá plocha. Prapor vlajky CTF je složený z kvádrů.
 - Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
 - Hra s boty, měření snímkové frekvence v nativním přehrávači a spuštění Windows buildu chybí.
