@@ -34,6 +34,13 @@ namespace Trias.Native
         readonly KillEntry[] killFeed = new KillEntry[3];
         int killFeedCount;
 
+        // Non-weapon causes in the visor's language. The Horde are malfunctioning service robots.
+        static string CauseLabel(string key) => key switch
+        {
+            "fall" => "Pád", "plasma" => "Plazma", "claw" => "Úder robota", "spore" => "Výstřik chladiva", "rubble" => "Troska",
+            _ => null,
+        };
+
         void AddKill(string attacker, string victim, string key, int team, float now)
         {
             for (int i = killFeed.Length - 1; i > 0; i--) killFeed[i] = killFeed[i - 1];

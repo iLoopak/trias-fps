@@ -35,8 +35,14 @@ round_band("Upper ceramic sleeve", [(.07, .132, .132, 0), (.18, .132, .132, 0)],
 round_band("Medium window", [(-.075, .112, .112, 0), (.075, .112, .112, 0)], "Glow", 24)
 for y in (-.072, .072):
     round_band("Window ring", [(y - .008, .142, .142, 0), (y + .008, .142, .142, 0)], "Alloy")
-panel("Cross bar", 0, .125, .137, .10, .026, .012, "Glow", 0, .002)
-panel("Cross stem", 0, .125, .137, .026, .10, .012, "Glow", 0, .002)
+# The medic cross repeats on all four faces so the canister reads from any approach, and four
+# alloy clamp ribs tie the caps across the sleeves.
+for k in range(4):
+    a = k * math.tau / 4
+    plate("Cross bar", turned([(-.05, .112, .137), (.05, .112, .137), (.05, .138, .137), (-.05, .112 + .026, .137)], a), 0, .012, "Glow", .002)
+    plate("Cross stem", turned([(-.013, .075, .137), (.013, .075, .137), (.013, .175, .137), (-.013, .175, .137)], a), 0, .012, "Glow", .002)
+    rib = [(-.012, -.17, .142), (.012, -.17, .142), (.012, .17, .142), (-.012, .17, .142)]
+    plate("Clamp rib", turned(rib, a + math.tau / 8), 0, .016, "Alloy", .003)
 round_band("Carry handle", [(.27, .04, .04, 0), (.31, .05, .05, 0), (.33, .03, .03, 0)], "Alloy", 16)
 
 art.group = "Shield"

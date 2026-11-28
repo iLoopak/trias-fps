@@ -60,6 +60,14 @@ for side in (-1,1):
 panel("Sternum key slot",0,.031,.151,.024,.115,.023,"Alloy",bevel=.004)
 panel("Abdominal team stripe",0,-.180,.135,.238,.052,.025,"Faction",bevel=.005)
 panel("Harness release",0,-.192,.150,.049,.048,.023,"Amber",bevel=.005)
+# Gorget: padded collar and a ceramic collar plate rising at the back, so the helmet sits on the
+# shoulders rather than on a thin neck (the website portrait review exposed the gap).
+band("Padded gorget",(0,0,-.012),[(.150,.112,.090,0),(.205,.098,.084,-.004),(.262,.074,.068,-.010)],"Fabric",18)
+plate("Collar plate",[(-.060,.170,.020),(.060,.170,.020),(.098,.205,-.040),(.090,.262,-.085),
+    (-.090,.262,-.085),(-.098,.205,-.040)][::-1],0,.020,"Ceramic",.006)
+for side in (-1,1):
+    pts=[(.070,.168,.040),(.112,.178,-.010),(.104,.232,-.040),(.074,.226,.020)][::-1]
+    plate("Collar side plate",[(side*x,y,z) for x,y,z in (pts if side==1 else list(reversed(pts)))],0,.018,"Graphite",.005)
 # Abdominal armour closes the gap to the belt; the rig's longer adult spine exposed it.
 band("Abdominal flex layer",(0,-.30,0),[(-.075,.118,.092,.006),(-.02,.128,.098,.008),(.045,.118,.094,.004)],"Fabric",16)
 for i,y in enumerate((-.262,-.318)):

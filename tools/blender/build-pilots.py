@@ -113,6 +113,15 @@ def torso(role, scale):
         panel("Vertical core interface",0,.003,-.187,.046,.183,.044,"Alloy",bevel=.007)
         panel("Aperture marker",0,.032,-.220,.019,.102,.008,"Signal",bevel=.002)
     panel("Lower faction band",0,-.196,.134,.218*scale,.041,.031,"Faction",bevel=.005)
+    # Gorget: a padded collar and a ceramic collar plate, higher at the back, so the helmet sits on
+    # the shoulders instead of floating on a thin neck (portrait review exposed the gap).
+    band("Padded gorget",(0,0,-.012),[(.150,.112*scale,.090,0),(.205,.098*scale,.084,-.004),
+        (.262,.074,.068,-.010)],"Fabric",18)
+    face("Collar plate",[(-.060,.170,.020),(.060,.170,.020),(.098,.205,-.040),(.090,.262,-.085),
+        (-.090,.262,-.085),(-.098,.205,-.040)],0,.020,"Graphite" if role=="Wraith" else "Ceramic",.006)
+    for side in (-1,1):
+        face("Collar side plate",[(.070,.168,.040),(.112,.178,-.010),(.104,.232,-.040),(.074,.226,.020)],0,.018,
+             "Graphite",.005,side)
     # Abdominal armour closes the gap to the belt; the rig's longer adult spine exposed it.
     band("Abdominal flex layer",(0,-.30,0),[(-.075,.118*scale,.092,.006),(-.02,.128*scale,.098,.008),
         (.045,.118*scale,.094,.004)],"Fabric",16)
