@@ -311,9 +311,11 @@ namespace Trias.Native
                 if (Input.GetKey(KeyCode.Space)) bits |= 1 << 2;
                 if (!predictedFire && !building && Input.GetMouseButton(0)) bits |= 1 << 3;
             }
+            float horizontal = Playing ? -Input.GetAxisRaw("Horizontal") : 0, vertical = Playing ? Input.GetAxisRaw("Vertical") : 0;
+            Autopilot(ref bits, ref horizontal, ref vertical);
             var command = new Command {
-                Seq = sequence + 1, Bits = bits, Horizontal = Playing ? -Input.GetAxisRaw("Horizontal") : 0,
-                Vertical = Playing ? Input.GetAxisRaw("Vertical") : 0,
+                Seq = sequence + 1, Bits = bits, Horizontal = horizontal,
+                Vertical = vertical,
                 Yaw = Mathf.Round(WebYaw * 1000) * .001f, Pitch = Mathf.Round(WebPitch * 1000) * .001f,
                 Weapon = Playing ? requestedWeapon : null,
             };
