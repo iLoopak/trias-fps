@@ -14,8 +14,30 @@ art.MATERIALS.update({
     "Moss": ((.26,.34,.17),0,.90), "Bark": ((.19,.12,.065),0,.88),
     "Leaf": ((.17,.29,.135),0,.85), "YoungLeaf": ((.30,.42,.18),0,.8),
     "Wood": ((.43,.30,.15),0,.78), "Refractory": ((.42,.275,.21),0,.87), "Heat": ((.80,.22,.036),0,.48),
+    "Mineral": ((.55,.40,.30),0,.55),
 })
 art.reset()
+
+
+def box(name, x, y, z, width, height, depth, finish, bevel=.006):
+    """A true rectangular block (panel() chamfers its corners)."""
+    w,h=width/2,height/2
+    art.plate(name,[(x-w,y-h,None),(x+w,y-h,None),(x+w,y+h,None),(x-w,y+h,None)],z+depth/2,depth,finish,bevel)
+
+
+def frame(top_finish):
+    """Corner columns, side ties and a full-footprint top deck. Unity fits each prop's bounds to its
+    gameplay box, so the frame makes the whole box visible: the top a pilot can stand on and the
+    corners that block movement."""
+    for sx in (-1,1):
+        for sz in (-1,1):
+            box("Frame column",sx*.475,0,sz*.475,.05,1,.05,"Graphite",.004)
+    for side in (-1,1):
+        box("Frame tie",0,-.08,side*.482,.9,.035,.036,"Graphite",.003)
+        box("Frame tie",side*.482,-.08,0,.036,.035,.9,"Graphite",.003)
+    box("Top deck",0,.48,0,1,.04,1,top_finish,.004)
+    for side in (-1,1):
+        box("Deck edge",0,.455,side*.485,1,.03,.03,"Amber",.002)
 
 
 def shingle(name, seed, width=1.0, outcrop=False):
@@ -58,7 +80,21 @@ def shingle(name, seed, width=1.0, outcrop=False):
 
 for name,seed,width in (("Granite",379,.89),("Shelves",41,1.26),("SplitRock",44,.99)):
     shingle(name,seed,width)
-shingle("Ore",805,1.14,True)
+
+
+# Meridian extracts: ore leaves the quarry as sawn blocks, not loose boulders. The block fills its
+# gameplay box (a rounded outcrop left most of the box top and corners invisible), the anomalous
+# mineral runs through it as a seam and a sawn cap, and drill bores mark the faces.
+art.group="Ore"
+box("Sawn ore block",0,-.06,0,1,.88,1,"DarkStone",.018)
+box("Sawn mineral cap",0,.44,0,.985,.12,.985,"Mineral",.012)
+box("Ore seam",0,.04,0,1.006,.14,1.006,"Mineral",.006)
+box("Lower bed",0,-.36,0,1.004,.06,1.004,"DryStone",.006)
+for i in range(6):
+    box("Drill bore",-.4+i*.16,-.18,.5,.016,.34,.012,"Graphite",.002)
+    box("Drill bore",.5,-.18,-.4+i*.16,.012,.34,.016,"Graphite",.002)
+for side in (-1,1):
+    box("Lifting strap",side*.3,-.06,0,.05,.885,1.006,"Alloy",.003)
 
 art.group="Spruce"
 band("Branching spruce trunk",(0,0,0),[(-.5,.072,.062,0),(-.2,.051,.056,0),(.21,.033,.031,0),(.49,.009,.009,0)],"Bark",10)
@@ -105,12 +141,14 @@ for i in range(3):
     band("Refractory baffle",(0,y,0),[(-.08,.40,.41,0),(-.043,.467,.47,0),(.039,.451,.455,0),(.074,.41,.42,0)],"Secondary",12,.77)
     panel("Furnace seam",0,y+.045,.459,.51,.027,.014,"Heat",bevel=.002)
 panel("Ceramic heat shield",0,-.294,.456,.68,.217,.132,"Ceramic",bevel=.026)
+frame("Alloy")
 
 art.group="Slag"
 band("Cooling bed assembly",(0,0,0),[(-.48,.49,.47,0),(-.22,.46,.50,0),(.28,.438,.46,0),(.47,.372,.446,0)],"Alloy",10,.58)
 for i in range(5):
     panel("Vent slot",(i-2)*.143,.101,.461,.076,.274,.086,"Graphite",.20,.012)
 panel("Temperature lockout",.034,-.142,.497,.419,.068,.017,"Heat",-.16,.008)
+frame("Graphite")
 
 def ribs(label, left, count, spacing, height, face, finish):
     for i in range(count):

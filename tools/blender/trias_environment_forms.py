@@ -311,6 +311,12 @@ def machine(style, detail):
             block("Double vane crown",0,1.54,0,1.15,.19,.68,"Alloy",.151,.012 if detail else 0)
         elif style=="Distribution":
             block("Service isolator bus",-.07,.66,.66,1.23,.12,.27,"Alloy",.075)
+            # Meridian's central plinth stands in a square gameplay box: a full-footprint service deck on
+            # corner posts makes its whole top and corners visible (the cap alone left most of it in air).
+            block("Distribution service deck",0,1.56,.055,2.27,.10,1.48,"Alloy",.03,.01 if detail else 0)
+            for sx in (-1,1):
+                for sz in (-1,1):
+                    block("Deck post",sx*1.08,.2,.055+sz*.685,.11,1.36,.11,"Graphite",.02)
         elif style=="Conduit":
             beam("Elbow return",(.42,.39,.63),(.96,.83,.61),.30,.29,"Alloy",10)
         elif style=="Control":

@@ -151,6 +151,22 @@ namespace Trias.Native
             new Shot { Key = "floor-vanta", Arena = "foundry", Weapon = "arc", Eye = P(-12, 1.58f, -25), Aim = P(-9.5f, 0, -20.5f) },
             new Shot { Key = "floor-vanta-open", Arena = "foundry", Weapon = "arc", Eye = P(14, 1.58f, -24), Aim = P(4, -.2f, -10) },
             new Shot { Key = "floor-meridian", Arena = "basin", Weapon = "lance", Eye = P(-8, 1.58f, -16), Aim = P(-6, 0, -11.5f) },
+            // Props whose visuals must fill their gameplay box (kiln and slag frames, sawn ore, plinth deck).
+            new Shot { Key = "prop-kiln", Arena = "foundry", Weapon = "arc", Eye = P(.5f, 1.58f, 24), Aim = P(-1, 1.4f, 31.5f) },
+            new Shot { Key = "prop-kiln-top", Arena = "foundry", Weaponless = true, Fov = 55, Eye = P(-.5f, 6.2f, 24.5f), Aim = P(-3, 2.6f, 31.5f) },
+            new Shot { Key = "prop-ore", Arena = "basin", Weaponless = true, Fov = 60, Eye = P(36, 9, -18), Aim = P(47, 1.2f, -28.5f) },
+            new Shot { Key = "prop-plinth", Arena = "basin", Weapon = "lance", Eye = P(-6.5f, 1.58f, -8.5f), Aim = P(0, 1.9f, 0) },
+            // Near-field weapon recognition: each instrument at the same resting pose, cool and warm light.
+            new Shot { Key = "weapon-relay-pulse", Arena = "relay", Weapon = "pulse", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 2.2f, -9f) },
+            new Shot { Key = "weapon-relay-scatter", Arena = "relay", Weapon = "scatter", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 2.2f, -9f) },
+            new Shot { Key = "weapon-relay-lance", Arena = "relay", Weapon = "lance", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 2.2f, -9f) },
+            new Shot { Key = "weapon-relay-arc", Arena = "relay", Weapon = "arc", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 2.2f, -9f) },
+            new Shot { Key = "weapon-relay-rift", Arena = "relay", Weapon = "rift", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 2.2f, -9f) },
+            new Shot { Key = "weapon-vanta-pulse", Arena = "foundry", Weapon = "pulse", Eye = P(1.5f, 1.58f, -9.5f), Aim = P(-1.5f, .8f, -2) },
+            new Shot { Key = "weapon-vanta-scatter", Arena = "foundry", Weapon = "scatter", Eye = P(1.5f, 1.58f, -9.5f), Aim = P(-1.5f, .8f, -2) },
+            new Shot { Key = "weapon-vanta-lance", Arena = "foundry", Weapon = "lance", Eye = P(1.5f, 1.58f, -9.5f), Aim = P(-1.5f, .8f, -2) },
+            new Shot { Key = "weapon-vanta-arc", Arena = "foundry", Weapon = "arc", Eye = P(1.5f, 1.58f, -9.5f), Aim = P(-1.5f, .8f, -2) },
+            new Shot { Key = "weapon-vanta-rift", Arena = "foundry", Weapon = "rift", Eye = P(1.5f, 1.58f, -9.5f), Aim = P(-1.5f, .8f, -2) },
             new Shot { Key = "kordilera-crossing", Arena = "island", Mode = "ctf", Eye = G(27.5f, 11.3f, 1.58f), Aim = G(23.4f, 6.6f, .68f) },
         };
 
@@ -242,7 +258,9 @@ namespace Trias.Native
                     {
                         if (!r.enabled || !r.gameObject.activeInHierarchy || r.transform.IsChildOf(world.Actors)) continue;
                         var filter = r.GetComponent<MeshFilter>();
-                        if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable) continue;
+                        // Non-readable imports (MapProps) still keep their CPU data in the Editor, where this probe runs;
+                        // skipping them flagged every map prop's whole box as invisible.
+                        if (filter == null || filter.sharedMesh == null || (!Application.isEditor && !filter.sharedMesh.isReadable)) continue;
                         var proxy = new GameObject("Visual proxy") { layer = VisualLayer };
                         proxy.transform.SetParent(r.transform, false);
                         proxy.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
@@ -251,11 +269,17 @@ namespace Trias.Native
                     Physics.SyncTransforms();
                     int gameplay = TriasWorld.TerrainMask & ~(1 << VisualLayer);
                     var flagged = new Dictionary<Collider, (int Count, Vector3 At)>();
+                    var gaps = new Dictionary<Collider, (float Sum, int Count)>();
                     void Check(Ray ray, float distance)
                     {
                         if (!Physics.Raycast(ray, out var hit, distance, gameplay, QueryTriggerInteraction.Ignore)) return;
                         if (Physics.Raycast(ray, out var seen, hit.distance + .15f, 1 << VisualLayer, QueryTriggerInteraction.Ignore)) return;
                         flagged[hit.collider] = flagged.TryGetValue(hit.collider, out var f) ? (f.Count + 1, f.At) : (1, hit.point);
+                        // How far below (or behind) the gameplay surface the visible one is: centimetres read
+                        // as a fitting error, metres as a missing surface.
+                        float gap = Physics.Raycast(ray, out var below, distance, 1 << VisualLayer, QueryTriggerInteraction.Ignore)
+                            ? Mathf.Min(below.distance - hit.distance, 5) : 5;
+                        gaps[hit.collider] = gaps.TryGetValue(hit.collider, out var g) ? (g.Sum + gap, g.Count + 1) : (gap, 1);
                     }
                     float extent = world.Spec.length > 0 ? world.Spec.length : 40;
                     var directions = new[] { Vector3.forward, Vector3.back, Vector3.right, Vector3.left };
@@ -273,7 +297,8 @@ namespace Trias.Native
                     foreach (var pair in flagged.OrderByDescending(p => p.Value.Count))
                     {
                         string path = pair.Key.name; for (var t = pair.Key.transform.parent; t != null && path.Length < 140; t = t.parent) path = t.name + "/" + path;
-                        log.Add($"  invisible-hit {first.Arena} hits={pair.Value.Count} at={pair.Value.At:F2} {path} bounds={pair.Key.bounds.center:F2}/{pair.Key.bounds.size:F2}");
+                        float meanGap = gaps.TryGetValue(pair.Key, out var gp) ? gp.Sum / gp.Count : 0;
+                        log.Add($"  invisible-hit {first.Arena} hits={pair.Value.Count} gap_m={meanGap:F2} at={pair.Value.At:F2} {path} bounds={pair.Key.bounds.center:F2}/{pair.Key.bounds.size:F2}");
                     }
                 }
                 Tune();
@@ -404,7 +429,9 @@ namespace Trias.Native
                         {
                             if (!r.enabled || !r.gameObject.activeInHierarchy) continue;
                             var filter = r.GetComponent<MeshFilter>();
-                            if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable) continue;
+                            // Non-readable imports (MapProps) still keep their CPU data in the Editor, where this probe runs;
+                        // skipping them flagged every map prop's whole box as invisible.
+                        if (filter == null || filter.sharedMesh == null || (!Application.isEditor && !filter.sharedMesh.isReadable)) continue;
                             var proxy = new GameObject("Visual proxy") { layer = 31 };
                             proxy.transform.SetParent(r.transform, false);
                             proxy.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;

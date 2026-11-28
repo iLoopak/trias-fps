@@ -2034,12 +2034,12 @@
                 ],
                 [
                   1.135,
-                  1.58,
+                  1.66,
                   0.795
                 ]
               ],
-              "triangles": 708,
-              "vertices": 380,
+              "triangles": 912,
+              "vertices": 492,
               "slots": [
                 "Graphite",
                 "Ceramic",
@@ -2047,7 +2047,7 @@
                 "Secondary",
                 "Amber"
               ],
-              "authoredShells": 13
+              "authoredShells": 18
             },
             {
               "mount": "MachineDistribution_LOD1",
@@ -2059,19 +2059,19 @@
                 ],
                 [
                   1.135,
-                  1.58,
+                  1.66,
                   0.795
                 ]
               ],
-              "triangles": 360,
-              "vertices": 204,
+              "triangles": 500,
+              "vertices": 284,
               "slots": [
                 "Graphite",
                 "Ceramic",
                 "Alloy",
                 "Secondary"
               ],
-              "authoredShells": 12
+              "authoredShells": 17
             }
           ]
         },
@@ -2464,7 +2464,7 @@
           ]
         }
       ],
-      "fbxSha256": "2901587efb850238d4227d4c87856e5ade008a59dcd4c16c29956601497fecec"
+      "fbxSha256": "30c1c14b5c059ba3a4ef92242aa88ab68511d0edd23dc12f505e31d183853307"
     },
     "Nature": {
       "assets": [

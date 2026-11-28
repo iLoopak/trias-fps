@@ -195,13 +195,19 @@ def scatter():
     # Wrap-around shield: a heavy roof in two pieces and full-height cheeks.
     slab("Breach shield roof",[(-.160,.070),(-.150,.104),(.040,.112),(.040,.070)],0,.066,"Ceramic",.014,.004)
     slab("Breach shield brow",[(.058,.070),(.058,.114),(.228,.104),(.252,.070)],0,.068,"Ceramic",.014,.004)
-    slab("Shield phase contact",[(.044,.072),(.044,.100),(.054,.100),(.054,.072)],0,.044,"ScatterGlow",.001,0)
+    # The single phase gap fills the roof split edge to edge just under the ceramic, so the shooter
+    # sees one hot orange break across a wall of ivory (Pulse shows three cyan beats along a spine).
+    slab("Shield phase contact",[(.040,.072),(.040,.107),(.058,.107),(.058,.072)],0,.061,"ScatterGlow",.001,0)
     for side in (-1,1):
         slab("Shield cheek",[(.060,-.060),(.060,.068),(.226,.066),(.246,.020),(.240,-.066)],side*.060,.009,"Ceramic",.004,.002)
         for i in range(3):
             rail("Cheek bolt",side*.071,.020-i*.034,.214,.226,.006,.008,"Alloy")
         rail("Hazard latch band",side*.058,-.040,-.040,.000,.006,.012,"Amber")
-    rail("Top carry rib",0,.118,-.120,.010,.012,.010,"Graphite")
+    # Transverse heat fins across the rear roof instead of a lengthwise rib: a heavy, ribbed top that
+    # no other instrument has. A lengthwise black rib read like Pulse's sight line from the eye.
+    for i,z in enumerate((-.128,-.090,-.052,-.014)):
+        top=.104+(z+.150)*.042
+        rail("Roof heat fin",0,top+.002,z,z+.013,.060,.0055,"Graphite")
     part(k,"Chamber")
     for y in (.036,-.036):
         tube("Over-under barrel",0,y,-.230,.090,.031,.72,"Alloy",24)
