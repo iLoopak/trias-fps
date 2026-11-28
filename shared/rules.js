@@ -375,10 +375,33 @@ const islandSites = [
   const site = { ...box, x, z, w: box.w * spread, d: box.d * spread, ground, bottom: Math.max(0, ground - 1.3), h: ground + box.h };
   return site.nature === 'rock' ? { ...site, stone: rockStone(site) } : site;
 });
-const islandScenery = packCover(islandSites.filter(site => site.nature === 'rock'));
-const islandRockSteps = islandScenery.map(rock => packCover(rockSteps(rock)));
+// Trunk cross-section of each Kordilera tree form, sampled from the Unity kit (TRIAS_ART_TREES): the
+// rectangle (local x0, x1, z0, z1) that the bent trunk fills at every height from the ground to 1.75 m,
+// where it forks into the crown. Collision stops there; the crown is foliage, not a wall.
+const TREE_TRUNKS = {
+  TreeSentinel: [-0.13, 0.21, -0.08, 0.28],
+  TreeRidge: [0.04, 0.30, 0.04, 0.28],
+  TreeWindward: [-0.02, 0.26, 0.12, 0.36],
+};
+const TRUNK_HEIGHT = 1.75;
+
+// Same pick as the Unity client's EnvironmentVariant for trees.
+function treeSpecies(box) {
+  const x = Math.round(box.x * 17), z = Math.round(box.z * 23);
+  return ['TreeSentinel', 'TreeRidge', 'TreeWindward'][Math.abs((x ^ z) % 12) % 3];
+}
+
+function treeTrunk(tree) {
+  const [x0, x1, z0, z1] = TREE_TRUNKS[tree.species];
+  return { x: tree.x + (x0 + x1) / 2, z: tree.z + (z0 + z1) / 2, w: x1 - x0, d: z1 - z0, angle: 0,
+    bottom: tree.bottom, ground: tree.ground, h: tree.ground + TRUNK_HEIGHT, collider: true };
+}
+
+const islandScenery = packCover(islandSites.map(site => site.nature === 'tree' ? { ...site, species: treeSpecies(site) } : site));
+const islandRockScenery = islandScenery.filter(site => site.nature === 'rock');
+const islandRockSteps = islandRockScenery.map(rock => packCover(rockSteps(rock)));
 const islandCover = packCover([
-  ...islandSites.filter(site => site.nature !== 'rock'),
+  ...islandScenery.filter(site => site.nature === 'tree').map(treeTrunk),
   ...islandRockSteps.flat(),
 ]);
 // Each team's weapon rests on the centre of its rock's highest step that stands clear of the slope and

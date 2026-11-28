@@ -245,7 +245,10 @@ namespace Trias.Native
             edge.a = momentumPresentation;
             Fill(new Rect(atX, atY, 213, 53), new Color(Ink.r, Ink.g, Ink.b, Ink.a * momentumPresentation));
             Segments(new Rect(atX + 8, atY + 1, 180, 2), 3 + tier * 2, live ? left : 0, edge);
-            string labelFlow = live ? $"{FlowTiers[tier]}  ×{flow[2].Float:0.#}   {flow[1].Int}" : $"ŘETĚZEC  {flow[11].Int}";
+            string labelFlow = live
+                ? flowText.Of(tier, Mathf.RoundToInt(flow[2].Float * 10), flow[1].Int, null,
+                    static (t, tenths, count, _) => FlowTiers[t] + "  ×" + (tenths / 10f).ToString("0.#") + "   " + count)
+                : flowText.Of(-1, 0, flow[11].Int, null, static (_, _, chain, _) => "ŘETĚZEC  " + chain);
             var saved = GUI.color;
             GUI.color = new Color(1, 1, 1, momentumPresentation);
             hudText.Draw(new Rect(atX + 8, atY + 4, 179, 22), labelFlow, section);
@@ -253,6 +256,8 @@ namespace Trias.Native
             hudText.Draw(new Rect(atX + 8, atY + 26, 201, 23), FlowAction(flow[10][0].Text), caption);
             GUI.color = saved;
         }
+
+        readonly TextMemo flowText = new();
 
         static string FlowAction(string action) => action switch
         {

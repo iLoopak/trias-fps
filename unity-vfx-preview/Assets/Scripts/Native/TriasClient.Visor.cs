@@ -249,7 +249,7 @@ namespace Trias.Native
             if (now >= shieldReturnUntil) shieldReturnUntil = 0;
         }
 
-        readonly TextMemo healthText = new(), shieldText = new(), toolText = new(), countText = new();
+        readonly TextMemo healthText = new(), shieldText = new(), toolText = new(), countText = new(), altText = new();
 
         void PaintVitals(float w, float h)
         {
@@ -305,7 +305,7 @@ namespace Trias.Native
                 string action = profile.AltName ?? "Slug";
                 int cost = Mathf.Max(2, profile.AltCost);
                 HudStrip(new Rect(x, y - 24, 182, 20), ammo >= cost ? energy : Amber);
-                hudText.Draw(new Rect(x + 9, y - 24, 166, 20), $"F   {action.ToUpperInvariant()}   ·   {cost}", caption);
+                hudText.Draw(new Rect(x + 9, y - 24, 166, 20), altText.Of(cost, 0, 0, action, static (c, _, _, name) => "F   " + name.ToUpperInvariant() + "   ·   " + c), caption);
             }
             if (own[16].Int < 0) Segments(new Rect(x + 10, y + 51, 160, 3), 12, own[15].Int >= 0 ? heat : ammo / magazine,
                 own[15].Int < 0 && ammo <= Mathf.Max(1, magazine * .18f) ? Amber : energy);

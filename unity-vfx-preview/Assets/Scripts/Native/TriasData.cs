@@ -82,7 +82,7 @@ namespace Trias.Native
     {
         public float w, d, h, bottom, ground;
         public bool gantry, terrace, relay, strata, collider;
-        public string nature, profile, structure, stone;
+        public string nature, profile, structure, stone, species;
         internal bool Overlaps(float px, float pz, float radius)
         {
             if (structure == "stair") radius = Mathf.Min(radius,.16f);
