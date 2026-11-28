@@ -203,7 +203,7 @@ namespace Trias.Native
                 reloadCueProgress = reloadProgressShown;
             }
             else if (!reloading) reloadCueProgress = 0;
-            float motion = cameraMotion;
+            float motion = cleanView ? 0 : cameraMotion;
             if (predicted.Grounded && !driving && speed > .35f)
             {
                 strideDistance += dt * speed;
@@ -215,7 +215,7 @@ namespace Trias.Native
                 }
             }
             else strideDistance = 0;
-            float strideReach = predicted.Grounded ? Mathf.Min(speed * .0025f, .022f) * strideAmplitude : 0;
+            float strideReach = predicted.Grounded && !cleanView ? Mathf.Min(speed * .0025f, .022f) * strideAmplitude : 0;
             float stride = Mathf.Sin(stridePhase) * strideReach;
             Quaternion aim = Quaternion.Euler(pitch, yaw, 0);
             var change = Vector3.ClampMagnitude(predicted.Velocity - lastVelocity, 3);

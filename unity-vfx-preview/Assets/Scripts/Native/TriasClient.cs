@@ -536,7 +536,7 @@ namespace Trias.Native
             if (count > 0) commands.RemoveRange(0, count);
             if (own[6].Int > 0 && own[15].Int < 0 && own[16].Int < 0 && snapshot["winner"]["label"].Text == null)
                 foreach (var input in commands) predicted.Step(input, movement ?? world.Spec);
-            if (!spawn && !mountChange) predictedCorrection = Vector3.Distance(beforeCorrection, predicted.Position);
+            if (!spawn && !mountChange) { predictedCorrection = Vector3.Distance(beforeCorrection, predicted.Position); NoteCorrection(predictedCorrection); }
             if (previous != null)
             {
                 bool healthLost = own[6].Int < previous[6].Int;

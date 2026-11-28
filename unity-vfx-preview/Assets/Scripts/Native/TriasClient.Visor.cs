@@ -124,6 +124,7 @@ namespace Trias.Native
                 Vector3 screen = view.WorldToViewportPoint(reticleWorld);
                 if (screen.z > 0) centerPoint = new Vector2(screen.x * w, (1 - screen.y) * h);
             }
+            if (Event.current.type == EventType.Repaint) NoteReticle(centerPoint, w, h);
             PaintPilotIdentification(centerPoint);
             Color accent = Catalog.Tint(Catalog.Find(catalog.weapons, weaponName)?.color ?? "#daffff");
             accent = Color.Lerp(accent, Fault, dryPulse);
