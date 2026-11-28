@@ -181,22 +181,38 @@ namespace Trias.Native
             baseBatch.Mount(this,dock);
             flag.Marker=Group(Root,"Portable faction standard",at);
             flag.Standard=Group(flag.Marker,"Ceramic pennant");
-            var standard=new PlantBatch();
-            standard.Block(Graphite,Vector3.up*.83f,new Vector3(.074f,1.66f,.075f));
-            standard.Block(Hardware,Vector3.up*.45f,new Vector3(.14f,.22f,.14f));
-            standard.Block(Graphite,new Vector3(.32f,1.56f,.0f),new Vector3(.72f,.09f,.086f));
-            standard.Block(Porcelain,new Vector3(.32f,1.42f,0),new Vector3(.64f,.20f,.100f));
-            standard.Block(Team[team],new Vector3(.35f,1.16f,0),new Vector3(.60f,.38f,.084f));
-            standard.Block(Team[team],new Vector3(.45f,.94f,0),new Vector3(.43f,.16f,.080f),Quaternion.Euler(0,0,-13));
-            standard.Block(Graphite,new Vector3(.34f,1.02f,.001f),new Vector3(.53f,.065f,.093f));
-            standard.Block(TeamLight[team],new Vector3(.37f,1.50f,0),new Vector3(.48f,.033f,.105f));
-            standard.Mount(this,flag.Standard);
+            objectiveParts ??= new BlenderParts("TRIAS/Objectives/Objectives");
+            bool authored=objectiveParts.Has("FactionStandard");
+            if (authored)
+            {
+                // Authored standard: staff, grip, crossbar and a three-plate phase-separated pennant.
+                // The export mirrors x; the pennant is symmetric front to back, so a half turn puts it on +x.
+                var authoredStandard=Group(flag.Standard,"Faction standard");
+                authoredStandard.localRotation=Quaternion.Euler(0,180,0);
+                objectiveParts.Bind("FactionStandard",authoredStandard,slot => slot switch
+                {
+                    "Faction" => Team[team], "Glow" => TeamLight[team], "Ceramic" => Porcelain, "Alloy" => Hardware, _ => Graphite,
+                },true);
+            }
+            else
+            {
+                var standard=new PlantBatch();
+                standard.Block(Graphite,Vector3.up*.83f,new Vector3(.074f,1.66f,.075f));
+                standard.Block(Hardware,Vector3.up*.45f,new Vector3(.14f,.22f,.14f));
+                standard.Block(Graphite,new Vector3(.32f,1.56f,.0f),new Vector3(.72f,.09f,.086f));
+                standard.Block(Porcelain,new Vector3(.32f,1.42f,0),new Vector3(.64f,.20f,.100f));
+                standard.Block(Team[team],new Vector3(.35f,1.16f,0),new Vector3(.60f,.38f,.084f));
+                standard.Block(Team[team],new Vector3(.45f,.94f,0),new Vector3(.43f,.16f,.080f),Quaternion.Euler(0,0,-13));
+                standard.Block(Graphite,new Vector3(.34f,1.02f,.001f),new Vector3(.53f,.065f,.093f));
+                standard.Block(TeamLight[team],new Vector3(.37f,1.50f,0),new Vector3(.48f,.033f,.105f));
+                standard.Mount(this,flag.Standard);
+            }
             var stamp=TriasMarkings.Emblem(team);
             meshes.Add(stamp);
             for(int side=-1;side<=1;side+=2)
             {
                 var badge=TriasMarkings.Model(flag.Standard,"Faction crest",stamp,TeamLight[team],
-                    new Vector3(.35f,1.196f,side*.052f),Vector3.one*.186f,false);
+                    new Vector3(.35f,1.196f,side*(authored?.04f:.052f)),Vector3.one*.186f,false);
                 badge.localRotation=Quaternion.Euler(0,side==-1?180:0,0);
             }
             return flag.Marker;
