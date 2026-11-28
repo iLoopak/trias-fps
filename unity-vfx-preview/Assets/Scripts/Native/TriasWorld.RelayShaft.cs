@@ -98,6 +98,7 @@ namespace Trias.Native
                 else slab.GetComponent<Renderer>().enabled = false;
                 return;
             }
+            if (box.structure is "service" or "gallery") DressRelaySoffit(box, frame);
             switch (box.structure)
             {
                 case "service":

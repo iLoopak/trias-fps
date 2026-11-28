@@ -148,7 +148,7 @@ namespace Trias.Native
 
         void DressUtilityRoof(BoxSpec box, Transform frame, float height)
         {
-            string label = IsRelayArt ? "SERVICE / LOCK" : island ? "HORNI UTULNA" : Spec.id == "foundry" ? "QUENCH / WORKS" : "ORE / SURVEY";
+            string label = IsRelayArt ? "SERVICE / LOCK" : island ? "HORNÍ ÚTULNA" : Spec.id == "foundry" ? "QUENCH / WORKS" : "ORE / SURVEY";
             for (int side = -1; side <= 1; side += 2)
             {
                 Armor(frame,routeFrame,new Vector3(0,height*.72f,side*box.d*.5f),
@@ -161,8 +161,16 @@ namespace Trias.Native
                 for (int i = -2; i <= 2; i++)
                     Beam(frame,routeFrame,new Vector3(i*1.78f,-.21f,-box.d*.5f+.13f),
                         new Vector3(i*1.78f,-.21f,box.d*.5f-.13f),.17f);
+                // A turf roof ties the refuge to the meadow; a thin moss skin, not extra cover.
+                Part(frame,MapFinish("Moss"),new Vector3(0,height+.035f,0),new Vector3(box.w-.34f,.07f,box.d-.34f));
                 for (int side = -1; side <= 1; side += 2)
+                {
                     Part(frame,routeFrame,new Vector3(side*3.48f,height+.045f,0),new Vector3(.11f,.07f,box.d-.28f));
+                    // Rafter tails under the eaves at a 1.1 m pitch.
+                    for (int i = 0; i < 8; i++)
+                        Part(frame,routeFrame,new Vector3(-3.85f+i*1.1f,height*.3f,side*(box.d*.5f+.12f)),
+                            new Vector3(.13f,.16f,.3f));
+                }
             }
             else
             {
@@ -175,13 +183,19 @@ namespace Trias.Native
             var fascia = Group(frame,label,new Vector3(0,height*.47f,-box.d*.5f-.112f));
             var font = Resources.Load<Font>("TRIAS/Fonts/ChakraPetch-Bold");
             if (font == null) return;
+            if (island)
+            {
+                // A hand-cut board hangs from the fascia instead of free-floating letters.
+                Part(frame,routeFrame,new Vector3(0,height*.47f-.02f,-box.d*.5f-.07f),new Vector3(3.1f,.5f,.07f));
+                fascia.localPosition += new Vector3(0,-.02f,.0f);
+            }
             var sign = fascia.gameObject.AddComponent<TextMesh>();
             sign.font = font;
             sign.text = label;
             sign.anchor = TextAnchor.MiddleCenter;
             sign.alignment = TextAlignment.Center;
             sign.fontSize = 64;
-            sign.characterSize = .114f;
+            sign.characterSize = island ? .062f : .114f;
             sign.color = Catalog.Tint(island ? "#eee0bf" : "#f2cbac");
             fascia.GetComponent<MeshRenderer>().sharedMaterial = font.material;
         }
@@ -192,6 +206,11 @@ namespace Trias.Native
             float length = across ? box.w : box.d, thickness = across ? box.d : box.w;
             var panel = Group(frame,"Wall structure");
             if (!across) panel.localRotation = Quaternion.Euler(0,90,0);
+            if (island)
+            {
+                DressRefugeWall(panel,length,thickness,height);
+                return;
+            }
             for (int side = -1; side <= 1; side += 2)
             {
                 float face = side*(thickness*.5f+.027f);
@@ -204,6 +223,32 @@ namespace Trias.Native
                     Part(panel,routeFrame,new Vector3(x,height*.5f,face),new Vector3(.10f,height*.73f,.10f));
                 }
             }
+        }
+
+        // Kordilera's rangers' refuge: the collider stays the stone wall. Above a dry-stone plinth with a
+        // proud capping course the faces carry horizontal log courses of uneven depth, notched corner
+        // posts and one weathered replacement log, so the hut reads as built and maintained by hand.
+        void DressRefugeWall(Transform panel, float length, float thickness, float height)
+        {
+            float plinth = height - 1.92f;
+            var cap = MapFinish("DryStone");
+            Part(panel,cap,new Vector3(0,plinth,0),new Vector3(length+.1f,.13f,thickness+.14f));
+            float top = height + .02f;
+            int courses = Mathf.Max(1,Mathf.RoundToInt((top - plinth - .07f) / .31f));
+            float course = (top - plinth - .07f) / courses;
+            for (int side = -1; side <= 1; side += 2)
+            for (int i = 0; i < courses; i++)
+            {
+                float y = plinth + .07f + (i + .5f) * course;
+                // Logs alternate their protrusion and every fifth one is a darker, older member.
+                float proud = .055f + (i % 2) * .022f;
+                bool old = (i + (side > 0 ? 2 : 0)) % 5 == 3;
+                Part(panel,old ? routeFrame : routeTread,new Vector3((i % 2) * .05f * side,y,side*(thickness*.5f+proud*.5f)),
+                    new Vector3(length-.06f,course-.035f,proud));
+            }
+            for (int end = -1; end <= 1; end += 2)
+                Part(panel,routeFrame,new Vector3(end*(length*.5f-.09f),(plinth+top)*.5f,0),
+                    new Vector3(.2f,top-plinth,thickness+.2f));
         }
 
         void BuildMoltenSheet(HazardSpec hazard)

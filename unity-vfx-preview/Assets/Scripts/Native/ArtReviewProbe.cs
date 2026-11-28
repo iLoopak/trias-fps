@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Unity.Profiling;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -70,6 +71,7 @@ namespace Trias.Native
             new Shot { Key = "relay-deck", Arena = "relay", Weapon = "scatter", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 2.2f, -9f) },
             new Shot { Key = "vanta-approach", Arena = "foundry", Weapon = "arc", Eye = P(-10, 1.58f, -24.5f), Aim = P(-6, 1.5f, -16),
                 Pilots = new[] { ("bulwark", 0, P(-7.3f, 0, -15.8f), 200f) } },
+            new Shot { Key = "vanta-works", Arena = "foundry", Weapon = "scatter", Eye = P(5, 1.58f, -22), Aim = P(0, 7, 30) },
             new Shot { Key = "meridian-approach", Arena = "basin", Weapon = "lance", Eye = P(-8.8f, 1.58f, -37.4f), Aim = P(-5.3f, 1.4f, -31) },
             new Shot { Key = "kordilera-crossing", Arena = "island", Mode = "ctf", Eye = G(27.5f, 11.3f, 1.58f), Aim = G(23.4f, 6.6f, .68f) },
         };
@@ -192,8 +194,9 @@ namespace Trias.Native
                         world.Animate(40 + frame / 60f, 1, 0, eye, 1, 1, 40 + frame / 60f, 719);
                         yield return null;
                     }
-                    // TRIAS_ART_PICK=1 logs the nearest renderer (by bounds) under a 5x4 screen grid.
-                    if (Environment.GetEnvironmentVariable("TRIAS_ART_PICK") == "1")
+                    // TRIAS_ART_PICK=1 logs the nearest renderer (by bounds) under a 5x4 screen grid; =2 also admits large distant structures.
+                    string pickMode = Environment.GetEnvironmentVariable("TRIAS_ART_PICK");
+                    if (pickMode == "1" || pickMode == "2")
                     {
                         var all = FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None);
                         for (int gy = 0; gy < 4; gy++)
@@ -202,11 +205,11 @@ namespace Trias.Native
                             var ray = view.ViewportPointToRay(new Vector3(.1f + gx * .2f, .12f + gy * .25f, 0));
                             MeshRenderer best = null; float near = float.MaxValue;
                             foreach (var r in all)
-                                if (r.enabled && r.bounds.IntersectRay(ray, out var d) && d < near && d > .3f && (r.bounds.size.magnitude < 60 || gy == 0)) { near = d; best = r; }
+                                if (r.enabled && r.bounds.IntersectRay(ray, out var d) && d < near && d > .3f && (r.bounds.size.magnitude < 60 || gy == 0 || pickMode == "2")) { near = d; best = r; }
                             if (best != null)
                             {
                                 string path = best.name; for (var t = best.transform.parent; t != null && path.Length < 160; t = t.parent) path = t.name + "/" + path;
-                                log.Add($"  pick {shot.Key} ({gx},{gy}) d={near:F1} {path} mat={best.sharedMaterial?.name} scale={(best.sharedMaterial != null && best.sharedMaterial.HasProperty("_Scale") ? best.sharedMaterial.GetFloat("_Scale") : -1):F1} col={(best.sharedMaterial != null && best.sharedMaterial.HasProperty("_Color") ? ColorUtility.ToHtmlStringRGB(best.sharedMaterial.color) : "-")} mesh={(best.TryGetComponent<MeshFilter>(out var mf) && mf.sharedMesh != null ? mf.sharedMesh.name : "-")}");
+                                log.Add($"  pick {shot.Key} ({gx},{gy}) d={near:F1} {path} mat={best.sharedMaterial?.name} scale={(best.sharedMaterial != null && best.sharedMaterial.HasProperty("_Scale") ? best.sharedMaterial.GetFloat("_Scale") : -1):F1} col={(best.sharedMaterial != null && best.sharedMaterial.HasProperty("_Color") ? ColorUtility.ToHtmlStringRGB(best.sharedMaterial.color) : "-")} mesh={(best.TryGetComponent<MeshFilter>(out var mf) && mf.sharedMesh != null ? mf.sharedMesh.name : "-")} bounds={best.bounds.center:F1}/{best.bounds.size:F1}");
                             }
                         }
                     }
@@ -221,8 +224,38 @@ namespace Trias.Native
                     RenderTexture.active = null;
                     File.WriteAllBytes(Path.Combine(output, shot.Key + ".png"), image.EncodeToPNG());
                     Destroy(image);
+                    // TRIAS_ART_PERF=<frames> times repeated renders of the same view (editor CPU submission time of
+                    // Camera.Render including the visor composite; not GPU time) and reads the render counters.
+                    string perfFrames = Environment.GetEnvironmentVariable("TRIAS_ART_PERF");
+                    string perf = "";
+                    if (int.TryParse(perfFrames, out int frames) && frames > 0)
+                    {
+                        using var draws = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count");
+                        using var setPass = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
+                        using var triangles = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Triangles Count");
+                        bool wasEnabled = view.enabled;
+                        view.enabled = false;
+                        var times = new List<double>();
+                        long drawSum = 0, passSum = 0, triSum = 0; int counted = 0;
+                        for (int f = 0; f < frames + 10; f++)
+                        {
+                            var clock = System.Diagnostics.Stopwatch.StartNew();
+                            view.targetTexture = target;
+                            view.Render();
+                            view.targetTexture = null;
+                            double each = clock.Elapsed.TotalMilliseconds;
+                            yield return null;
+                            if (f < 10) continue;
+                            times.Add(each);
+                            if (draws.LastValue > 0) { drawSum += draws.LastValue; passSum += setPass.LastValue; triSum += triangles.LastValue; counted++; }
+                        }
+                        view.enabled = wasEnabled;
+                        times.Sort();
+                        perf = $" perf_median_ms={times[times.Count / 2]:F2} perf_p95_ms={times[(int)(times.Count * .95f)]:F2}" +
+                               (counted > 0 ? $" draws={drawSum / counted} setpass={passSum / counted} triangles={triSum / counted}" : " counters=unavailable");
+                    }
                     int renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None).Count(r => r.enabled && r.gameObject.activeInHierarchy);
-                    log.Add($"{shot.Key}: renderers={renderers} render_ms={ms:F1} source={VisorComposite.LastSourceFormat}");
+                    log.Add($"{shot.Key}: renderers={renderers} render_ms={ms:F1} source={VisorComposite.LastSourceFormat}{perf}");
                     foreach (var p in props) Destroy(p);
                     yield return null;
                 }

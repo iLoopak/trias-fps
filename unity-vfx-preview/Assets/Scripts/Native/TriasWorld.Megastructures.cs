@@ -15,6 +15,21 @@ namespace Trias.Native
         AudioSource plantAudio;
         Light forgeBounce;
         int lastPlantBurst = -1;
+        static BlenderParts megaParts;
+
+        // Distant Blender silhouettes (decor only, no collider). Authored at typical size in metres with the
+        // arena-facing side on local -z; returns false when the asset is unavailable so callers keep a fallback.
+        bool Megastructure(string key, Transform parent, Vector3 position, float yaw, float scale,
+            System.Func<string, Material> finish)
+        {
+            megaParts ??= new BlenderParts("TRIAS/Megastructures/Megastructures");
+            if (!megaParts.Has(key)) return false;
+            var mount = Group(parent, key, position);
+            mount.localRotation = Quaternion.Euler(0, yaw, 0);
+            mount.localScale = Vector3.one * scale;
+            megaParts.Bind(key, mount, finish, false);
+            return true;
+        }
 
         // A whole rigid assembly renders as one mesh per material, including its joints and rails.
         sealed class PlantBatch
@@ -224,21 +239,38 @@ namespace Trias.Native
 
             // The extrapolated axis of the quench line ends in a receiver behind the arena.
             var works=Group(industry,"Receiving works and transfer viaduct",new Vector3(0,0,64));
-            var campus=new PlantBatch();
-            campus.Block(iron,new Vector3(0,14,12),new Vector3(67,16,19));
-            campus.Block(refractory,new Vector3(0,21,17),new Vector3(57,9,16));
-            campus.Block(warmMetal,new Vector3(2,8,2),new Vector3(52,11,8));
-            for(int i=0;i<5;i++)
+            Material Works(string slot) => slot switch
             {
-                float x=(i-2)*14.4f;
-                float high=34+(i%3)*7;
-                campus.Block(iron,new Vector3(x,high*.5f,21),new Vector3(7,high,7));
-                campus.Block(refractory,new Vector3(x,high-1,21),new Vector3(9,5.4f,9));
-                campus.Block(plantSignal,new Vector3(x,22,10),new Vector3(.9f,3.2f,.21f));
+                "Shell" => refractory, "Trim" => warmMetal, "Signal" => plantSignal, "Heat" => plantHeat, _ => iron,
+            };
+            if (Megastructure("KilnHall",works,new Vector3(0,0,12),0,1,Works))
+            {
+                // Five refractory flues of three heights stand behind the hall at the old stack positions.
+                for(int i=0;i<5;i++)
+                    Megastructure("KilnStack",works,new Vector3((i-2)*14.4f,0,25+(i%2)*3),i*37,(34+(i%3)*7)/40f,Works);
+                var bridges=new PlantBatch();
+                bridges.Strut(iron,new Vector3(-34,29,25),new Vector3(-61,24,53),4.6f,4.2f);
+                bridges.Strut(iron,new Vector3(34,28,25),new Vector3(63,21,33),5.2f,4.6f);
+                bridges.Mount(this,works);
             }
-            campus.Strut(iron,new Vector3(-34,29,25),new Vector3(-61,24,53),4.6f,4.2f);
-            campus.Strut(iron,new Vector3(34,28,25),new Vector3(63,21,33),5.2f,4.6f);
-            campus.Mount(this,works);
+            else
+            {
+                var campus=new PlantBatch();
+                campus.Block(iron,new Vector3(0,14,12),new Vector3(67,16,19));
+                campus.Block(refractory,new Vector3(0,21,17),new Vector3(57,9,16));
+                campus.Block(warmMetal,new Vector3(2,8,2),new Vector3(52,11,8));
+                for(int i=0;i<5;i++)
+                {
+                    float x=(i-2)*14.4f;
+                    float high=34+(i%3)*7;
+                    campus.Block(iron,new Vector3(x,high*.5f,21),new Vector3(7,high,7));
+                    campus.Block(refractory,new Vector3(x,high-1,21),new Vector3(9,5.4f,9));
+                    campus.Block(plantSignal,new Vector3(x,22,10),new Vector3(.9f,3.2f,.21f));
+                }
+                campus.Strut(iron,new Vector3(-34,29,25),new Vector3(-61,24,53),4.6f,4.2f);
+                campus.Strut(iron,new Vector3(34,28,25),new Vector3(63,21,33),5.2f,4.6f);
+                campus.Mount(this,works);
+            }
 
             var carrier=Group(industry,"Ceramic billet on overhead transfer",new Vector3(0,17.4f,4));
             var slab=new PlantBatch();
