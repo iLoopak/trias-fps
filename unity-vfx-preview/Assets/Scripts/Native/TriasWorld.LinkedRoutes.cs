@@ -140,6 +140,9 @@ namespace Trias.Native
             if (across) rail.localRotation = Quaternion.Euler(0,90,0);
             Part(rail,routeTrim,new Vector3(0,height-.08f,0),new Vector3(.16f,.13f,length));
             Part(rail,routeFrame,new Vector3(0,height*.41f,0),new Vector3(.099f,.095f,length));
+            // Toe board along the deck: the rail collides as one panel, so its foot must read as solid
+            // too (between bare posts a pilot met an invisible wall just above the planks).
+            Part(rail,routeTrim,new Vector3(0,.13f,0),new Vector3(.07f,.26f,length));
             int posts = Mathf.CeilToInt(length/2.1f);
             for (int i = 0; i <= posts; i++)
                 Part(rail,routeFrame,new Vector3(0,height*.45f,Mathf.Lerp(-length*.5f+.055f,length*.5f-.055f,(float)i/posts)),

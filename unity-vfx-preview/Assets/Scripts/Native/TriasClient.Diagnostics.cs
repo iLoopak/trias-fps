@@ -21,6 +21,12 @@ namespace Trias.Native
     {
         string frameLogPath, capturePath;
         float remoteError, remoteShown, remoteServer, localError, lastShownSpeed = -1; int remoteSamples, localSamples;
+        // Hitch attribution from FrameTimingManager (Frame Timing Stats is on in Player Settings): which of
+        // main thread, render thread, GPU or presentation overran on each frame over 25 ms.
+        readonly FrameTiming[] frameTimings = new FrameTiming[4];
+        readonly Dictionary<string, int> spikeCauses = new();
+        string worstSpike;
+        double worstSpikeMs, sectionsThisFrame;
         Vector3 lastDisplay;
         float quitAfter = -1, nextFrameReport, nextCapture;
         readonly List<float> frameSamples = new(1200);
@@ -57,6 +63,7 @@ namespace Trias.Native
         {
             if (frameLogPath == null) return;
             double ms = sectionClock.Elapsed.TotalMilliseconds;
+            sectionsThisFrame += ms;
             if (!slowestBy.TryGetValue(section, out var slowest) || ms > slowest) slowestBy[section] = ms;
             long grown = Profiler.GetMonoUsedSizeLong() - allocationMark;
             if (grown > 0) allocatedBy[section] = (allocatedBy.TryGetValue(section, out var sum) ? sum : 0) + grown;
@@ -100,7 +107,32 @@ namespace Trias.Native
                 int gc = GC.CollectionCount(0);
                 bool collected = lastGcCount >= 0 && gc != lastGcCount;
                 if (collected) collections++;
-                if (Time.unscaledDeltaTime > .025f) { spikeFrames++; if (collected) spikesWithGc++; }
+                FrameTimingManager.CaptureFrameTimings();
+                uint captured = FrameTimingManager.GetLatestTimings((uint)frameTimings.Length, frameTimings);
+                if (Time.unscaledDeltaTime > .025f)
+                {
+                    spikeFrames++;
+                    if (collected) spikesWithGc++;
+                    double main = 0, render = 0, gpu = 0, wait = 0;
+                    for (int i = 0; i < captured; i++)
+                    {
+                        main = Math.Max(main, frameTimings[i].cpuMainThreadFrameTime - frameTimings[i].cpuMainThreadPresentWaitTime);
+                        render = Math.Max(render, frameTimings[i].cpuRenderThreadFrameTime);
+                        gpu = Math.Max(gpu, frameTimings[i].gpuFrameTime);
+                        wait = Math.Max(wait, frameTimings[i].cpuMainThreadPresentWaitTime);
+                    }
+                    string cause = collected ? "gc" : captured == 0 ? "unknown" : gpu > 15.5 ? "gpu" : main > 15.5 ? "main"
+                        : render > 15.5 ? "render" : "present";
+                    spikeCauses[cause] = (spikeCauses.TryGetValue(cause, out var count) ? count : 0) + 1;
+                    double ms = Time.unscaledDeltaTime * 1000;
+                    if (ms > worstSpikeMs)
+                    {
+                        worstSpikeMs = ms;
+                        worstSpike = string.Format(CultureInfo.InvariantCulture, "{0:F1}ms main={1:F1} render={2:F1} gpu={3:F1} wait={4:F1} sections={5:F1} cause={6}",
+                            ms, main, render, gpu, wait, sectionsThisFrame, cause);
+                    }
+                }
+                sectionsThisFrame = 0;
                 lastGcCount = gc;
                 // Own view smoothness: frame-to-frame change of the camera's ground speed while running.
                 float shown = new Vector2(display.x - lastDisplay.x, display.z - lastDisplay.z).magnitude / Mathf.Max(1e-4f, Time.unscaledDeltaTime);
@@ -179,6 +211,13 @@ namespace Trias.Native
             parts.Clear();
             foreach (var pair in slowestBy) parts.Add(string.Format(CultureInfo.InvariantCulture, "{0}={1:F1}", pair.Key, pair.Value));
             File.AppendAllText(frameLogPath, "  slowest_ms " + string.Join(" ", parts) + "\n");
+            if (spikeCauses.Count > 0)
+            {
+                parts.Clear();
+                foreach (var pair in spikeCauses) parts.Add($"{pair.Key}={pair.Value}");
+                File.AppendAllText(frameLogPath, "  spike_causes " + string.Join(" ", parts) + "  worst " + worstSpike + "\n");
+            }
+            spikeCauses.Clear(); worstSpike = null; worstSpikeMs = 0;
             allocatedBy.Clear();
             slowestBy.Clear();
             frameSamples.Clear();
