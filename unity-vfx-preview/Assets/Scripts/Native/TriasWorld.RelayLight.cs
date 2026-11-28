@@ -103,29 +103,11 @@ namespace Trias.Native
             var triangles = new List<int>();
             var inside = new Color(.051f,.069f,.097f,.33f);
             var outside = new Color(inside.r,inside.g,inside.b,0);
+            Physics.SyncTransforms();
             foreach (var box in Spec.cover)
             {
                 if (Mathf.Abs(box.bottom) > .02f || (Spec.Shaft && box.structure != "pylon")) continue;
-                float W = box.w * .5f, D = box.d * .5f;
-                var rotation = Quaternion.Euler(0,box.angle*Mathf.Rad2Deg,0);
-                var pivot = new Vector3(box.x,.012f,box.z);
-                int start = points.Count;
-                for (int ring = 0; ring < 2; ring++)
-                {
-                    float reach = ring == 0 ? -.06f : .32f;
-                    float x = Mathf.Max(.02f,W+reach), z = Mathf.Max(.02f,D+reach);
-                    points.Add(pivot + rotation*new Vector3(-x,0,-z));
-                    points.Add(pivot + rotation*new Vector3(x,0,-z));
-                    points.Add(pivot + rotation*new Vector3(x,0,z));
-                    points.Add(pivot + rotation*new Vector3(-x,0,z));
-                    for (int face = 0; face < 4; face++) colors.Add(ring == 0 ? inside : outside);
-                }
-                for (int edge = 0; edge < 4; edge++)
-                {
-                    int a = start + edge, b = start + (edge+1)%4;
-                    triangles.Add(a); triangles.Add(a+4); triangles.Add(b+4);
-                    triangles.Add(a); triangles.Add(b+4); triangles.Add(b);
-                }
+                AddContactSkirt(points,colors,triangles,new Vector3(box.x,.012f,box.z),box.angle,box.w*.5f,box.d*.5f,-.06f,.32f,inside,outside);
             }
             var mesh = new Mesh { name = "Relay grounding" };
             mesh.SetVertices(points);
@@ -149,6 +131,7 @@ namespace Trias.Native
             var points = new List<Vector3>();
             var colors = new List<Color>();
             var triangles = new List<int>();
+            Physics.SyncTransforms();
             var inside = Spec.id == "foundry" ? new Color(.11f,.05f,.04f,.30f) : new Color(.10f,.07f,.08f,.27f);
             var outside = new Color(inside.r,inside.g,inside.b,0);
             foreach (var box in Spec.cover)
@@ -166,6 +149,8 @@ namespace Trias.Native
             contact.GetComponent<Renderer>().receiveShadows = false;
         }
 
+        // A skirt corner that would hang over a drop (the Vanta quench channel, the Relay shaft) folds back
+        // onto the cover's footprint, so contact shading never floats in the air above an opening.
         static void AddContactSkirt(List<Vector3> points, List<Color> colors, List<int> triangles, Vector3 pivot, float angle,
             float W, float D, float inner, float outer, Color inside, Color outside)
         {
@@ -175,10 +160,14 @@ namespace Trias.Native
             {
                 float reach = ring == 0 ? inner : outer;
                 float x = Mathf.Max(.02f,W+reach), z = Mathf.Max(.02f,D+reach);
-                points.Add(pivot + rotation*new Vector3(-x,0,-z));
-                points.Add(pivot + rotation*new Vector3(x,0,-z));
-                points.Add(pivot + rotation*new Vector3(x,0,z));
-                points.Add(pivot + rotation*new Vector3(-x,0,z));
+                for (int corner = 0; corner < 4; corner++)
+                {
+                    float sx = corner == 0 || corner == 3 ? -1 : 1, sz = corner < 2 ? -1 : 1;
+                    var at = pivot + rotation*new Vector3(sx*x,0,sz*z);
+                    if (ring == 1 && !Physics.Raycast(at + Vector3.up*.4f, Vector3.down, out var floor, .55f, TerrainMask, QueryTriggerInteraction.Ignore))
+                        at = points[start + corner];
+                    points.Add(at);
+                }
                 for (int face = 0; face < 4; face++) colors.Add(ring == 0 ? inside : outside);
             }
             for (int edge = 0; edge < 4; edge++)

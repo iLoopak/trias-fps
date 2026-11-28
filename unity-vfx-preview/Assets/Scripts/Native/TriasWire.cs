@@ -11,6 +11,9 @@ using System.Threading.Tasks;
 namespace Trias.Native
 {
     // The server's compact v2 frames mix named world data with positional rows.
+    // The parser runs for every 30 Hz state frame on the main thread, so it avoids per-value garbage:
+    // numbers are read in place, keys and short strings are interned, and objects keep their fields in
+    // two small arrays searched linearly (interned keys compare by reference first).
     internal sealed class WireValue
     {
         static readonly WireValue Empty = new WireValue();
@@ -18,14 +21,93 @@ namespace Trias.Native
         internal double Number;
         internal bool Bool;
         internal List<WireValue> Items;
-        Dictionary<string, WireValue> fields;
+        string[] keys;
+        WireValue[] values;
+        int fieldCount;
 
         internal int Count => Items?.Count ?? 0;
         internal int Int => (int)Number;
         internal float Float => (float)Number;
-        internal WireValue this[string key] => fields != null && fields.TryGetValue(key, out var value) ? value : Empty;
+        internal WireValue this[string key]
+        {
+            get
+            {
+                for (int i = 0; i < fieldCount; i++) if (ReferenceEquals(keys[i], key)) return values[i];
+                for (int i = 0; i < fieldCount; i++) if (string.Equals(keys[i], key)) return values[i];
+                return Empty;
+            }
+        }
         internal WireValue this[int index] => Items != null && index >= 0 && index < Items.Count ? Items[index] : Empty;
         internal static WireValue Parse(string text) => new Reader(text).Read(0);
+
+        // Parsed values are never mutated, so common leaves are shared instead of allocated per frame:
+        // small integers, true, and every interned string.
+        static readonly WireValue True = new WireValue { Bool = true };
+        static readonly WireValue[] Integers = new WireValue[4097 + 256];
+        static readonly Dictionary<string, WireValue> Strings = new(1024);
+        static readonly List<List<WireValue>> scratch = new();
+
+        static WireValue NumberValue(double number)
+        {
+            if (number >= -256 && number <= 4096 && number == Math.Floor(number))
+            {
+                int slot = (int)number + 256;
+                return Integers[slot] ??= new WireValue { Number = number };
+            }
+            return new WireValue { Number = number };
+        }
+
+        static WireValue StringValue(string text, bool interned)
+        {
+            if (!interned) return new WireValue { Text = text };
+            if (Strings.TryGetValue(text, out var shared)) return shared;
+            shared = new WireValue { Text = text };
+            if (Strings.Count < 8192) Strings.Add(text, shared);
+            return shared;
+        }
+
+        void Set(string key, WireValue value)
+        {
+            for (int i = 0; i < fieldCount; i++)
+                if (string.Equals(keys[i], key)) { values[i] = value; return; }
+            if (keys == null) { keys = new string[8]; values = new WireValue[8]; }
+            else if (fieldCount == keys.Length)
+            {
+                Array.Resize(ref keys, fieldCount * 2);
+                Array.Resize(ref values, fieldCount * 2);
+            }
+            keys[fieldCount] = key;
+            values[fieldCount++] = value;
+        }
+
+        // Interned strings shared across frames: field names, event types, weapon and pilot ids, names.
+        static readonly Dictionary<int, string[]> pool = new();
+        static int pooled;
+
+        static string Intern(string text, int start, int length)
+        {
+            if (length > 48) return text.Substring(start, length);
+            int hash = length;
+            for (int i = 0; i < length; i++) hash = hash * 31 + text[start + i];
+            if (pool.TryGetValue(hash, out var bucket))
+                foreach (var candidate in bucket)
+                    if (candidate.Length == length && string.CompareOrdinal(text, start, candidate, 0, length) == 0) return candidate;
+            var made = text.Substring(start, length);
+            if (pooled < 8192)
+            {
+                pooled++;
+                pool[hash] = bucket == null ? new[] { made } : Append(bucket, made);
+            }
+            return made;
+        }
+
+        static string[] Append(string[] bucket, string item)
+        {
+            var grown = new string[bucket.Length + 1];
+            Array.Copy(bucket, grown, bucket.Length);
+            grown[bucket.Length] = item;
+            return grown;
+        }
 
         sealed class Reader
         {
@@ -42,37 +124,75 @@ namespace Trias.Native
                 {
                     case '{':
                         at++;
-                        var fields = new Dictionary<string, WireValue>();
+                        var node = new WireValue();
                         if (!Take('}'))
                         {
-                            do { Space(); string key = String(); Expect(':'); fields[key] = Read(depth + 1); } while (Take(','));
+                            do { Space(); string key = String(); Expect(':'); node.Set(key, Read(depth + 1)); } while (Take(','));
                             Expect('}');
                         }
-                        return new WireValue { fields = fields };
+                        return node;
                     case '[':
                         at++;
-                        var list = new List<WireValue>();
+                        // Collect into a per-depth scratch list, then allocate the row once at its exact size.
+                        while (scratch.Count <= depth) scratch.Add(new List<WireValue>(32));
+                        var gather = scratch[depth];
+                        gather.Clear();
                         if (!Take(']'))
                         {
-                            do { list.Add(Read(depth + 1)); } while (Take(','));
+                            do { gather.Add(Read(depth + 1)); } while (Take(','));
                             Expect(']');
                         }
+                        var list = new List<WireValue>(gather.Count);
+                        list.AddRange(gather);
+                        gather.Clear();
                         return new WireValue { Items = list };
-                    case '"': return new WireValue { Text = String() };
-                    case 't': Literal("true"); return new WireValue { Bool = true };
+                    case '"':
+                        string value = String(out bool interned);
+                        return StringValue(value, interned);
+                    case 't': Literal("true"); return True;
                     case 'f': Literal("false"); return Empty;
                     case 'n': Literal("null"); return Empty;
                     default:
-                        int start = at;
-                        while (at < text.Length && "-+0123456789.eE".IndexOf(text[at]) >= 0) at++;
-                        if (start != at && double.TryParse(text.Substring(start, at - start), NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
-                            return new WireValue { Number = result };
+                        if (Number(out var result)) return NumberValue(result);
                         throw new FormatException("Invalid game value");
                 }
             }
 
-            string String()
+            // JSON number without allocating: sign, integer, fraction, exponent.
+            bool Number(out double result)
             {
+                result = 0;
+                int start = at;
+                bool negative = false;
+                if (at < text.Length && (text[at] == '-' || text[at] == '+')) { negative = text[at] == '-'; at++; }
+                double value = 0;
+                int digits = 0;
+                while (at < text.Length && text[at] >= '0' && text[at] <= '9') { value = value * 10 + (text[at++] - '0'); digits++; }
+                if (at < text.Length && text[at] == '.')
+                {
+                    at++;
+                    double scale = .1;
+                    while (at < text.Length && text[at] >= '0' && text[at] <= '9') { value += (text[at++] - '0') * scale; scale *= .1; digits++; }
+                }
+                if (digits == 0) { at = start; return false; }
+                if (at < text.Length && (text[at] == 'e' || text[at] == 'E'))
+                {
+                    at++;
+                    bool down = false;
+                    if (at < text.Length && (text[at] == '-' || text[at] == '+')) { down = text[at] == '-'; at++; }
+                    int exponent = 0;
+                    while (at < text.Length && text[at] >= '0' && text[at] <= '9') exponent = exponent * 10 + (text[at++] - '0');
+                    value *= Math.Pow(10, down ? -exponent : exponent);
+                }
+                result = negative ? -value : value;
+                return true;
+            }
+
+            string String() => String(out _);
+
+            string String(out bool interned)
+            {
+                interned = false;
                 Expect('"');
                 int start = at;
                 StringBuilder escaped = null;
@@ -81,8 +201,12 @@ namespace Trias.Native
                     char c = text[at++];
                     if (c == '"')
                     {
-                        string tail = text.Substring(start, at - start - 1);
-                        return escaped == null ? tail : escaped.Append(tail).ToString();
+                        if (escaped == null)
+                        {
+                            interned = at - start - 1 <= 48;
+                            return Intern(text, start, at - start - 1);
+                        }
+                        return escaped.Append(text, start, at - start - 1).ToString();
                     }
                     if (c != '\\') continue;
                     escaped ??= new StringBuilder();

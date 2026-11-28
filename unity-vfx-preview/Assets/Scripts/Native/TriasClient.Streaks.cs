@@ -91,14 +91,18 @@ namespace Trias.Native
             };
         }
 
+        readonly TextMemo streakText = new(), scanText = new();
+        TextMemo[] perkText;
+
         void PaintPerks(float width)
         {
             if (!streaksAvailable || own[6].Int <= 0 || !captured || scoreboard) return;
             const float tile = 56;
+            perkText ??= TextMemo.Row(Perks.Length);
             float x = width - 246;
             HudStrip(new Rect(x, 55, 224, 57), perkMask > 0 ? Amber : Subtle);
-            hudText.Draw(new Rect(x + 7, 55, 92, 22), "SÉRIE  " + streakCount, section);
-            if (scanLeft > 0) hudText.Draw(new Rect(x + 112, 56, 106, 20), "PRŮZKUM " + Mathf.CeilToInt(scanLeft) + " s", caption);
+            hudText.Draw(new Rect(x + 7, 55, 92, 22), streakText.Of(streakCount, 0, 0, null, static (n, _, _, _) => "SÉRIE  " + n), section);
+            if (scanLeft > 0) hudText.Draw(new Rect(x + 112, 56, 106, 20), scanText.Of(Mathf.CeilToInt(scanLeft), 0, 0, null, static (n, _, _, _) => "PRŮZKUM " + n + " s"), caption);
             for (int i = 0; i < Perks.Length; i++)
             {
                 float at = x + i * tile;
@@ -107,7 +111,7 @@ namespace Trias.Native
                 Fill(new Rect(at + 5, 76, tile - 12, 2), tint);
                 string name = i == 1 ? ModuleName() : PerkNames[i];
                 hudText.Draw(new Rect(at + 5, 76, tile - 7, 20), name, caption);
-                hudText.Draw(new Rect(at + 5, 93, tile - 7, 18), ready ? "» " + (6 + i) : PerkGoals[i] + " výř.", caption);
+                hudText.Draw(new Rect(at + 5, 93, tile - 7, 18), perkText[i].Of(ready ? 1 : 0, 6 + i, PerkGoals[i], null, static (on, key, goal, _) => on == 1 ? "» " + key : goal + " výř."), caption);
             }
         }
     }

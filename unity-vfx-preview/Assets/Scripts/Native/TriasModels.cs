@@ -72,6 +72,10 @@ namespace Trias.Native
         readonly Material accent;
         internal WireValue Row;
         internal Vector3 From, Position, Previous, Desired;
+        // On-screen ground speed, read by the playtest frame log to measure remote judder.
+        internal float ShownSpeed, PreviousShownSpeed, ServerSpeed;
+
+        float arrived;
         internal float FromYaw, Yaw, DesiredYaw, Got;
         internal string Id, Weapon;
         internal int Spawn = -1;
@@ -152,14 +156,18 @@ namespace Trias.Native
             {
                 if ((Row[2].Int & 2) == 0 && (player[2].Int & 2) != 0 && Row[22].Float < -4)
                     impactPose = Mathf.Clamp01(-Row[22].Float / 13);
-                float packetSpan = Mathf.Clamp(now - Got, .025f, .067f);
+                float packetSpan = Mathf.Clamp(now - arrived, .025f, .067f);
                 frameSpan = Mathf.Lerp(frameSpan, packetSpan + .007f, .22f);
                 turnPose = Mathf.Lerp(turnPose, Mathf.Clamp(Mathf.DeltaAngle(DesiredYaw, yaw) * .32f, -12, 12), .45f);
             }
             From = Position; FromYaw = Yaw;
             Previous = Desired;
             Desired = pos; DesiredYaw = yaw;
-            Got = now;
+            // The segment starts where the last frame drew the pilot, at that frame's time. Starting it at
+            // `now` held the pilot still for the whole frame a packet landed in: at 30 Hz snapshots and 60 fps
+            // that was move, stop, move, stop, the judder players saw on every remote pilot.
+            arrived = now;
+            Got = previousTick > 0 && now - previousTick < .05f ? previousTick : now;
             if ((player[2].Int & 64) != 0 && (Row == null || (Row[2].Int & 64) == 0))
                 reloadSpan = Mathf.Max(.1f, player[30].Float);
             Row = player;
@@ -178,6 +186,13 @@ namespace Trias.Native
                 art.gameObject.SetActive(true);
                 Weapon = key;
             }
+        }
+
+        // A teleport (echo recall): stand at the snapshot with no motion carried into it.
+        internal void Snap(float now)
+        {
+            From = Position = Previous = Desired;
+            Got = now;
         }
 
         internal void Tick(float now)
@@ -206,6 +221,12 @@ namespace Trias.Native
                         TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
                     Position += drift;
             }
+            if (dt > 0)
+            {
+                PreviousShownSpeed = ShownSpeed;
+                ShownSpeed = new Vector2(Position.x - old.x, Position.z - old.z).magnitude / dt;
+            }
+            ServerSpeed = new Vector2(row[21].Float, row[23].Float).magnitude;
             Yaw = Mathf.LerpAngle(FromYaw, DesiredYaw, t);
             Root.SetPositionAndRotation(Position, Quaternion.Euler(0, Yaw, 0));
             float blend = 1 - Mathf.Exp(-dt * 16);

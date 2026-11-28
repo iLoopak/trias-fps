@@ -319,3 +319,33 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - Prolomení štítu ve visoru zatím žádný záběr nezachytil (při playtestu chybí sebrání štítu).
 - Kopce Kordilery mají hladký tvar autoritativní výškové mřížky; změna je herní rozhodnutí. 
 - Windows build se nespouštěl. Měření snímků proběhlo jen na Apple M2. Hráč při playtestu nehrál, takže pohyb a střelba z první osoby nebyly v nativním měření zatížené.
+
+**Třináctá vlna (řemeslo prostředí, blikání, plynulost).** Záběry jsou v `output/craft/` (`a-audit` výchozí stav, `b-floor*`, `c-satin`, `d-mineral*`, `e-colliders*`, `f-lava*`, `g-*` blikání) a měření v `output/pt-*`.
+- **Podlahy jako konstrukce:** `TRIAS/Architecture` má na vodorovných plochách mřížku polí (`_BayPeriod`). Pole mají spáry s obrobeným lemem, mírně odlišný tón a lesk a místy servisní poklop 1,3 m se čtyřmi šrouby (`_HatchRate`).
+  - Arény mají pole 12,8 m, paluba Relay 10,4 m. Vanta má hrubší rozptyl tónů a méně poklopů.
+  - První verze s hustší mřížkou rozdrobila plochu na dlaždice. Platí pravidlo monolitních polí (≥ 7 m).
+- **Grafitový satén – zamítnuto:** změna lesku grafitových dílů nebyla z herní kamery vidět.
+- **Minerál jako hmota:** nový `TRIAS/Mineral Solid` počítá pruhy achátu ze světové polohy, od rozházených jader deformovaných šumem. Hrany, plochy i sousední kusy proto ukazují jeden souvislý řez kamenem, ne obrázek na panelu. Barvy čte po poloměru z obrázku `meridian-agate`.
+  - Meridian má ve slotu Secondary tento minerál.
+  - Ceramic na Meridianu je prašná těžební keramika (`#9b8576`, refractory).
+  - První pokus ji zesvětlil do slonovinové barvy jako Relay, a mapa ztratila identitu (Meridian těží, Vanta zpracovává, Relay stabilizuje).
+- **Blikání textur (hlavně Relay):** příčinou byla keramická vložka madla zábradlí, která ležela v jedné rovině s nosníkem. Doklad je `g-zfight` (rozdíl dvou snímků posunutých o 7 mm) a `g-zfix`. Vložka je teď o 12 mm vystouplá.
+  - Plátové textury architektury mají trilineární filtrování.
+  - Kontaktní a palubní obtisky (`RelayContact`, `DeckStencil`) mají depth offset.
+- **Neviditelná plocha nad lávou ve Vantě:** šlo o kontaktní lemy z PR #12, které přesahovaly okraj kanálu a visely nad lávou. `AddContactSkirt` teď paprskem ověří podlahu pod každým vnějším rohem; bez podlahy roh stáhne dovnitř.
+  - **Neopraveno:** sonda `TRIAS_ART_COLLIDERS` našla starší rekvizity, které mají vrch collideru nad viditelným tvarem: pece a struska ve Vantě, ruda na Meridianu.
+- **Plynulost (nativní playtest s autopilotem, 60 Hz vsync):**
+  - Parser paketů (`WireValue`) sdílí krátké řetězce, malá celá čísla a `true` a pole staví v přesné velikosti. Alokace parseru klesly z ≈ 1300 na 70–120 KB/s a GC běhů je ≈ 20–24 místo 40–46 za 10 s.
+  - Texty HUD se skládají jen při změně hodnoty (`TextMemo`).
+  - **Cukání ostatních pilotů:** interpolace začínala v okamžiku, kdy dorazil paket. Při snapshotech 30 Hz a 60 fps tak pilot každý druhý snímek stál a pak poskočil (`remote_judder` ≈ 190 %).
+    - Úsek teď začíná časem předchozího snímku, takže `remote_judder` je 3–15 % (nejhorší běh 24 %).
+    - Hermitova interpolace s rychlostí ze serveru vyšla hůř (8–29 %) a je zamítnutá.
+  - **Kamera vlastního pilota:** sledovala predikci krokovanou po 30 Hz a v sousedních snímcích se posouvala o 0,66 a 0,34 kroku (`local_judder` 60–72 %).
+    - Teď jde po přímce mezi posledními dvěma kroky, časované podle plánu kroků. `local_judder` je 6–20 %; běh s mnoha propady snímků měl 43 %.
+    - Cenou je zpoždění pohybu (ne míření) zhruba o půl kroku.
+  - Simulace, síťový protokol ani pravidla se nezměnila.
+
+**Zbývající slabiny.**
+- Rekvizity s colliderem nad viditelným tvarem (pece a struska ve Vantě, ruda na Meridianu) tvoří neviditelné plochy, na které jde vyskočit.
+- Občasné snímky přes 25 ms (0–5 za 10 s, v jednom běhu 24) většinou nesouvisejí s GC a měřené části klienta je nevysvětlují. Zbývá je profilovat (vykreslování, fyzika, kompozitor).
+- Detailní revize zbraní a vedlejších rekvizit z FINAL 20 % zatím neproběhla. `remote_judder` ještě závisí na fázi příchodu paketů vůči snímkům.

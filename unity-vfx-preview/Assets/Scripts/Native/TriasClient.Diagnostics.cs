@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using Unity.Profiling;
+using UnityEngine.Profiling;
 using UnityEngine;
 
 namespace Trias.Native
@@ -19,10 +20,47 @@ namespace Trias.Native
     public sealed partial class TriasClient
     {
         string frameLogPath, capturePath;
+        float remoteError, remoteShown, remoteServer, localError, lastShownSpeed = -1; int remoteSamples, localSamples;
+        Vector3 lastDisplay;
         float quitAfter = -1, nextFrameReport, nextCapture;
         readonly List<float> frameSamples = new(1200);
-        int captureIndex, unfocusedFrames;
+        int captureIndex, unfocusedFrames, spikeFrames, spikesWithGc, collections, lastGcCount = -1;
         bool uncapped, autopilot;
+        // Managed allocation attribution: heap growth per frame section, summed over the report window.
+        readonly Dictionary<string, long> allocatedBy = new();
+        readonly Dictionary<string, double> slowestBy = new();
+        readonly System.Diagnostics.Stopwatch sectionClock = new();
+        long allocationMark;
+
+        long AllocMark() => frameLogPath != null ? Profiler.GetMonoUsedSizeLong() : 0;
+
+        void AllocNote(string section, long mark)
+        {
+            if (frameLogPath == null) return;
+            long grown = Profiler.GetMonoUsedSizeLong() - mark;
+            if (grown > 0) allocatedBy[section] = (allocatedBy.TryGetValue(section, out var sum) ? sum : 0) + grown;
+        }
+
+        void NoteParse(long grown)
+        {
+            if (grown > 0) allocatedBy["parse"] = (allocatedBy.TryGetValue("parse", out var sum) ? sum : 0) + grown;
+        }
+
+        void AllocationBegin()
+        {
+            if (frameLogPath == null) return;
+            allocationMark = Profiler.GetMonoUsedSizeLong();
+            sectionClock.Restart();
+        }
+
+        void AllocationEnd(string section)
+        {
+            if (frameLogPath == null) return;
+            double ms = sectionClock.Elapsed.TotalMilliseconds;
+            if (!slowestBy.TryGetValue(section, out var slowest) || ms > slowest) slowestBy[section] = ms;
+            long grown = Profiler.GetMonoUsedSizeLong() - allocationMark;
+            if (grown > 0) allocatedBy[section] = (allocatedBy.TryGetValue(section, out var sum) ? sum : 0) + grown;
+        }
         float autopilotTurn;
         ProfilerRecorder mainThread, gcMemory;
 
@@ -58,6 +96,29 @@ namespace Trias.Native
             {
                 frameSamples.Add(Time.unscaledDeltaTime * 1000);
                 if (!Application.isFocused) unfocusedFrames++;
+                // Hitch attribution: frames over 25 ms, and how many of them coincide with a garbage collection.
+                int gc = GC.CollectionCount(0);
+                bool collected = lastGcCount >= 0 && gc != lastGcCount;
+                if (collected) collections++;
+                if (Time.unscaledDeltaTime > .025f) { spikeFrames++; if (collected) spikesWithGc++; }
+                lastGcCount = gc;
+                // Own view smoothness: frame-to-frame change of the camera's ground speed while running.
+                float shown = new Vector2(display.x - lastDisplay.x, display.z - lastDisplay.z).magnitude / Mathf.Max(1e-4f, Time.unscaledDeltaTime);
+                float running = new Vector2(own[21].Float, own[23].Float).magnitude;
+                if (own[6].Int > 0 && (own[2].Int & 2) != 0 && running > 3 && running < 14 && lastShownSpeed >= 0)
+                {
+                    localError += Mathf.Abs(shown - lastShownSpeed) / running;
+                    localSamples++;
+                }
+                lastShownSpeed = shown; lastDisplay = display;
+                // Remote smoothness: how far each running pilot's on-screen speed strays from the server's.
+                foreach (var actor in pilots.Values)
+                    if (actor.Row != null && actor.Row[6].Int > 0 && (actor.Row[2].Int & 2) != 0 && actor.ServerSpeed > 3 && actor.ServerSpeed < 14)
+                    {
+                        remoteError += Mathf.Abs(actor.ShownSpeed - actor.PreviousShownSpeed) / actor.ServerSpeed;
+                        remoteShown += actor.ShownSpeed; remoteServer += actor.ServerSpeed;
+                        remoteSamples++;
+                    }
                 if (now >= nextFrameReport) FlushFrames(now);
             }
             if (capturePath != null && now >= nextCapture)
@@ -106,11 +167,22 @@ namespace Trias.Native
             double main = mainThread.Valid && mainThread.LastValue > 0 ? mainThread.LastValue * 1e-6 : -1;
             int renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None).Length;
             File.AppendAllText(frameLogPath, string.Format(CultureInfo.InvariantCulture,
-                "{0} frames={1} median_ms={2:F2} p95_ms={3:F2} p99_ms={4:F2} max_ms={5:F2} main_ms={6:F2} unfocused={7} renderers={8} gc_mb={9:F0} {10}x{11}\n",
+                "{0} frames={1} median_ms={2:F2} p95_ms={3:F2} p99_ms={4:F2} max_ms={5:F2} main_ms={6:F2} unfocused={7} renderers={8} gc_mb={9:F0} spikes25={12} spikes_gc={13} gc_runs={14} local_judder={18:F1}% remote_judder={15:F1}% remote_speed={16:F1}/{17:F1} {10}x{11}\n",
                 world.Spec.id, frameSamples.Count, At(.5f), At(.95f), At(.99f), frameSamples[^1], main, unfocusedFrames,
-                renderers, gcMemory.Valid ? gcMemory.LastValue / 1048576.0 : -1, Screen.width, Screen.height));
+                renderers, gcMemory.Valid ? gcMemory.LastValue / 1048576.0 : -1, Screen.width, Screen.height,
+                spikeFrames, spikesWithGc, collections, remoteSamples > 0 ? remoteError / remoteSamples * 100 : -1,
+                remoteShown / Mathf.Max(1, remoteSamples), remoteServer / Mathf.Max(1, remoteSamples), localSamples > 0 ? localError / localSamples * 100 : -1));
+            remoteError = remoteShown = remoteServer = localError = 0; remoteSamples = localSamples = 0;
+            var parts = new List<string>();
+            foreach (var pair in allocatedBy) parts.Add($"{pair.Key}={pair.Value / 10240}");
+            File.AppendAllText(frameLogPath, "  alloc_kb_per_s " + string.Join(" ", parts) + "\n");
+            parts.Clear();
+            foreach (var pair in slowestBy) parts.Add(string.Format(CultureInfo.InvariantCulture, "{0}={1:F1}", pair.Key, pair.Value));
+            File.AppendAllText(frameLogPath, "  slowest_ms " + string.Join(" ", parts) + "\n");
+            allocatedBy.Clear();
+            slowestBy.Clear();
             frameSamples.Clear();
-            unfocusedFrames = 0;
+            unfocusedFrames = spikeFrames = spikesWithGc = collections = 0;
         }
     }
 }

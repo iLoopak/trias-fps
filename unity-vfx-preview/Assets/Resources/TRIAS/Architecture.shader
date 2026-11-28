@@ -28,6 +28,10 @@ Shader "TRIAS/Architecture"
         _BevelWidth("Bevel width (m)", Float) = .045
         _Grime("Ground grime", Range(0,1)) = .25
         _PhaseTint("Phase plate tint", Color) = (1,1,1,1)
+        _BayPeriod("Floor construction bay (m, 0 = off)", Float) = 0
+        _BayVar("Per-bay finish variance", Range(0,1)) = .06
+        _JointColor("Expansion joint", Color) = (.07,.075,.08,1)
+        _HatchRate("Bays with a service hatch", Range(0,1)) = .35
     }
     SubShader
     {
@@ -42,6 +46,8 @@ Shader "TRIAS/Architecture"
         half4 _Color, _AltColor, _SeamColor, _HardwareColor, _PhaseTint;
         half _AltRate, _Scale, _NormalStrength, _Glossiness, _GlossVar, _Metallic, _PlateVar, _EdgeWear, _AOStrength;
         half _BoxEdge, _BevelWidth, _Grime, _SeamStrength, _SeamTone, _SideSeams;
+        half _BayPeriod, _BayVar, _HatchRate;
+        half4 _JointColor;
 
         struct Input
         {
@@ -158,10 +164,48 @@ Shader "TRIAS/Architecture"
             gloss = lerp(gloss, .15, seam * _SeamStrength);
             gloss = lerp(gloss, .55, hardware);
 
+            half metal = lerp(_Metallic, .85, hardware);
+            half occlusion = lerp(1, ao * ao, _AOStrength * pattern) * (1 - seam * .5 * _SeamStrength);
+
+            // Floor construction: walkable faces are divided into cast bays by expansion joints with a
+            // machined lip. Each bay was poured separately (slight tone and gloss shift), and some carry a
+            // recessed service hatch with four retaining bolts near a joint crossing. The fine plate seams
+            // inside a bay are quietened so the bay structure leads at gameplay distance.
+            float3 geoWorld = n.x * ax + n.y * ay + n.z * az;
+            UNITY_BRANCH
+            if (_BayPeriod > 0 && geoWorld.y > .7)
+            {
+                float2 q = IN.boxPos.xz / _BayPeriod;
+                float2 cell = floor(q);
+                float2 f = frac(q);
+                float2 edge = min(f, 1 - f) * _BayPeriod;
+                float jd = min(edge.x, edge.y);
+                half joint = 1 - smoothstep(.03, .05, jd);
+                half lip = smoothstep(.05, .06, jd) * (1 - smoothstep(.07, .095, jd));
+                half h = frac(sin(dot(cell, float2(12.9898, 78.233))) * 43758.5453);
+                albedo = lerp(albedo, albedo / max(1 - seam * _SeamStrength * .45, .2), seam * .45); // quieter plate seams
+                albedo *= 1 + (h - .5) * _BayVar * 2;
+                gloss += (h - .5) * _BayVar * 1.6;
+                // Service hatch, 1.3 m square, 1.1 m in from the bay's lower corner.
+                float2 hl = f * _BayPeriod - 1.75;
+                float hd = max(abs(hl.x), abs(hl.y)) - .65;
+                half hatch = step(h, _HatchRate) * (1 - step(.0, hd));
+                half hatchRim = step(h, _HatchRate) * (1 - smoothstep(.0, .022, abs(hd)));
+                float2 bolt = abs(hl) - .5;
+                half bolts = step(h, _HatchRate) * (1 - smoothstep(.018, .03, length(bolt)));
+                albedo = lerp(albedo, albedo * .9, hatch);
+                gloss = lerp(gloss, gloss * .7, hatch);
+                albedo = lerp(albedo, lerp(albedo * .55, _JointColor.rgb, .5), max(joint, hatchRim * .8));
+                albedo = lerp(albedo, _HardwareColor.rgb, max(lip * .8, bolts));
+                metal = lerp(metal, .8, max(lip * .8, bolts));
+                gloss = lerp(gloss, .5, max(lip, bolts));
+                occlusion *= 1 - max(joint, hatchRim) * .35;
+            }
+
             o.Albedo = albedo;
-            o.Metallic = lerp(_Metallic, .85, hardware);
+            o.Metallic = metal;
             o.Smoothness = saturate(gloss);
-            o.Occlusion = lerp(1, ao * ao, _AOStrength * pattern) * (1 - seam * .5 * _SeamStrength);
+            o.Occlusion = occlusion;
         }
         ENDCG
     }

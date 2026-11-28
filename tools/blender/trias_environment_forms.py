@@ -259,7 +259,9 @@ def rail(detail):
     block("Toe restraint",0,0,0,w,.12,d*.91,"Graphite",.03)
     for x in (-1.08,0,1.08):
         beam("Swept brace",(x-.18,.055,0),(x+.11,.78,0),.20,.19,"Graphite")
-        block("Ceramic grip insert",x,.768,0,.59,.09,d,"Ceramic",.035,.004 if detail else 0)
+        # The insert stands 6 mm proud of the handrail on both faces: at equal depth the two faces were
+        # coplanar and fought for depth (visible flicker along every Relay rail).
+        block("Ceramic grip insert",x,.768,0,.59,.09,d+.012,"Ceramic",.035,.004 if detail else 0)
     # Thin dark web makes the existing solid gameplay rail legible between braces.
     block("Opaque restraint web",0,.105,0,w,.65,.032,"Graphite",.012)
 

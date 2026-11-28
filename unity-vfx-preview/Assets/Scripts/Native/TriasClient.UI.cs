@@ -10,12 +10,22 @@ namespace Trias.Native
         bool renderedPortraits;
         Font displayFont, textFont;
         readonly HudText hudText = new HudText();
+        readonly TextMemo linkText = new(), clockText = new(), duelText = new(), grenadeText = new(), promptText = new();
+        readonly TextMemo[] teamText = TextMemo.Row(3);
         GUIStyle title, heading, section, caption, center, scoreLabel, field;
         readonly Color lime = new Color(.78f, 1f, .43f);
         readonly Color muted = new Color(.66f, .72f, .77f);
         static readonly Color Amber = new Color(1f, .72f, .38f);
 
         void OnGUI()
+        {
+            bool repaint = Event.current.type == EventType.Repaint;
+            AllocationBegin();
+            DrawInterface();
+            AllocationEnd(repaint ? "gui_repaint" : "gui_other");
+        }
+
+        void DrawInterface()
         {
             if (catalog == null) return;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -107,7 +117,7 @@ namespace Trias.Native
             if (mode == "ffa") DrawInsignia(new Vector2(38,37), 9, Amber);
             else DrawFaction(new Vector2(38,37), 9, own[3].Int, teamTint);
             hudText.Draw(new Rect(53, 18, 137, 22), world.Spec.label, section);
-            hudText.Draw(new Rect(53, 38, 137, 18), latency + " ms  ·  " + room, caption);
+            hudText.Draw(new Rect(53, 38, 137, 18), linkText.Of(latency, 0, 0, room, static (l, _, _, r) => l + " ms  ·  " + r), caption);
             float cx = w * .5f;
             int time = state["time"].Int;
             if (mode == "horde") PaintHordeGauge(cx);
@@ -120,7 +130,7 @@ namespace Trias.Native
                 {
                     int leading = 0;
                     foreach (var value in state["players"].Items) leading = Mathf.Max(leading, value[11].Int);
-                    hudText.Draw(new Rect(scores.x + 5, 20, 162, 28), "TY " + own[11].Int + "  /  VEDENÍ " + leading, center);
+                    hudText.Draw(new Rect(scores.x + 5, 20, 162, 28), duelText.Of(own[11].Int, leading, 0, null, static (mine, best, _, _) => "TY " + mine + "  /  VEDENÍ " + best), center);
                 }
                 else for (int team = 0; team < 3; team++)
                 {
@@ -130,9 +140,9 @@ namespace Trias.Native
                     var tint = Catalog.Tint(catalog.teams[team].color);
                     Fill(new Rect(area.x + 4, area.y + 26, area.width - 9, 2), tint);
                     DrawFaction(new Vector2(area.x + 11, area.y + 13), 6, team, tint);
-                    hudText.Draw(new Rect(area.x + 19,area.y,area.width - 19,area.height), (mode == "siege" ? score.ToString() : catalog.teams[team].name + " " + score), scoreLabel);
+                    hudText.Draw(new Rect(area.x + 19,area.y,area.width - 19,area.height), teamText[team].Of(score, mode == "siege" ? 1 : 0, 0, catalog.teams[team].name, static (value, siege, _, name) => siege == 1 ? value.ToString() : name + " " + value), scoreLabel);
                 }
-                hudText.Draw(new Rect(scores.xMax - 60, 20, 54, 28), (time / 60) + ":" + (time % 60).ToString("00"), center);
+                hudText.Draw(new Rect(scores.xMax - 60, 20, 54, 28), clockText.Of(time, 0, 0, null, static (t, _, _, _) => (t / 60) + ":" + (t % 60).ToString("00")), center);
             }
             PaintArenaRhythm(cx);
             PaintPractice(cx);
@@ -163,7 +173,7 @@ namespace Trias.Native
                     hudText.Draw(new Rect(cx - 157, h - 78, 314, 27), stateLabel, center);
                 }
                 HudStrip(new Rect(cx - 61, h - 45, 122, 23), own[17].Int > 0 ? teamTint : Subtle);
-                hudText.Draw(new Rect(cx - 60, h - 45, 120, 23), "G   GRANÁT   " + own[17].Int, center);
+                hudText.Draw(new Rect(cx - 60, h - 45, 120, 23), grenadeText.Of(own[17].Int, 0, 0, null, static (g, _, _, _) => "G   GRANÁT   " + g), center);
             }
             else if (state["winner"]["label"].Text != null) PaintResult(cx, h);
             else PaintDeath(cx,h);
@@ -189,7 +199,7 @@ namespace Trias.Native
             if (own[16].Int >= 0) return "E vystoupit   /   mezerník brzda   /   Shift turbo";
             if (own[15].Int >= 0) return "E · opustit hnízdo";
             if ((own[2].Int & 64) != 0) return "Přebíjíš…";
-            if (own[8].Int > 0) return "OVERCHARGE · " + own[8].Int + " s";
+            if (own[8].Int > 0) return promptText.Of(own[8].Int, 0, 0, null, static (s, _, _, _) => "OVERCHARGE · " + s + " s");
             foreach (var hull in state["vehicles"].Items)
                 if (hull[5].Int > 0 && string.IsNullOrEmpty(hull[4].Text) && (new Vector3(hull[7].Float,0,hull[8].Float)-display).sqrMagnitude < 10)
                     return "E · nastoupit · " + (hull[2].Text == "bastion" ? "Bastion" : "Skimmer");

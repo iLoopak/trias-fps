@@ -27,14 +27,13 @@ namespace Trias.Native
             if (local)
             {
                 echoAwaitUntil = 0;
-                if (own[6].Int > 0) display = predicted.Position;
+                if (own[6].Int > 0) SnapDisplay();
                 movementPulse = .38f;
                 AddNotice("Návrat k ozvěně");
             }
             else if (actorId != null && pilots.TryGetValue(actorId, out var avatar))
             {
-                avatar.From = avatar.Position = avatar.Previous = avatar.Desired;
-                avatar.Got = now;
+                avatar.Snap(now);
             }
             Color tint = local ? teamTint : Catalog.Tint(catalog.teams[evt["team"].Int].color);
             effects.EchoRecall(At(evt["from"]), At(evt["to"]), tint, local, visualEffects);

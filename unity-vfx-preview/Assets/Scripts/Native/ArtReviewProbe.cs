@@ -98,6 +98,9 @@ namespace Trias.Native
             new Shot { Key = "vanta-approach", Arena = "foundry", Weapon = "arc", Eye = P(-10, 1.58f, -24.5f), Aim = P(-6, 1.5f, -16),
                 Pilots = new[] { ("bulwark", 0, P(-7.3f, 0, -15.8f), 200f) } },
             new Shot { Key = "vanta-works", Arena = "foundry", Weapon = "scatter", Eye = P(5, 1.58f, -22), Aim = P(0, 7, 30) },
+            // Inside the quench channel along the molten flow, and across it from the bank.
+            new Shot { Key = "vanta-channel", Arena = "foundry", Weapon = "arc", Eye = P(1.2f, -1.72f, -18), Aim = P(0, -2.2f, 6) },
+            new Shot { Key = "vanta-channel-bank", Arena = "foundry", Weapon = "arc", Eye = P(-7.5f, 1.58f, -3), Aim = P(0, -2.4f, -2) },
             new Shot { Key = "vanta-terrace", Arena = "foundry", Weapon = "pulse", Eye = P(1.5f, 1.58f, -9.5f), Aim = P(-1.5f, .8f, -2) },
             new Shot { Key = "meridian-terrace", Arena = "basin", Weapon = "arc", Eye = P(-3, 1.58f, -15), Aim = P(0, .9f, -6.4f) },
             // Along Meridian's floor vein from the south-west towards the central machine.
@@ -143,6 +146,11 @@ namespace Trias.Native
             new Shot { Key = "kordilera-hills", Arena = "island", Mode = "ctf", Weaponless = true, Fov = 62,
                 Eye = w => new Vector3(-w.Spec.edgeRadius * .62f, w.Height(-w.Spec.edgeRadius * .62f, -w.Spec.edgeRadius * .3f) + 2.2f, -w.Spec.edgeRadius * .3f),
                 Aim = w => new Vector3(w.Spec.edgeRadius * .3f, w.Height(w.Spec.edgeRadius * .3f, w.Spec.edgeRadius * .2f) + 1, w.Spec.edgeRadius * .2f) },
+            // Near-field floors at gameplay eye height: no planet, no landmark, only the surface the player crosses.
+            new Shot { Key = "floor-relay", Arena = "relay", Weapon = "pulse", Eye = P(-3, 8.18f, -17), Aim = P(-1.5f, 6.6f, -12.5f) },
+            new Shot { Key = "floor-vanta", Arena = "foundry", Weapon = "arc", Eye = P(-12, 1.58f, -25), Aim = P(-9.5f, 0, -20.5f) },
+            new Shot { Key = "floor-vanta-open", Arena = "foundry", Weapon = "arc", Eye = P(14, 1.58f, -24), Aim = P(4, -.2f, -10) },
+            new Shot { Key = "floor-meridian", Arena = "basin", Weapon = "lance", Eye = P(-8, 1.58f, -16), Aim = P(-6, 0, -11.5f) },
             new Shot { Key = "kordilera-crossing", Arena = "island", Mode = "ctf", Eye = G(27.5f, 11.3f, 1.58f), Aim = G(23.4f, 6.6f, .68f) },
         };
 
@@ -221,6 +229,53 @@ namespace Trias.Native
                 world = new TriasWorld(catalog.maps.Single(m => m.id == first.Arena), catalog, first.Mode, view);
                 visor.InMatch = true;
                 visor.Grade(first.Arena);
+                // TRIAS_ART_COLLIDERS=1 probes the arena with rays (down onto every 0.5 m, and horizontally at
+                // knee, chest and head height) and logs solid hits that no visible renderer covers: invisible
+                // surfaces that block movement or shots.
+                if (Environment.GetEnvironmentVariable("TRIAS_ART_COLLIDERS") == "1")
+                {
+                    // Visual proxy: a mesh collider on layer 31 for every visible mesh, so a gameplay hit can be
+                    // checked against the surface the player actually sees along the same ray.
+                    const int VisualLayer = 31;
+                    var proxies = new List<GameObject>();
+                    foreach (var r in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+                    {
+                        if (!r.enabled || !r.gameObject.activeInHierarchy || r.transform.IsChildOf(world.Actors)) continue;
+                        var filter = r.GetComponent<MeshFilter>();
+                        if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable) continue;
+                        var proxy = new GameObject("Visual proxy") { layer = VisualLayer };
+                        proxy.transform.SetParent(r.transform, false);
+                        proxy.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
+                        proxies.Add(proxy);
+                    }
+                    Physics.SyncTransforms();
+                    int gameplay = TriasWorld.TerrainMask & ~(1 << VisualLayer);
+                    var flagged = new Dictionary<Collider, (int Count, Vector3 At)>();
+                    void Check(Ray ray, float distance)
+                    {
+                        if (!Physics.Raycast(ray, out var hit, distance, gameplay, QueryTriggerInteraction.Ignore)) return;
+                        if (Physics.Raycast(ray, out var seen, hit.distance + .15f, 1 << VisualLayer, QueryTriggerInteraction.Ignore)) return;
+                        flagged[hit.collider] = flagged.TryGetValue(hit.collider, out var f) ? (f.Count + 1, f.At) : (1, hit.point);
+                    }
+                    float extent = world.Spec.length > 0 ? world.Spec.length : 40;
+                    var directions = new[] { Vector3.forward, Vector3.back, Vector3.right, Vector3.left };
+                    for (float x = -extent; x <= extent; x += .5f)
+                    for (float z = -extent; z <= extent; z += .5f)
+                        Check(new Ray(new Vector3(x, 30, z), Vector3.down), 60);
+                    for (float a = -extent; a <= extent; a += 1f)
+                    foreach (float y in new[] { -3f, -2f, .4f, 1.2f, 1.7f, 3.2f, 4.6f, 7.2f, 8.2f })
+                        foreach (var d in directions)
+                        {
+                            var start = d.z != 0 ? new Vector3(a, y, -d.z * (extent + 5)) : new Vector3(-d.x * (extent + 5), y, a);
+                            Check(new Ray(start, d), extent * 2 + 10);
+                        }
+                    foreach (var proxy in proxies) Destroy(proxy);
+                    foreach (var pair in flagged.OrderByDescending(p => p.Value.Count))
+                    {
+                        string path = pair.Key.name; for (var t = pair.Key.transform.parent; t != null && path.Length < 140; t = t.parent) path = t.name + "/" + path;
+                        log.Add($"  invisible-hit {first.Arena} hits={pair.Value.Count} at={pair.Value.At:F2} {path} bounds={pair.Key.bounds.center:F2}/{pair.Key.bounds.size:F2}");
+                    }
+                }
                 Tune();
                 yield return null;
                 foreach (var shot in group)
@@ -335,6 +390,44 @@ namespace Trias.Native
                         }
                         File.WriteAllLines(Path.Combine(output, shot.Key + ".csv"), curve);
                     }
+                    // TRIAS_ART_NOLOD1=1 hides every reduced LOD renderer (diagnostic for LOD double drawing).
+                    if (Environment.GetEnvironmentVariable("TRIAS_ART_NOLOD1") == "1")
+                        foreach (var r in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+                            if (r.name.EndsWith("_LOD1") || r.name == "Combined LOD1") r.enabled = false;
+                    // TRIAS_ART_PIXELS="x,y;x,y" (image pixels, origin top-left) lists every visible surface within 3 cm
+                    // of the nearest one under each pixel: the pairs that fight for depth.
+                    string pixels = Environment.GetEnvironmentVariable("TRIAS_ART_PIXELS");
+                    if (!string.IsNullOrEmpty(pixels))
+                    {
+                        var proxies = new List<GameObject>();
+                        foreach (var r in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+                        {
+                            if (!r.enabled || !r.gameObject.activeInHierarchy) continue;
+                            var filter = r.GetComponent<MeshFilter>();
+                            if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable) continue;
+                            var proxy = new GameObject("Visual proxy") { layer = 31 };
+                            proxy.transform.SetParent(r.transform, false);
+                            proxy.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
+                            proxies.Add(proxy);
+                        }
+                        Physics.SyncTransforms();
+                        foreach (var entry in pixels.Split(';'))
+                        {
+                            var xy = entry.Split(',');
+                            var ray = view.ScreenPointToRay(new Vector3(float.Parse(xy[0], CultureInfo.InvariantCulture) * view.pixelWidth / width,
+                                (height - float.Parse(xy[1], CultureInfo.InvariantCulture)) * view.pixelHeight / height, 0));
+                            var hits = Physics.RaycastAll(ray, 300, 1 << 31, QueryTriggerInteraction.Ignore).OrderBy(h => h.distance).ToArray();
+                            if (hits.Length == 0) { log.Add($"  pixel {shot.Key} {entry} none"); continue; }
+                            foreach (var hit in hits.Where(h => h.distance - hits[0].distance < .03f))
+                            {
+                                var owner = hit.collider.transform.parent;
+                                string path = owner.name; for (var t = owner.parent; t != null && path.Length < 150; t = t.parent) path = t.name + "/" + path;
+                                var mr = owner.GetComponent<MeshRenderer>();
+                                log.Add($"  pixel {shot.Key} {entry} d={hit.distance:F4} n={hit.normal:F2} {path} mat={mr.sharedMaterial?.name} mesh={owner.GetComponent<MeshFilter>().sharedMesh.name}");
+                            }
+                        }
+                        foreach (var proxy in proxies) Destroy(proxy);
+                    }
                     // TRIAS_ART_PICK=1 logs the nearest renderer (by bounds) under a 5x4 screen grid; =2 also admits large distant structures.
                     string pickMode = Environment.GetEnvironmentVariable("TRIAS_ART_PICK");
                     if (pickMode == "1" || pickMode == "2")
@@ -364,6 +457,33 @@ namespace Trias.Native
                     image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
                     RenderTexture.active = null;
                     File.WriteAllBytes(Path.Combine(output, shot.Key + ".png"), image.EncodeToPNG());
+                    // TRIAS_ART_ZFIGHT=1: render again from 7 mm aside and save the amplified difference. Coplanar
+                    // surfaces fighting for depth change chaotically under such a small move; normal geometry only
+                    // shifts by a pixel at its edges.
+                    if (Environment.GetEnvironmentVariable("TRIAS_ART_ZFIGHT") == "1")
+                    {
+                        var rest = view.transform.position;
+                        view.transform.position = rest + view.transform.right * .007f + view.transform.up * .003f;
+                        view.targetTexture = target;
+                        view.Render();
+                        view.targetTexture = null;
+                        view.transform.position = rest;
+                        RenderTexture.active = target;
+                        var moved = new Texture2D(width, height, TextureFormat.RGB24, false);
+                        moved.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                        RenderTexture.active = null;
+                        var a = image.GetPixels32();
+                        var b = moved.GetPixels32();
+                        for (int i = 0; i < a.Length; i++)
+                        {
+                            int d = Mathf.Abs(a[i].r - b[i].r) + Mathf.Abs(a[i].g - b[i].g) + Mathf.Abs(a[i].b - b[i].b);
+                            byte v = (byte)Mathf.Min(255, d * 3);
+                            a[i] = new Color32(v, v, v, 255);
+                        }
+                        moved.SetPixels32(a);
+                        File.WriteAllBytes(Path.Combine(output, shot.Key + "-zdiff.png"), moved.EncodeToPNG());
+                        Destroy(moved);
+                    }
                     Destroy(image);
                     // TRIAS_ART_PERF=<frames> times repeated renders of the same view (editor CPU submission time of
                     // Camera.Render including the visor composite; not GPU time) and reads the render counters.

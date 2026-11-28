@@ -25,6 +25,8 @@ namespace Trias.Native
             // Seams take the plate's own darkened value unless SeamTone is 0, so large ceramic
             // fields read as one glazed mass with fine joints rather than a black-lined tile grid.
             internal float SeamStrength = 1, SeamTone, SideSeams = .12f;
+            // Floor construction bays (m); 0 keeps the plain plate field.
+            internal float Bay, BayVar = .06f, HatchRate = .3f;
         }
 
         bool PrepareArchitecture()
@@ -68,7 +70,7 @@ namespace Trias.Native
             if (arenaDeck != null)
                 ArchitectureFor(arenaDeck, new ArchitectureFinish { Deck = true, Color = floor, Alt = floor, AltRate = .14f,
                     Gloss = foundry ? .3f : .38f, GlossVar = .22f, PlateVar = .07f, Scale = 6.4f, Edge = .4f, Grime = 0, Bevel = .03f,
-                    SeamStrength = .75f, SeamTone = .65f });
+                    SeamStrength = .75f, SeamTone = .65f, Bay = 12.8f, BayVar = foundry ? .07f : .05f, HatchRate = foundry ? .2f : .3f });
             // Linked-route casting decks and their frames (brushed noise stretched across 30 m spans).
             if (routeTread != null && !island)
                 ArchitectureFor(routeTread, new ArchitectureFinish { Deck = true, Color = foundry ? Hex(routeTread) : "#6a5d56",
@@ -87,6 +89,11 @@ namespace Trias.Native
                 if (environmentFinishes.TryGetValue("Ceramic", out var kitCeramic)) ArchitectureFor(kitCeramic, refractory);
                 if (mapFinishes.TryGetValue("Refractory", out var propRefractory)) ArchitectureFor(propRefractory, refractory);
             }
+            if (Spec.id == "basin" && environmentFinishes.TryGetValue("Ceramic", out var extraction))
+                // Meridian's machinery ceramic: warm, matte and dusted, with grime settling toward the floor,
+                // so it reads as mining equipment around the mineral rather than Relay's clean glaze.
+                ArchitectureFor(extraction, new ArchitectureFinish { Color = "#a08a7b", Alt = "#8d786b", AltRate = .16f, Gloss = .28f,
+                    GlossVar = .1f, PlateVar = .07f, Scale = 5.6f, Edge = .55f, Grime = .6f, SeamStrength = .6f, SeamTone = .8f });
             if (mapFinishes.TryGetValue("Alloy", out var kitAlloy))
                 ArchitectureFor(kitAlloy, new ArchitectureFinish { Deck = true, Color = Hex(kitAlloy), Alt = Hex(kitAlloy), AltRate = .15f,
                     Metal = .55f, Gloss = .44f, GlossVar = .2f, PlateVar = .08f, Scale = 4.4f, Edge = .45f, Grime = 0, Bevel = .02f,
@@ -134,7 +141,8 @@ namespace Trias.Native
             // Deck: larger cast slabs; value stays calm, per-slab smoothness varies so the sky
             // reflection breaks up across the floor and reads as worn glaze rather than flat paint.
             var deck = new ArchitectureFinish { Deck = true, Color = "#7a7c7c", Alt = "#686c6e", AltRate = .16f, Gloss = .42f, GlossVar = .26f,
-                PlateVar = .08f, Scale = 5.2f, Edge = .5f, Grime = 0, Bevel = .03f, SeamStrength = .8f, SeamTone = .7f };
+                PlateVar = .08f, Scale = 5.2f, Edge = .5f, Grime = 0, Bevel = .03f, SeamStrength = .8f, SeamTone = .7f,
+                Bay = 10.4f, BayVar = .05f, HatchRate = .35f };
             ArchitectureFor(shaftFloor, deck);
             ArchitectureFor(stairTread, deck);
             ArchitectureFor(relayDrain, graphite);
@@ -202,6 +210,9 @@ namespace Trias.Native
             made.SetFloat("_SeamStrength", f.SeamStrength);
             made.SetFloat("_SeamTone", f.SeamTone);
             made.SetFloat("_SideSeams", f.Deck ? f.SideSeams : 1);
+            made.SetFloat("_BayPeriod", f.Bay);
+            made.SetFloat("_BayVar", f.BayVar);
+            made.SetFloat("_HatchRate", f.HatchRate);
             Paint.Add(made);
             architecture[(source, box, large)] = made;
             return made;

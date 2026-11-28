@@ -38,6 +38,17 @@ namespace Trias.Native
         WireValue state, own;
         Motor predicted;
         Vector3 display;
+        // Prediction advances in whole 30 Hz input steps. The view follows a line between the last two
+        // steps, timed on the step schedule rather than on the frame that sent it, so at 60 fps or more
+        // the camera moves every frame by the same amount; chasing the raw step moved it .66 then .34 of
+        // a step on alternate frames.
+        Vector3 stepFrom;
+        float stepAt = -1;
+
+        Vector3 Stepped(float now) => stepAt < 0 ? predicted.Position
+            : Vector3.Lerp(stepFrom, predicted.Position, Mathf.Clamp01((now - stepAt) / Motor.Tick));
+
+        void SnapDisplay() { display = predicted.Position; stepAt = -1; }
         Transform grip;
         string identity, mode, room, weaponName, requestedWeapon;
         float sendAt, pingAt, pingSent, joinedAt, lastPacket, yaw, pitch, tension, hurt, hit, toastUntil;
@@ -100,6 +111,13 @@ namespace Trias.Native
         }
 
         void LateUpdate()
+        {
+            AllocationBegin();
+            LateUpdatePilots();
+            AllocationEnd("late");
+        }
+
+        void LateUpdatePilots()
         {
             if (world == null && hangarPilot != null && hangarPilot.Root.gameObject.activeInHierarchy)
                 hangarPilot.PlaceHands();
@@ -210,7 +228,9 @@ namespace Trias.Native
             UpdateDiagnostics(now);
             if (socket != null)
             {
+                AllocationBegin();
                 DrainMatchPackets(now);
+                AllocationEnd("packets");
                 if (socket != null && socket.Error != null) ConnectionInterrupted(socket.Error, now);
                 if (socket != null && ((own == null && now - joinedAt > 12) || (own != null && now - lastPacket > 6)))
                     ConnectionInterrupted("Server neodpověděl včas.", now);
@@ -258,7 +278,9 @@ namespace Trias.Native
                 pingAt = now + 2.5f; pingSent = now;
                 socket.Send("{\"type\":\"ping\",\"id\":" + (++pingId) + "}");
             }
+            AllocationBegin();
             RenderWorld(now, Time.unscaledDeltaTime);
+            AllocationEnd("world");
             RenderConstruction();
         }
 
@@ -327,6 +349,9 @@ namespace Trias.Native
             if (own[6].Int <= 0 || own[15].Int >= 0 || own[16].Int >= 0 || state["winner"]["label"].Text != null) return;
             commands.Add(command);
             if (commands.Count > 24) commands.RemoveAt(0);
+            float scheduled = Mathf.Min(sendAt, Time.unscaledTime);
+            stepFrom = Stepped(scheduled);
+            stepAt = scheduled;
             var cue = predicted.Step(command, movement ?? world.Spec);
             if (cue != MotionCue.None) PlayLocalMotion(cue, predicted.Position);
         }
@@ -447,6 +472,7 @@ namespace Trias.Native
                 if (current["core"]["hp"].Int < oldHorde["core"]["hp"].Int) coreFlash = 1;
             }
             WireValue previous = own;
+            var markPlayers = AllocMark();
             present.Clear();
             foreach (var row in snapshot["players"].Items)
             {
@@ -475,6 +501,7 @@ namespace Trias.Native
                 pilots.Remove(key);
             }
 
+            AllocNote("apply_players", markPlayers);
             if (own == null) return;
             bool spawn = previous == null || own[13].Int != previous[13].Int;
             bool mountChange = previous != null && (own[16].Int != previous[16].Int || own[15].Int != previous[15].Int);
@@ -487,7 +514,7 @@ namespace Trias.Native
                 reloadPreviewUntil = 0;
                 switchPreviewUntil = 0;
                 nextLocalShot = now + (spawn ? .20f : .16f);
-                display = predicted.Position;
+                SnapDisplay();
                 yaw = (own[24].Float + Mathf.PI) * Mathf.Rad2Deg;
                 pitch = -own[25].Float * Mathf.Rad2Deg;
                 if (spawn)
@@ -535,10 +562,16 @@ namespace Trias.Native
             }
             SwitchWeapon(own[9].Text ?? "pulse");
             if (spawn && own[6].Int > 0) equipMotion = 1;
+            var mark_apply_world = AllocMark();
             SyncWorld(snapshot);
+            AllocNote("apply_world", mark_apply_world);
+            var mark_apply_signature = AllocMark();
             SyncSignature(snapshot["signature"], now);
+            AllocNote("apply_signature", mark_apply_signature);
+            var markEvents = AllocMark();
             foreach (var evt in deferredEvents) GameEvent(evt, now);
             foreach (var evt in snapshot["events"].Items) GameEvent(evt, now);
+            AllocNote("apply_events", markEvents);
             RemoveVanishedEchoes(now);
         }
 
@@ -993,7 +1026,7 @@ namespace Trias.Native
             if (alive)
             {
                 followedPilot = null;
-                display = Vector3.Lerp(display, predicted.Position, 1 - Mathf.Exp(-dt * 39));
+                display = Vector3.Lerp(display, Stepped(now), 1 - Mathf.Exp(-dt * 60));
                 UpdateFeel(now, dt, driving);
             }
             else if (replay)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
@@ -76,6 +77,31 @@ namespace Trias
         {
             content.text = text;
             return style.CalcSize(content).x;
+        }
+    }
+
+    // HUD lines rebuilt only when the values they show change. OnGUI runs several times per frame, and
+    // concatenating "12 ms · room" or "1:05" every pass was the steady garbage that kept the GC busy.
+    internal sealed class TextMemo
+    {
+        int a = int.MinValue, b = int.MinValue, c = int.MinValue;
+        string s, text;
+
+        internal string Of(int a, int b, int c, string s, Func<int, int, int, string, string> make)
+        {
+            if (text == null || a != this.a || b != this.b || c != this.c || !string.Equals(s, this.s))
+            {
+                this.a = a; this.b = b; this.c = c; this.s = s;
+                text = make(a, b, c, s);
+            }
+            return text;
+        }
+
+        internal static TextMemo[] Row(int count)
+        {
+            var row = new TextMemo[count];
+            for (int i = 0; i < count; i++) row[i] = new TextMemo();
+            return row;
         }
     }
 }
