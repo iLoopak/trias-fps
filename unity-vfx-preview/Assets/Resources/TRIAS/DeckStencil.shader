@@ -6,6 +6,9 @@ Shader "TRIAS/Deck Stencil"
         Tags { "Queue" = "Transparent" "RenderType" = "Transparent" }
         Cull Off
         ZWrite Off
+        // Decals lie a centimetre above the deck; the bias keeps them ahead of it at range, where depth
+        // precision with the first-person near plane no longer separates the two (shimmer in motion).
+        Offset -1, -2
         ZTest LEqual
         Blend SrcAlpha OneMinusSrcAlpha
         Pass

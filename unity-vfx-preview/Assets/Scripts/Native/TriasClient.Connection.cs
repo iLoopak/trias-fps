@@ -21,7 +21,9 @@ namespace Trias.Native
             {
                 for (int i = 0; i < 18 && socket != null && socket.Received.TryDequeue(out var raw); i++)
                 {
+                    long parseMark = frameLogPath != null ? UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong() : 0;
                     var packet = WireValue.Parse(raw);
+                    if (frameLogPath != null) NoteParse(UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong() - parseMark);
                     if (packet["type"].Text == "state")
                     {
                         if (packet["tick"].Int <= (newest?["tick"].Int ?? lastTick)) continue;

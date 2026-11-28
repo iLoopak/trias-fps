@@ -25,8 +25,10 @@ namespace Trias.Native
                 case "YoungLeaf": material = MaterialAt("#899552"); break;
                 case "Ceramic" when island: material = MapSurface("#bab698", "refractory", .03f, .22f); break;
                 case "Ceramic" when Spec.id == "foundry": material = MapSurface("#b69b7d", "refractory", .06f, .23f); break;
-                case "Ceramic" when Spec.id == "basin": material = MeridianSection(); break;
-                case "Secondary" when Spec.id == "basin": material = MeridianSection(); break;
+                // Meridian: the kit's ceramic stays ceramic machinery; only its secondary inserts are the mined
+                // mineral, cut from one solid so the agate reads as material held in the machine.
+                case "Secondary" when Spec.id == "basin": material = MineralSolid(); break;
+                case "Ceramic" when Spec.id == "basin": material = MapSurface("#9b8576", "refractory", 0, .2f); break;
                 case "Secondary" when island: material = MapSurface("#8d9374", "fractured-stone", 0, .19f); break;
                 default: return MapFinish(slot);
             }

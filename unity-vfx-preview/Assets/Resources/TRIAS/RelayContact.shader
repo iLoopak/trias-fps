@@ -5,6 +5,9 @@ Shader "TRIAS/Relay Contact"
         Tags { "Queue" = "Transparent-20" "RenderType" = "Transparent" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
+        // Decals lie a centimetre above the deck; the bias keeps them ahead of it at range, where depth
+        // precision with the first-person near plane no longer separates the two (shimmer in motion).
+        Offset -1, -2
         Cull Off
         Pass
         {

@@ -18,6 +18,22 @@ namespace Trias.Native
             return meridianSection;
         }
 
+        Material mineralSolid;
+
+        // The anomalous mineral as a solid (TRIAS/MineralSolid): banding follows world position, so the
+        // stone held in machinery shows one continuous body across faces and neighbouring parts.
+        Material MineralSolid()
+        {
+            if (mineralSolid != null) return mineralSolid;
+            var shader = Resources.Load<Shader>("TRIAS/MineralSolid");
+            var palette = Resources.Load<Texture2D>("TRIAS/meridian-agate");
+            if (shader == null || !shader.isSupported || palette == null) return mineralSolid = MeridianSection();
+            mineralSolid = new Material(shader) { name = "Anomalous mineral solid" };
+            mineralSolid.SetTexture("_Palette", palette);
+            Paint.Add(mineralSolid);
+            return mineralSolid;
+        }
+
         // Meridian's floor shows one polished agate vein surfacing in open ground: lens-shaped cuts laid
         // along a single fault axis through the basin, each 2.6-4.4 m long, offset to alternate sides of the
         // axis. UVs follow position along the axis, so the banding reads as the same vein between windows.

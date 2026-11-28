@@ -249,6 +249,8 @@ namespace Trias.Native
             if (now >= shieldReturnUntil) shieldReturnUntil = 0;
         }
 
+        readonly TextMemo healthText = new(), shieldText = new(), toolText = new(), countText = new();
+
         void PaintVitals(float w, float h)
         {
             float health = HealthFraction;
@@ -274,10 +276,10 @@ namespace Trias.Native
                 glow.a = life * visualEffects;
                 Arc(dial, 27, 220, 280 * armor * Mathf.SmoothStep(0, 1, (1 - life) * 3), glow, 2.2f, 16);
             }
-            hudText.Draw(new Rect(32, y + 15, 44, 29), own[6].Int.ToString(), center);
+            hudText.Draw(new Rect(32, y + 15, 44, 29), healthText.Of(own[6].Int, 0, 0, null, static (hp, _, _, _) => hp.ToString()), center);
             hudText.Draw(new Rect(88, y + 5, 100, 22), catalog.teams[own[3].Int].name, section);
             string shieldLabel = shieldAlertUntil > 0 ? "ŠTÍT PRORAŽEN" : shieldReturnUntil > 0 ? "ŠTÍT OBNOVEN"
-                : own[7].Int > 0 ? "ŠTÍT " + own[7].Int : "ZDRAVÍ";
+                : own[7].Int > 0 ? shieldText.Of(own[7].Int, 0, 0, null, static (sh, _, _, _) => "ŠTÍT " + sh) : "ZDRAVÍ";
             hudText.Draw(new Rect(88, y + 27, 105, 18), shieldLabel, caption);
             Segments(new Rect(88, y + 50, 95, 3), 9, health, vitality);
 
@@ -287,13 +289,14 @@ namespace Trias.Native
             float x = w - 204;
             HudStrip(new Rect(x, y, 182, 60), energy);
             string tool = own[16].Int >= 0 ? (hull[2].Text == "bastion" ? "BASTION" : "SKIMMER")
-                : own[15].Int >= 0 ? "HNÍZDO" : weapon?.label.ToUpperInvariant();
+                : own[15].Int >= 0 ? "HNÍZDO" : toolText.Of(0, 0, 0, weapon?.label, static (_, _, _, label) => label?.ToUpperInvariant());
             hudText.Draw(new Rect(x + 10, y + 3, 161, 21), tool, section);
             var mags = own[10][System.Array.IndexOf(Arsenal, weaponName)];
             int ammo = VisibleAmmo(weaponName);
             float heat = state["turrets"][own[15].Int]["heat"].Float;
-            string count = own[16].Int >= 0 ? hull[5].Int + " HP" : own[15].Int >= 0 ? Mathf.RoundToInt(heat * 100) + " %"
-                : ammo + " / " + (mags[1].Int < 0 ? "∞" : mags[1].Int.ToString());
+            string count = own[16].Int >= 0 ? countText.Of(0, hull[5].Int, 0, null, static (_, hp, _, _) => hp + " HP")
+                : own[15].Int >= 0 ? countText.Of(1, Mathf.RoundToInt(heat * 100), 0, null, static (_, pct, _, _) => pct + " %")
+                : countText.Of(2, ammo, mags[1].Int, null, static (_, loaded, spare, _) => loaded + " / " + (spare < 0 ? "∞" : spare.ToString()));
             hudText.Draw(new Rect(x + 9, y + 20, 162, 31), count, heading);
             float magazine = fireProfiles.TryGetValue(weaponName ?? string.Empty, out var profile) ? profile.Magazine :
                 weaponName == "pulse" ? 24 : weaponName == "arc" ? 36 : weaponName == "scatter" ? 6 : 4;
