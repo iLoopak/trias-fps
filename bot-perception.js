@@ -1,5 +1,5 @@
-import { distanceSquared, eyeHeight, wallDistance } from './public/rules.js';
-import { wrapAngle } from './public/vehicles.js';
+import { distanceSquared, eyeHeight, wallDistance } from './shared/rules.js';
+import { wrapAngle } from './shared/vehicles.js';
 import { roll } from './bot-profiles.js';
 
 export function visible(from, to, layout) {

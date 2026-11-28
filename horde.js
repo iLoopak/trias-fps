@@ -1,5 +1,5 @@
 import { route } from './bots.js';
-import { distanceSquared, packCover, PILOT_HP, rayBox, TEAM_SIZE, TICK, wallDistance, WEAPONS } from './public/rules.js';
+import { distanceSquared, packCover, PILOT_HP, rayBox, TEAM_SIZE, TICK, wallDistance, WEAPONS } from './shared/rules.js';
 
 const WAVES = 8;
 const MAX_ACTIVE = 8;

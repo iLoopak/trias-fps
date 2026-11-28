@@ -360,7 +360,7 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - **Skály Kordilery – zamítnuto:** skály z `Nature.fbx` mají ukloněné vrstvy a vrchol ustupující na stranu. Horní plochu kvádru tak pokrývají asi z třetiny (21–76 zásahů, mezera 1–2 m).
   - Krycí deska přes celý půdorys snížila zásahy na polovinu, ale ze skal udělala hřiby na tenkých nohách a z blízké skály obří zelenou plochu.
   - **Řešení v pravidlech:** skály mají stupňovité collidery.
-    - Sonda `TRIAS_ART_ROCKS=1` naměřila u čtyř tvarů z kitu výškovou mapu viditelného vrchu (16 × 16) a `ROCK_TOPS` v `public/rules.js` ji nese.
+    - Sonda `TRIAS_ART_ROCKS=1` naměřila u čtyř tvarů z kitu výškovou mapu viditelného vrchu (16 × 16) a `ROCK_TOPS` v `shared/rules.js` ji nese.
     - Každá skála má v `cover` tři kvádry `collider: true`: základ asi 0,5 m nad terénem, střed a hřeben. Každý je největší obdélník, nad kterým kámen sahá do jeho výšky (tolerance 5 % výšky skály).
     - Celá skála zůstává v novém seznamu `scenery`, ze kterého ji kreslí Unity, web i taktická mapa. Vzhled se nezměnil.
     - Zbraně týmů leží na nejvyšším volném stupni, ne nad středem skály. U chaty Horní útulna je to nižší stupeň u svahu: zbraň Arc dřív visela 0,69 m nad kamenem.

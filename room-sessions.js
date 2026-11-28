@@ -30,7 +30,7 @@ export class RoomSessions {
     const player = seat.player;
     Object.assign(socket, { id: player.id, player, room: this.room, seat });
     this.room.stopPlayerInput(player);
-    Object.assign(player, { away: false, ack: 0, receivedSeq: 0, lastFireId: 0, lastEchoAction: 0 });
+    Object.assign(player, { away: false, ack: 0, receivedSeq: 0, inputQueue: [], inputOwed: 0, lastFireId: 0, lastEchoAction: 0 });
     Object.assign(seat, { socket, expires: Infinity });
     this.room.humans.add(socket);
     this.room.director?.onJoin();

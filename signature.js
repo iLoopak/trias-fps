@@ -1,4 +1,4 @@
-import { aimVector, blocked, eyeHeight, floorBelow, hitHeight, rayBox, wallDistance, WEAPONS } from './public/rules.js';
+import { aimVector, blocked, eyeHeight, floorBelow, hitHeight, rayBox, wallDistance, WEAPONS } from './shared/rules.js';
 import { recallBlocker } from './interactions.js';
 
 export const SIGNATURE = {

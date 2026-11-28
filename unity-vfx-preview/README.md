@@ -8,7 +8,7 @@ Postup pro server přes internet je v [Multiplayer přes internet](INTERNET.md).
 
 Online klient používá autoritativní server pro pět soutěžních režimů, čtyři arény a kooperativní Obranu jádra. Pěší pohyb se predikuje lokálně, vozidla přebírají polohu ze serveru. Pro nové soutěžní Relay spusť `npm start`, v Unity zvol **TRIAS → Open full game** a vytvoř **Týmový boj** na Relay Station se serverem `ws://127.0.0.1:3000`. Horda a samostatný offline trénink používají servisní variantu Relay. Tlačítko **Trénink offline** spouští samostatný místní TDM na Relay Station. Začneš se zbraní vybraného pilota a můžeš rovnou vyzkoušet všech pět zbraní a jejich sekundární střelbu.
 
-- **WASD** a myš ovládají pohyb a míření. **Shift** sprintuje, **C** krčí, **mezerník** skáče a **Q** provádí úskok.
+- **WASD** a myš ovládají pohyb a míření. **Shift** sprintuje, **C** krčí, **mezerník** skáče a **Q** provádí úskok. Skok, úskok a skok z hrany mají toleranci 0,1 s.
 - Levé tlačítko střílí, **R** přebíjí, **1–5** volí zbraň, **pravé tlačítko** nebo **F** spustí sekundární střelbu a **G** hodí granát.
 - **E** obsluhuje vozidla a věže. Při čekání na respawn přepíná spoluhráče. **Tab** zobrazí skóre a **Esc** uvolní kurzor.
 
@@ -112,7 +112,7 @@ Pro ladění plné hry spusť v kořenu repozitáře `npm run lab:feel` a v Unit
 
 Nastavení systémových interakcí W6 a cvičení se sestřelováním granátů popisuje [návod k W6](W6-INTERACTIONS.md).
 
-Samostatná srovnávací scéna pro Unity 6.3 LTS. Obsahuje výstřel Pulse, nárazové jiskry, explozi Riftu a návrat pilota. Účelem je porovnat vizuální a zvukovou odezvu s webovou verzí TRIAS.
+Samostatná srovnávací scéna pro Unity 6.3 LTS. Obsahuje výstřel Pulse, nárazové jiskry, explozi Riftu a návrat pilota. Účelem je ladit vizuální a zvukovou odezvu efektů izolovaně od zápasu.
 
 Otevři tuto složku v Unity 6.3 LTS. V nabídce vyber **TRIAS → Open VFX Lab**. Při prvním otevření se vytvoří scéna v `Assets/Scenes/Trias VFX Lab.unity`. V režimu Play spustíš klávesou **1** Pulse, **2** Rift, **3** návrat a **mezerníkem** výstřel s následným návratem.
 

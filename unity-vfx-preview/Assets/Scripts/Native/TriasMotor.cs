@@ -12,12 +12,18 @@ namespace Trias.Native
 
     internal enum MotionCue { None, Jump, Double, Dodge, Launch }
 
+    // Mirrors movePlayer in shared/rules.js step for step; the server is authoritative and the snapshot
+    // re-bases this state every packet, so any rule added there must be added here in the same order.
     internal struct Motor
     {
         internal const float Tick = 1f / 30f;
         const float Radius = 0.43f;
+        // Kinetic grace (rules.js KINETIC_GRACE): jump buffer, dodge buffer and coyote time, in ticks.
+        internal const int Grace = 3;
+        const float AirAcceleration = 20, AirDrag = 4.2f, AirCarryRamp = 1.5f;
         internal Vector3 Position, Velocity;
         internal float DodgeCooldown, DodgeTime, PadCooldown;
+        internal int JumpBuffer, DodgeBuffer, Coyote;
         internal bool Grounded, AirJump, AirDodge, Crouch;
 
         internal void Read(WireValue p)
@@ -32,6 +38,9 @@ namespace Trias.Native
             AirJump = (bits & 4) != 0;
             AirDodge = (bits & 8) != 0;
             Crouch = (bits & 16) != 0;
+            JumpBuffer = (bits >> 8) & 3;
+            DodgeBuffer = (bits >> 10) & 3;
+            Coyote = (bits >> 12) & 3;
         }
 
         internal MotionCue Step(Command input, ArenaSpec map)
@@ -40,6 +49,11 @@ namespace Trias.Native
             DodgeCooldown = Mathf.Max(0, DodgeCooldown - Tick);
             DodgeTime = Mathf.Max(0, DodgeTime - Tick);
             PadCooldown = Mathf.Max(0, PadCooldown - Tick);
+            bool wasGrounded = Grounded, jumpPressed = input.Has(5), dodgePressed = input.Has(6);
+            bool jumpHeld = JumpBuffer > 0, dodgeHeld = DodgeBuffer > 0, coyote = !wasGrounded && Coyote > 0;
+            JumpBuffer = Mathf.Max(0, JumpBuffer - 1);
+            DodgeBuffer = Mathf.Max(0, DodgeBuffer - 1);
+            Coyote = wasGrounded ? 0 : Mathf.Max(0, Coyote - 1);
             Crouch = input.Has(0) || Crouch && Blocked(map, Position.x, Position.z, Position.y, 1.78f);
             float height = Crouch ? 1.12f : 1.78f;
             float cos = Mathf.Cos(input.Yaw), sin = Mathf.Sin(input.Yaw);
@@ -60,15 +74,19 @@ namespace Trias.Native
                 Grounded = false;
                 AirJump = AirDodge = true;
                 PadCooldown = 0.45f;
+                JumpBuffer = DodgeBuffer = Coyote = 0;
             }
-            else if (input.Has(5) && (Grounded || AirJump))
+            else if (jumpPressed && (wasGrounded || coyote || AirJump) || jumpHeld && (wasGrounded || coyote))
             {
-                cue = Grounded ? MotionCue.Jump : MotionCue.Double;
-                Velocity.y = (Grounded ? 7.65f : 8.75f) * (Crouch ? 0.69f : 1f);
-                AirJump = Grounded;
+                bool fromGround = wasGrounded || coyote;
+                cue = fromGround ? MotionCue.Jump : MotionCue.Double;
+                Velocity.y = (fromGround ? 7.65f : 8.75f) * (Crouch ? 0.69f : 1f);
+                AirJump = fromGround;
                 Grounded = false;
+                JumpBuffer = Coyote = 0;
             }
-            if (launch == null && input.Has(6) && !Crouch && DodgeCooldown <= 0 && (Grounded || AirDodge))
+            else if (jumpPressed) JumpBuffer = Grace;
+            if (launch == null && (dodgePressed || dodgeHeld) && !Crouch && DodgeCooldown <= 0 && (Grounded || AirDodge))
             {
                 cue = MotionCue.Dodge;
                 Vector2 slide = length > 0 ? wish.normalized : new Vector2(-sin, -cos);
@@ -76,14 +94,29 @@ namespace Trias.Native
                 DodgeCooldown = 0.96f;
                 DodgeTime = 0.22f;
                 Grounded = AirDodge = false;
+                DodgeBuffer = JumpBuffer = Coyote = 0;
             }
+            else if (launch == null && dodgePressed) DodgeBuffer = Grace;
             bool releaseLane = map.Shaft && PadCooldown > 0 && Velocity.y > 0;
             if (launch == null && !releaseLane && DodgeTime <= 0)
             {
                 float speed = Crouch ? 4.25f : input.Has(1) ? 10.1f : 7.55f;
                 if (map.id == "island" && Grounded && Shallow(Position, map)) speed *= 0.72f;
-                float acceleration = Grounded ? (length > 0 ? 70 : 64) : (length > 0 ? 20 : 4.2f);
-                Vector2 adjusted = Vector2.MoveTowards(new Vector2(Velocity.x, Velocity.z), wish * speed, acceleration * Tick);
+                float acceleration = Grounded ? (length > 0 ? 70 : 64) : (length > 0 ? AirAcceleration : AirDrag);
+                var flat = new Vector2(Velocity.x, Velocity.z);
+                float before = flat.magnitude;
+                float against = before > 0 && length > 0
+                    ? Mathf.Max(0, -Vector2.Dot(wish, flat) * Mathf.Max(1, length) / (length * before)) : 0;
+                Vector2 adjusted = Vector2.MoveTowards(flat, wish * speed, acceleration * Tick);
+                // Air carry (rules.js AIR_CARRY): steering never brakes harder than letting go of the keys.
+                if (!Grounded && length > 0 && before > speed)
+                {
+                    float after = adjusted.magnitude;
+                    float kept = before - (AirDrag + (AirAcceleration - AirDrag) * against) * Tick;
+                    float carry = Mathf.Min(1, (before - speed) / AirCarryRamp);
+                    float target = after + Mathf.Max(0, kept - after) * carry;
+                    if (after > 1e-6f && target > after) adjusted *= target / after;
+                }
                 Velocity.x = adjusted.x;
                 Velocity.z = adjusted.y;
             }
@@ -94,7 +127,7 @@ namespace Trias.Native
                     if (old + height <= box.bottom + 0.0001f && next + height > box.bottom && box.Overlaps(Position.x, Position.z, Radius))
                     { next = box.bottom - height; Velocity.y = 0; }
 
-            bool slope = map.terrain != null && Grounded;
+            bool slope = map.Terrain != null && Grounded;
             float moveY = Mathf.Max(old, next), stepHeight = old;
             bool mayStep = map.Walkways && Grounded && Velocity.y <= 0;
             float x = Position.x + Velocity.x * Tick, z = Position.z + Velocity.z * Tick;
@@ -105,7 +138,7 @@ namespace Trias.Native
             float ground = float.NegativeInfinity;
             if (Velocity.y <= 0)
             {
-                ground = map.terrain?.At(Position.x, Position.z) ?? (map.Shaft ? float.NegativeInfinity : 0);
+                ground = map.Terrain?.At(Position.x, Position.z) ?? (map.Shaft ? float.NegativeInfinity : 0);
                 foreach (var box in map.cover)
                     if (stepHeight + 0.0001f >= box.h && box.h > ground && box.Overlaps(Position.x, Position.z, Radius))
                         ground = box.h;
@@ -116,15 +149,17 @@ namespace Trias.Native
             {
                 Velocity.y = 0;
                 AirJump = AirDodge = true;
+                Coyote = 0;
             }
+            else if (wasGrounded && cue == MotionCue.None) Coyote = Grace;
             return cue;
         }
 
         static bool StepAllowed(ArenaSpec map, float x, float z, float y, float h, bool slope,
             bool mayStep, float old, ref float stepHeight)
         {
-            float ground = map.terrain?.At(x, z) ?? (map.Shaft ? float.NegativeInfinity : 0);
-            if (map.terrain != null && !slope && ground > y + .0001f) return false;
+            float ground = map.Terrain?.At(x, z) ?? (map.Shaft ? float.NegativeInfinity : 0);
+            if (map.Terrain != null && !slope && ground > y + .0001f) return false;
             float support = stepHeight;
             if (mayStep)
                 foreach (var box in map.cover)

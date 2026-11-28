@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { route } from '../bots.js';
 import { Match } from '../match.js';
 import { Practice } from '../practice.js';
-import { ARENAS, BODY_RADIUS, RELAY_HORDE, TICK, blocked, floorBelow, movePlayer, radial } from '../public/rules.js';
+import { ARENAS, BODY_RADIUS, RELAY_HORDE, TICK, blocked, floorBelow, movePlayer, radial } from '../shared/rules.js';
 
 const { foundry, basin, island, relay } = ARENAS;
 

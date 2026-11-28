@@ -5,5 +5,5 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": { "start": "node server.js", "test": "node --test", "lab:feel": "node tools/game-feel-lab.mjs" },
-  "dependencies": { "three": "0.185.1", "ws": "8.22.0" }
+  "dependencies": { "ws": "8.22.0" }
 }

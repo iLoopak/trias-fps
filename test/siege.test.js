@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
-import { ARENAS, MED_HEAL, PILOT_HP, SIEGE_CORE_HP, TICK, WEAPONS } from '../public/rules.js';
+import { ARENAS, MED_HEAL, PILOT_HP, SIEGE_CORE_HP, TICK, WEAPONS } from '../shared/rules.js';
 
 function roomWithPilots() {
   const match = new Match('SIEGE', 'siege', false);

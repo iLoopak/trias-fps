@@ -6,8 +6,8 @@
 //
 // The host seat stays idle (no input) and leaves after `seconds` (default 180).
 import WebSocket from 'ws';
-import { NETWORK_VERSION } from '../../public/netcode.js';
-import { LAYOUT_SET } from '../../public/rules.js';
+import { NETWORK_VERSION } from '../../shared/netcode.js';
+import { LAYOUT_SET } from '../../shared/rules.js';
 
 const [code = 'PLAYTEST', mode = 'tdm', arena = 'relay', seconds = '180'] = process.argv.slice(2);
 const socket = new WebSocket(process.env.TRIAS_SERVER ?? 'ws://127.0.0.1:3000/play');

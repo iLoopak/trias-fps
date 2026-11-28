@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { ARENAS, LAYOUT_SET, RELAY_HORDE, RELAY_SERVICE, WEAPONS } from '../public/rules.js';
+import { ARENAS, LAYOUT_SET, RELAY_HORDE, RELAY_SERVICE, WEAPONS } from '../shared/rules.js';
 import {
   ISLAND_CREEK_END, ISLAND_CREEK_START, ISLAND_CROSSINGS, ISLAND_GRID,
   ISLAND_TRAIL, creekCenter, creekLevel, islandGridHeight, riverCenter,
-} from '../public/island-terrain.js';
+} from '../shared/island-terrain.js';
 
 const target = new URL('../unity-vfx-preview/Assets/Resources/TRIAS/World.json',import.meta.url);
 const existing = readFileSync(target,'utf8');

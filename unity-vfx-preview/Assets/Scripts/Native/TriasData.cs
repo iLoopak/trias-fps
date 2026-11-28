@@ -67,6 +67,11 @@ namespace Trias.Native
         public PadSpec[] launchPads;
         public Site[] pickups, bases, points, turrets, repairs, river, creek, trail, crossings;
         public HeightData terrain;
+        // JsonUtility never leaves a serializable class field null: an arena without terrain (Relay, Vanta,
+        // Meridian) gets an empty HeightData whose At() is 0. Movement must treat that as no terrain, or the
+        // Relay shaft and the Vanta channel get an invisible floor at y = 0 in prediction. (Presentation code
+        // such as TriasWorld.Height relies on the 0 and keeps reading `terrain`.)
+        internal HeightData Terrain => terrain != null && terrain.count >= 2 ? terrain : null;
         public SiegeSpec siege;
         public HazardSpec hazard;
     }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../match.js';
-import { PILOT_HP } from '../public/rules.js';
+import { PILOT_HP } from '../shared/rules.js';
 
 const origin = { x: 0, y: 1, z: -24 };
 

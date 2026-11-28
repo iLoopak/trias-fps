@@ -4,7 +4,7 @@ import { Match } from '../match.js';
 import { Practice } from '../practice.js';
 import { invitePage } from '../room-invite.js';
 import { RESUME_SECONDS, RoomSessions } from '../room-sessions.js';
-import { TICK } from '../public/rules.js';
+import { TICK } from '../shared/rules.js';
 
 function peer(id) { return { id, close() { this.closed = true; } }; }
 

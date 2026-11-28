@@ -32,6 +32,20 @@ export const SPRINT_SPEED = 10.1;
 export const DODGE_COOLDOWN = 0.96;
 const DODGE_DURATION = 0.22;
 const GRAVITY = 19;
+// Kinetic grace, in 30 Hz ticks. A jump or dodge press that cannot happen yet stays valid for the next
+// KINETIC_GRACE ticks (0.1 s) and then expires; a buffered jump only becomes a ground jump (on landing or
+// within coyote time), never a surprise double jump. A pilot who walks off a ledge may still make a ground
+// jump for KINETIC_GRACE ticks and keeps the double jump. Launch pads, jumps and dodges clear all grace.
+// Every rule is authoritative and mirrored by the Unity Motor; the remaining ticks travel in the snapshot.
+export const KINETIC_GRACE = 3;
+// Air control steers fast pilots without braking them harder than letting go of the keys would (AIR_DRAG),
+// unless the input pulls against the motion. It fades in over the first AIR_CARRY_RAMP m/s above the target
+// speed so the rule is continuous (prediction and server agree after rounding), and it never accelerates a
+// pilot beyond the speed they already had.
+export const AIR_CARRY = true;
+const AIR_CARRY_RAMP = 1.5;
+const AIR_ACCELERATION = 20;
+const AIR_DRAG = 4.2;
 export const DEFAULT_WEAPON = 'pulse';
 export const WEAPONS = {
   pulse: { label: 'Pulse', color: '#89fff0', magazine: 24, reserve: Infinity, interval: 0.145, reload: 1.3, range: 60, damage: 23, pattern: [0],
@@ -580,6 +594,14 @@ export function movePlayer(player, input, dt = TICK, layout = RELAY_SERVICE) {
   player.padCooldown = Math.max(0, (player.padCooldown ?? 0) - dt);
 
   const wasGrounded = player.grounded;
+  const jumpPressed = Boolean(input.jump);
+  const dodgePressed = Boolean(input.dodge);
+  const jumpHeld = (player.jumpBuffer ?? 0) > 0;
+  const dodgeHeld = (player.dodgeBuffer ?? 0) > 0;
+  const coyote = !wasGrounded && (player.coyote ?? 0) > 0;
+  player.jumpBuffer = Math.max(0, (player.jumpBuffer ?? 0) - 1);
+  player.dodgeBuffer = Math.max(0, (player.dodgeBuffer ?? 0) - 1);
+  player.coyote = wasGrounded ? 0 : Math.max(0, (player.coyote ?? 0) - 1);
   player.crouch = Boolean(input.crouch || player.crouch && blocked(player.x, player.z, BODY_RADIUS, player.y, layout));
   const height = hitHeight(player);
   const currentY = player.y ?? 0;
@@ -602,14 +624,17 @@ export function movePlayer(player, input, dt = TICK, layout = RELAY_SERVICE) {
     player.grounded = false;
     player.airJump = player.airDodge = true;
     player.padCooldown = 0.45;
+    player.jumpBuffer = player.dodgeBuffer = player.coyote = 0;
     signal = 'launch';
-  } else if (input.jump && (wasGrounded || player.airJump)) {
-    player.vy = (wasGrounded ? 7.65 : 8.75) * (player.crouch ? 0.69 : 1);
+  } else if (jumpPressed && (wasGrounded || coyote || player.airJump) || jumpHeld && (wasGrounded || coyote)) {
+    const ground = wasGrounded || coyote;
+    player.vy = (ground ? 7.65 : 8.75) * (player.crouch ? 0.69 : 1);
     player.grounded = false;
-    player.airJump = wasGrounded;
-    signal = wasGrounded ? 'jump' : 'double';
-  }
-  if (!pad && input.dodge && canDodge(player)) {
+    player.airJump = ground;
+    player.jumpBuffer = player.coyote = 0;
+    signal = ground ? 'jump' : 'double';
+  } else if (jumpPressed) player.jumpBuffer = KINETIC_GRACE;
+  if (!pad && (dodgePressed || dodgeHeld) && canDodge(player)) {
     const speed = 18.3 / (length || 1);
     player.vx = length ? wishX * speed * magnitude : -sin * speed;
     player.vz = length ? wishZ * speed * magnitude : -cos * speed;
@@ -619,8 +644,9 @@ export function movePlayer(player, input, dt = TICK, layout = RELAY_SERVICE) {
     else player.vy = Math.max(player.vy ?? 0, 1.9);
     player.grounded = false;
     player.airDodge = false;
+    player.dodgeBuffer = player.jumpBuffer = player.coyote = 0;
     signal = 'dodge';
-  }
+  } else if (!pad && dodgePressed) player.dodgeBuffer = KINETIC_GRACE;
 
   player.vx ??= 0;
   player.vz ??= 0;
@@ -632,10 +658,23 @@ export function movePlayer(player, input, dt = TICK, layout = RELAY_SERVICE) {
     const speed = (player.crouch ? 4.25 : input.sprint ? SPRINT_SPEED : 7.55) * (shallow ? 0.72 : 1);
     const deltaX = wishX * speed - player.vx;
     const deltaZ = wishZ * speed - player.vz;
-    const acceleration = grounded ? (length ? 70 : 64) : (length ? 20 : 4.2);
+    const acceleration = grounded ? (length ? 70 : 64) : (length ? AIR_ACCELERATION : AIR_DRAG);
     const blend = Math.min(1, acceleration * dt / (Math.hypot(deltaX, deltaZ) || 1));
+    const before = Math.hypot(player.vx, player.vz);
+    const against = before && length
+      ? Math.max(0, -(wishX * player.vx + wishZ * player.vz) * magnitude / (length * before)) : 0;
     player.vx += deltaX * blend;
     player.vz += deltaZ * blend;
+    if (AIR_CARRY && !grounded && length && before > speed) {
+      const after = Math.hypot(player.vx, player.vz);
+      const kept = before - (AIR_DRAG + (AIR_ACCELERATION - AIR_DRAG) * against) * dt;
+      const carry = Math.min(1, (before - speed) / AIR_CARRY_RAMP);
+      const target = after + Math.max(0, kept - after) * carry;
+      if (after > 1e-6 && target > after) {
+        player.vx *= target / after;
+        player.vz *= target / after;
+      }
+    }
   }
 
   player.vy = (player.vy ?? 0) - GRAVITY * dt;
@@ -687,8 +726,9 @@ export function movePlayer(player, input, dt = TICK, layout = RELAY_SERVICE) {
   if (player.grounded) {
     player.vy = 0;
     player.airJump = player.airDodge = true;
+    player.coyote = 0;
     if (!signal && !wasGrounded && fallSpeed < -3.65) signal = 'land';
-  }
+  } else if (wasGrounded && !signal) player.coyote = KINETIC_GRACE;
   return signal;
 }
 

@@ -1,5 +1,5 @@
-import { blocked, BODY_RADIUS, distanceSquared, eyeHeight, floorBelow, hitHeight, wallDistance } from './public/rules.js';
-import { VEHICLES } from './public/vehicles.js';
+import { blocked, BODY_RADIUS, distanceSquared, eyeHeight, floorBelow, hitHeight, wallDistance } from './shared/rules.js';
+import { VEHICLES } from './shared/vehicles.js';
 
 export function interactionFlags(env) {
   return {

@@ -1,4 +1,4 @@
-import { blocked, distanceSquared, PILOT_HP } from './public/rules.js';
+import { blocked, distanceSquared, PILOT_HP } from './shared/rules.js';
 
 const SAMPLE = .5;
 const RULES = Object.freeze({ engage: .29, peak: .67, cool: .27, minRise: 3, minPeak: 3.5, maxPeak: 8, recovery: 6.5 });
