@@ -279,9 +279,16 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
   - První síla změny (zesvětlení 0,5) byla vidět jen v barvě. Přijatá síla (0,72 se ztmavením závětří na 0,74) mění i hodnotu, takže se tvary kopců oddělí i v šedi. Dřívější výškový gradient trávy se zamítl, protože v šedi nic neměnil.
 - **Vlajka CTF** je čitelná a zůstala beze změny.
 
+**Desátá vlna (prapor CTF a uzemnění).** Záběry jsou v `output/beyond/` (`u-flag*`, `v-*`).
+- **Prapor CTF** (`FactionStandard` v `build-objectives.py`) nahrazuje kvádry. Grafitová žerď má úchyt, hlavici a příčník. Keramický prapor tvoří tři desky oddělené fázovou spárou: hlavička se světelnou linkou, pole frakce s erbem a vlaštovčí ocas.
+  - Desky jsou 6–7 cm silné. Při 2,8 cm prapor při pohledu z boku zmizel, což u cíle CTF nejde.
+- **Export Blender → Unity zrcadlí lokální osu x.** U souměrných modelů to nevadí. Prapor proto má v Unity otočení o 180° kolem svislé osy. Platí to i pro asymetrické prvky dřívějších modelů (např. optika Přízraka sedí na jeho levé straně).
+- **Kontaktní stíny** (`BuildGroundContacts`) teď měkce uzemňují i kryty stojící na podlaze ve Vantě a Meridianu, v tónu stínu každé arény.
+- **Zamítnuto:** prachové koleje těžebních vozidel z hald rudy ke stroji v Meridianu. V rozumné síle na světlé podlaze nebyly vidět, v trojnásobné působily jako škrábance.
+
 **Zbývající slabiny.**
 - Přebíjení a výstřel mají společné časování. Jejich pohyb ze sedmé vlny posoudil jen člověk ve Feel Lab, ne sonda.
 - Řetěz hybnosti a rána do štítu se odehrávají ve visoru a ve zbrani z první osoby, takže sonda je nezachytí.
-- Kopce Kordilery mají tvarově hladkou geometrii (barevně už ne). Paluba Meridianu je prostá plocha. Prapor vlajky CTF je složený z kvádrů.
+- Kopce Kordilery mají tvarově hladkou geometrii (barevně už ne). Paluba Meridianu je prostá plocha. 
 - Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
 - Hra s boty, měření snímkové frekvence v nativním přehrávači a spuštění Windows buildu chybí.

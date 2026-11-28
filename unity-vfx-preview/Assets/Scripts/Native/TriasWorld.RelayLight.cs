@@ -137,6 +137,61 @@ namespace Trias.Native
             contact.GetComponent<Renderer>().receiveShadows = false;
         }
 
+        // Vanta and Meridian: the same soft grounding under floor-standing cover, tinted to each arena's
+        // shade, so containers and machines sit on the deck instead of floating on it.
+        void BuildGroundContacts()
+        {
+            if (IsRelayArt || island) return;
+            var shader = Resources.Load<Shader>("TRIAS/RelayContact");
+            if (shader == null || !shader.isSupported) return;
+            var paint = new Material(shader);
+            Paint.Add(paint);
+            var points = new List<Vector3>();
+            var colors = new List<Color>();
+            var triangles = new List<int>();
+            var inside = Spec.id == "foundry" ? new Color(.11f,.05f,.04f,.30f) : new Color(.10f,.07f,.08f,.27f);
+            var outside = new Color(inside.r,inside.g,inside.b,0);
+            foreach (var box in Spec.cover)
+            {
+                if (Mathf.Abs(box.bottom) > .02f || box.structure != null) continue;
+                AddContactSkirt(points,colors,triangles,new Vector3(box.x,.012f,box.z),box.angle,box.w*.5f,box.d*.5f,-.05f,.34f,inside,outside);
+            }
+            var mesh = new Mesh { name = "Ground contact and wear" };
+            mesh.SetVertices(points);
+            mesh.SetColors(colors);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            meshes.Add(mesh);
+            var contact = TriasMarkings.Model(Root, "Ground contact and wear", mesh, paint, Vector3.zero, Vector3.one, false);
+            contact.GetComponent<Renderer>().receiveShadows = false;
+        }
+
+        static void AddContactSkirt(List<Vector3> points, List<Color> colors, List<int> triangles, Vector3 pivot, float angle,
+            float W, float D, float inner, float outer, Color inside, Color outside)
+        {
+            var rotation = Quaternion.Euler(0,angle*Mathf.Rad2Deg,0);
+            int start = points.Count;
+            for (int ring = 0; ring < 2; ring++)
+            {
+                float reach = ring == 0 ? inner : outer;
+                float x = Mathf.Max(.02f,W+reach), z = Mathf.Max(.02f,D+reach);
+                points.Add(pivot + rotation*new Vector3(-x,0,-z));
+                points.Add(pivot + rotation*new Vector3(x,0,-z));
+                points.Add(pivot + rotation*new Vector3(x,0,z));
+                points.Add(pivot + rotation*new Vector3(-x,0,z));
+                for (int face = 0; face < 4; face++) colors.Add(ring == 0 ? inside : outside);
+            }
+            for (int edge = 0; edge < 4; edge++)
+            {
+                int a = start + edge, b = start + (edge+1)%4;
+                triangles.Add(a); triangles.Add(a+4); triangles.Add(b+4);
+                triangles.Add(a); triangles.Add(b+4); triangles.Add(b);
+            }
+        }
+
+        // Rejected: paired dust ruts from Meridian's ore stockpiles to the central machine. At a tasteful
+        // strength they were invisible on the pale floor; at three times that they read as faint scratches.
+
         void RestoreRelayLight()
         {
             if (relayCamera != null) relayCamera.allowHDR = oldHdr;
