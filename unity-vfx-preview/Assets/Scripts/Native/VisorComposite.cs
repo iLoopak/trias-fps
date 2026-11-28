@@ -102,7 +102,8 @@ namespace Trias.Native
         bool AtmosphereEnabled => InMatch && material != null && Intensity > .01f;
         // Form-revealing occlusion is part of the image, not an atmospheric effect: it does not
         // follow the light-effects slider, only the quality tier (off on Very Low and Low).
-        bool OcclusionEnabled => InMatch && material != null && occlusion > 0 && QualitySettings.GetQualityLevel() >= 2;
+        internal static bool OcclusionOff;
+        bool OcclusionEnabled => !OcclusionOff && InMatch && material != null && occlusion > 0 && QualitySettings.GetQualityLevel() >= 2;
 
         void OnPreCull()
         {

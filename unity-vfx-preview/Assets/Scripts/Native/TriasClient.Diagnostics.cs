@@ -20,6 +20,8 @@ namespace Trias.Native
     public sealed partial class TriasClient
     {
         string frameLogPath, capturePath;
+        float shadowDistanceOverride; int shadowCascadesOverride, msaaOverride = -1;
+        readonly List<float> gpuSamples = new(), renderSamples = new();
         float remoteError, remoteShown, remoteServer, localError, lastShownSpeed = -1; int remoteSamples, localSamples;
         // Hitch attribution from FrameTimingManager (Frame Timing Stats is on in Player Settings): which of
         // main thread, render thread, GPU or presentation overran on each frame over 25 ms.
@@ -78,11 +80,15 @@ namespace Trias.Native
             {
                 if (args[i] == "-trias-frame-log") frameLogPath = args[i + 1];
                 else if (args[i] == "-trias-capture") capturePath = args[i + 1];
+                else if (args[i] == "-trias-shadow-distance" && float.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var sd)) shadowDistanceOverride = sd;
+                else if (args[i] == "-trias-shadow-cascades" && int.TryParse(args[i + 1], out var sc)) shadowCascadesOverride = sc;
+                else if (args[i] == "-trias-msaa" && int.TryParse(args[i + 1], out var aa)) msaaOverride = aa;
                 else if (args[i] == "-trias-quit-after" && float.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var s)) quitAfter = s;
             }
             if (Array.IndexOf(args, "-trias-uncapped") >= 0) uncapped = true;
             if (Array.IndexOf(args, "-trias-no-capture") >= 0) capturePath = null;
             if (Array.IndexOf(args, "-trias-autopilot") >= 0) autopilot = true;
+            if (Array.IndexOf(args, "-trias-no-ao") >= 0) VisorComposite.OcclusionOff = true;
             if (capturePath != null) Directory.CreateDirectory(capturePath);
             // An unattended player is rarely the focused window; keep simulating and rendering anyway.
             if (frameLogPath != null || capturePath != null || quitAfter > 0) Application.runInBackground = true;
@@ -98,6 +104,10 @@ namespace Trias.Native
             if (quitAfter > 0 && now > quitAfter) { FlushFrames(now); Application.Quit(); return; }
             // Re-applied every frame because the client's own settings may restore vsync after loading.
             if (uncapped) { QualitySettings.vSyncCount = 0; Application.targetFrameRate = -1; }
+            // Playtest-only shadow overrides for GPU cost comparisons (re-applied: arenas set their own).
+            if (shadowDistanceOverride > 0) QualitySettings.shadowDistance = shadowDistanceOverride;
+            if (shadowCascadesOverride > 0) QualitySettings.shadowCascades = shadowCascadesOverride;
+            if (msaaOverride >= 0) QualitySettings.antiAliasing = msaaOverride;
             if (world == null || own == null) { frameSamples.Clear(); nextFrameReport = now + 10; nextCapture = now + 6; return; }
             if (frameLogPath != null)
             {
@@ -109,6 +119,11 @@ namespace Trias.Native
                 if (collected) collections++;
                 FrameTimingManager.CaptureFrameTimings();
                 uint captured = FrameTimingManager.GetLatestTimings((uint)frameTimings.Length, frameTimings);
+                if (captured > 0)
+                {
+                    gpuSamples.Add((float)frameTimings[0].gpuFrameTime);
+                    renderSamples.Add((float)frameTimings[0].cpuRenderThreadFrameTime);
+                }
                 if (Time.unscaledDeltaTime > .025f)
                 {
                     spikeFrames++;
@@ -121,8 +136,11 @@ namespace Trias.Native
                         gpu = Math.Max(gpu, frameTimings[i].gpuFrameTime);
                         wait = Math.Max(wait, frameTimings[i].cpuMainThreadPresentWaitTime);
                     }
-                    string cause = collected ? "gc" : captured == 0 ? "unknown" : gpu > 15.5 ? "gpu" : main > 15.5 ? "main"
-                        : render > 15.5 ? "render" : "present";
+                    // Under vsync the main thread waits for the render thread's present, so its frame time
+                    // equals the frame interval; only an uncapped run can blame the main thread itself.
+                    bool vsync = QualitySettings.vSyncCount > 0 && !uncapped;
+                    string cause = collected ? "gc" : captured == 0 ? "unknown" : gpu > 15.5 ? "gpu" : render > 15.5 ? "render"
+                        : !vsync && main > 15.5 ? "main" : "present";
                     spikeCauses[cause] = (spikeCauses.TryGetValue(cause, out var count) ? count : 0) + 1;
                     double ms = Time.unscaledDeltaTime * 1000;
                     if (ms > worstSpikeMs)
@@ -211,6 +229,13 @@ namespace Trias.Native
             parts.Clear();
             foreach (var pair in slowestBy) parts.Add(string.Format(CultureInfo.InvariantCulture, "{0}={1:F1}", pair.Key, pair.Value));
             File.AppendAllText(frameLogPath, "  slowest_ms " + string.Join(" ", parts) + "\n");
+            if (gpuSamples.Count > 30)
+            {
+                gpuSamples.Sort(); renderSamples.Sort();
+                File.AppendAllText(frameLogPath, string.Format(CultureInfo.InvariantCulture, "  gpu_ms median={0:F1} p95={1:F1}  render_ms median={2:F1} p95={3:F1}\n",
+                    gpuSamples[gpuSamples.Count / 2], gpuSamples[(int)(gpuSamples.Count * .95f)], renderSamples[renderSamples.Count / 2], renderSamples[(int)(renderSamples.Count * .95f)]));
+            }
+            gpuSamples.Clear(); renderSamples.Clear();
             if (spikeCauses.Count > 0)
             {
                 parts.Clear();
