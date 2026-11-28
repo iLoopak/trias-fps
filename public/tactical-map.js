@@ -70,7 +70,7 @@ export function drawTacticalMap(canvas, layout, state, own, mode, yaw) {
     ctx.setLineDash([]);
   }
 
-  for (const wall of layout.cover) {
+  for (const wall of [...layout.cover.filter(box => !box.collider), ...(layout.scenery ?? [])]) {
     const [x, z] = position(wall);
     ctx.save();
     ctx.translate(x, z);

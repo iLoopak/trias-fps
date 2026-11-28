@@ -10,7 +10,7 @@ const existing = readFileSync(target,'utf8');
 const catalog = JSON.parse(existing);
 const clean = value => JSON.parse(JSON.stringify(value,(key,v) => typeof v === 'number' ? +v.toFixed(5) : v));
 const cover = ({min, max, cos, sin, radius, ...shape}) => shape;
-const coordinates = ['length','label','description','revision','fallY','walkways','hazard','edgeRadius','islandScale','cover','launchPads','pickups','bases','points',
+const coordinates = ['length','label','description','revision','fallY','walkways','hazard','edgeRadius','islandScale','cover','scenery','launchPads','pickups','bases','points',
   'turrets','vehicles','repairs','roadRadius','siege'];
 
 catalog.relayService ??= { id: 'relay' };
@@ -20,7 +20,7 @@ const maps = [...catalog.maps.map(map=>[map,ARENAS[map.id]]),
   [catalog.relayService,RELAY_SERVICE], [catalog.relayHorde,RELAY_HORDE]];
 for (const [map,arena] of maps) {
   for (const key of coordinates)
-    if (arena[key] !== undefined) map[key] = clean(key === 'cover' ? arena.cover.map(cover) : arena[key]);
+    if (arena[key] !== undefined) map[key] = clean(key === 'cover' || key === 'scenery' ? arena[key].map(cover) : arena[key]);
   if (map.id !== 'island') continue;
   const {start,step,count} = ISLAND_GRID;
   map.terrain = {start,step,count,heights: Array.from({length:count*count},(_,i) =>
