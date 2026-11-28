@@ -255,8 +255,18 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
   - Vozidla: 3,60 → 3,63 ms, +34 tis. trojúhelníků.
   - Kordilera: beze změny.
 
+**Sedmá vlna (pohyb zbraně z první osoby).** Časové řady jsou v `output/beyond/o-motion/` (`equip-sheet.png`, `land-sheet.png` a CSV křivky).
+- `WeaponHandling.Temperament` dává každé zbrani vlastní povahu pohybu, takže pět nástrojů už nesdílí jeden profil.
+  - Zvednutí po výměně trvá 0,18–0,26 s. Delší být nesmí: server povolí výstřel 0,24 s po výměně a zbraň nesmí střílet, když se ještě zvedá. Váhu proto nese dojezd v klidu.
+  - Dojezd (největší výchylka náklonu): Scatter 1,9° (těžké kývnutí), Arc 1,5° (rychlé nervózní chvění), Pulse 1,0°, Rift 0,8° (pomalé fázové usazení), Lance 0,45° (skoro klidná).
+  - Kývání při rozhlížení: Rift a Scatter se zpožďují, Arc reaguje okamžitě, Lance se kývá nejméně.
+- Při doskoku zbraň klesne až za tělem (pružina 0,055 s) a ústí se skloní. Váhu doskoku určuje zbraň: Scatter ×1,35, Lance a Arc ×0,9.
+- Úchop při chůzi opisuje osmičku: do strany s poloviční frekvencí kroku, svisle s frekvencí kroku. Dřív se pohyboval po diagonále. Kamera se nemění.
+- `WeaponHandling.Grip` skládá pózu úchopu pro hru i pro sondu stejným kódem. Záběry `motion-*` simulují časovou řadu výměny a doskoku na 240 Hz a vyrenderují zvolené okamžiky.
+- Neověřeno: pocit v ruce při hře. Výchylky jsou záměrně malé, aby nerušily míření, a před vydáním je musí posoudit člověk ve Feel Lab.
+
 **Zbývající slabiny.**
-- Pohyb a přechody zbraně z první osoby (vytažení, přebití, doskok) zatím nikdo neupravoval. Sonda umí snímek v čase, ne záznam pohybu.
+- Přebíjení a výstřel mají společné časování. Jejich pohyb ze sedmé vlny posoudil jen člověk ve Feel Lab, ne sonda.
 - Řetěz hybnosti, rána do štítu a odpalovací rampa nemají vlastní revizní záběr `fx-*`.
 - Kopce Kordilery jsou hladké. Paluba Meridianu je prostá plocha.
 - Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).

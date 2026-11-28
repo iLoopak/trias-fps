@@ -16,6 +16,7 @@ namespace Trias.Native
         float previousPitch, previousYaw, swayX, swayY;
         float recoilRecovery = .11f, stridePhase, strideDistance, stanceHeight = 1.58f, stanceVelocity;
         float equipMotion, dryPulse, movementPulse, reticleRange = 50;
+        float gunLanding, gunLandingVelocity, equipSettledAt = -1;
         float reloadProgressShown, reloadCueProgress;
         float chaseArm, spectatorYaw, spectatorHeight, nextNearMissAt;
         Avatar followedPilot;
@@ -52,6 +53,8 @@ namespace Trias.Native
             previousYaw = yaw;
             swayX = swayY = 0;
             equipMotion = dryPulse = movementPulse = stridePhase = strideDistance = stanceVelocity = 0;
+            gunLanding = gunLandingVelocity = 0;
+            equipSettledAt = -1;
             stanceHeight = 1.58f;
             reloadProgressShown = reloadCueProgress = 0;
             chaseArm = 0;
@@ -181,9 +184,12 @@ namespace Trias.Native
             gunTwist = Mathf.SmoothDamp(gunTwist, 0, ref gunTwistVelocity, recoilRecovery * 1.28f, Mathf.Infinity, dt);
             cameraKick = Mathf.SmoothDamp(cameraKick, 0, ref cameraKickVelocity, .112f, Mathf.Infinity, dt);
             landingStep = Mathf.SmoothDamp(landingStep, 0, ref landingVelocity, .15f, Mathf.Infinity, dt);
+            var temper = WeaponHandling.Temperament(weaponName);
             float damping = 1 - Mathf.Exp(-dt * 17);
-            swayX = Mathf.Lerp(swayX, Mathf.Clamp(Mathf.DeltaAngle(previousYaw, yaw) * -.48f, -5.5f, 5.5f), damping);
-            swayY = Mathf.Lerp(swayY, Mathf.Clamp(Mathf.DeltaAngle(previousPitch, pitch) * -.38f, -4.5f, 4.5f), damping);
+            float swayFollow = 1 - Mathf.Exp(-dt * temper.SwayRate);
+            swayX = Mathf.Lerp(swayX, Mathf.Clamp(Mathf.DeltaAngle(previousYaw, yaw) * -.48f * temper.SwayScale, -5.5f, 5.5f), swayFollow);
+            swayY = Mathf.Lerp(swayY, Mathf.Clamp(Mathf.DeltaAngle(previousPitch, pitch) * -.38f * temper.SwayScale, -4.5f, 4.5f), swayFollow);
+            gunLanding = Mathf.SmoothDamp(gunLanding, landingStep * temper.LandingWeight, ref gunLandingVelocity, .055f, Mathf.Infinity, dt);
             previousYaw = yaw; previousPitch = pitch;
             float progress = ReloadProgress(now);
             bool reloading = (own[2].Int & 64) != 0 || now < reloadPreviewUntil;
@@ -209,7 +215,8 @@ namespace Trias.Native
                 }
             }
             else strideDistance = 0;
-            float stride = predicted.Grounded ? Mathf.Sin(stridePhase) * Mathf.Min(speed * .0025f, .022f) * strideAmplitude : 0;
+            float strideReach = predicted.Grounded ? Mathf.Min(speed * .0025f, .022f) * strideAmplitude : 0;
+            float stride = Mathf.Sin(stridePhase) * strideReach;
             Quaternion aim = Quaternion.Euler(pitch, yaw, 0);
             var change = Vector3.ClampMagnitude(predicted.Velocity - lastVelocity, 3);
             inertia = Vector3.Lerp(inertia, Quaternion.Inverse(aim) * change, damping);
@@ -234,9 +241,11 @@ namespace Trias.Native
                     reticleWorld = surface.point;
                 IdentifyPilot(eyeOrigin, ray);
             }
+            float wasEquipping = equipMotion;
             equipMotion = now < switchPreviewUntil
                 ? Mathf.MoveTowards(equipMotion, 1, dt * 15f)
-                : Mathf.MoveTowards(equipMotion, 0, dt * 5f);
+                : Mathf.MoveTowards(equipMotion, 0, dt / temper.RaiseTime);
+            if (wasEquipping > 0 && equipMotion <= 0) equipSettledAt = now;
             dryPulse = Mathf.MoveTowards(dryPulse, 0, dt * 5);
             movementPulse = Mathf.MoveTowards(movementPulse, 0, dt * 3.1f);
             float retract = 0;
@@ -245,11 +254,17 @@ namespace Trias.Native
             float idle = Mathf.Sin(now * 1.75f) * .006f * motion;
             var presentation = WeaponHandling.Presentation(weaponName,now,equipMotion*motion,speed,
                 movementPulse,landingStep,motion);
-            grip.localPosition = new Vector3(.365f + (swayX * .0037f - inertia.x * .011f * weaponInertia) * motion + stride * .48f - reload.Reach * .17f,
-                -.305f + reload.Reach * .137f - reload.Dip - landingStep * .35f + stride + idle,
-                .60f - gunTravel - retract + reload.Reach * .082f) + presentation.Offset;
-            grip.localRotation = Quaternion.Euler(reload.GunRotation + new Vector3(-gunLift + swayY * motion,
-                -4 + swayX * motion, gunTwist + inertia.x * motion * 2 * weaponInertia) + presentation.Rotation);
+            // The grip traces a figure of eight: sideways at half the step rate, vertically at the step rate.
+            var held = new WeaponHandling.View
+            {
+                Reload = reload, Presentation = presentation, Motion = motion, Inertia = weaponInertia,
+                Settle = equipSettledAt >= 0 && equipMotion <= 0 ? WeaponHandling.SettleRotation(weaponName, now - equipSettledAt) : Vector3.zero,
+                SwayX = swayX, SwayY = swayY, InertiaX = inertia.x,
+                Stride = stride * temper.Bob, StrideSide = Mathf.Sin(stridePhase * .5f) * strideReach * .55f * temper.Bob,
+                Landing = gunLanding, Travel = gunTravel, Lift = gunLift, Twist = gunTwist, Retract = retract, Idle = idle,
+            };
+            WeaponHandling.Grip(held, out var gripAt, out var gripTurn);
+            grip.SetLocalPositionAndRotation(gripAt, gripTurn);
             if (weaponName != null && weaponActions.TryGetValue(weaponName, out var weaponAction))
                 weaponAction.Update(reload, gunTravel, flowTier * .25f * momentumPresentation * visualEffects,
                     motion, alternateImpulse, kickShot);

@@ -26,6 +26,62 @@ namespace Trias.Native
             new(.485f,.875f,0), new(-.966f,-.259f,0), new(.643f,-.766f,0)
         };
 
+        // Per-instrument handling temperament, so the five weapons do not share one motion profile.
+        // RaiseTime: equip raise to rest; kept within .18-.26 s because the server allows fire .24 s after a
+        // switch, so weight is expressed through the settle rather than a slow lift. Settle: damped pitch oscillation once at rest (degrees, rad/s, 1/s).
+        // Sway: follow rate and amplitude of look sway. LandingWeight: gun dip on landing. Bob: stride scale.
+        internal readonly struct Temper
+        {
+            internal readonly float RaiseTime, SettleDegrees, SettleRate, SettleDecay, SwayRate, SwayScale, LandingWeight, Bob;
+            internal Temper(float raise, float settle, float rate, float decay, float swayRate, float swayScale, float landing, float bob)
+            {
+                RaiseTime = raise; SettleDegrees = settle; SettleRate = rate; SettleDecay = decay;
+                SwayRate = swayRate; SwayScale = swayScale; LandingWeight = landing; Bob = bob;
+            }
+        }
+
+        internal static Temper Temperament(string key) => key switch
+        {
+            // Heavy breaching shotgun: a weighty nod at rest, lags the view, sinks hardest on landing.
+            "scatter" => new Temper(.25f, 3.4f, 11f, 6.0f, 11f, 1.15f, 1.35f, 1.2f),
+            // Precision rifle: almost no settle, steady in sway and stride.
+            "lance" => new Temper(.24f, 1.1f, 15f, 11f, 13f, .80f, .90f, .75f),
+            // Volatile arc caster: snappy lift with a quick nervous buzz, reacts fast to the view.
+            "arc" => new Temper(.18f, 2.6f, 24f, 9.0f, 21f, 1.10f, .90f, 1.05f),
+            // Phase-stabilised rift: a controlled float into place with a long, low settle.
+            "rift" => new Temper(.26f, 1.7f, 7f, 4.0f, 9f, .90f, 1.15f, .85f),
+            // Service carbine: the reference.
+            _ => new Temper(.20f, 2.0f, 18f, 9.0f, 17f, 1.00f, 1.00f, 1.00f),
+        };
+
+        internal static Vector3 SettleRotation(string key, float since)
+        {
+            if (since < 0) return Vector3.zero;
+            var t = Temperament(key);
+            float wave = Mathf.Exp(-t.SettleDecay * since) * Mathf.Sin(t.SettleRate * since);
+            return new Vector3(t.SettleDegrees * wave, 0, -t.SettleDegrees * .35f * wave);
+        }
+
+        // Everything that moves the first-person grip, gathered so the client and the art review compose it
+        // with the same code.
+        internal struct View
+        {
+            internal Pose Reload;
+            internal (Vector3 Offset, Vector3 Rotation) Presentation;
+            internal Vector3 Settle;
+            internal float SwayX, SwayY, InertiaX, Inertia, Stride, StrideSide, Landing, Travel, Lift, Twist, Retract, Idle, Motion;
+        }
+
+        internal static void Grip(in View v, out Vector3 position, out Quaternion rotation)
+        {
+            position = new Vector3(.365f + (v.SwayX * .0037f - v.InertiaX * .011f * v.Inertia) * v.Motion + v.StrideSide - v.Reload.Reach * .17f,
+                -.305f + v.Reload.Reach * .137f - v.Reload.Dip - v.Landing * .35f + v.Stride + v.Idle,
+                .60f - v.Travel - v.Retract + v.Reload.Reach * .082f) + v.Presentation.Offset;
+            // A landing pitches the muzzle down after the body, so the weapon reads as carried mass.
+            rotation = Quaternion.Euler(v.Reload.GunRotation + new Vector3(-v.Lift + v.SwayY * v.Motion + v.Landing * 24 * v.Motion,
+                -4 + v.SwayX * v.Motion, v.Twist + v.InertiaX * v.Motion * 2 * v.Inertia) + v.Presentation.Rotation + v.Settle * v.Motion);
+        }
+
         internal static float ServiceBeat(string key) => key switch
         {
             "scatter" => .63f, "lance" => .55f, "arc" => .66f, "rift" => .71f, _ => .59f,
