@@ -286,9 +286,21 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - **Kontaktní stíny** (`BuildGroundContacts`) teď měkce uzemňují i kryty stojící na podlaze ve Vantě a Meridianu, v tónu stínu každé arény.
 - **Zamítnuto:** prachové koleje těžebních vozidel z hald rudy ke stroji v Meridianu. V rozumné síle na světlé podlaze nebyly vidět, v trojnásobné působily jako škrábance.
 
+**Jedenáctá vlna (nativní playtest s boty).** Výstupy jsou v `output/playtest*/` (logy snímků, snímky obrazovky s HUD).
+- `tools/playtest/run.sh` spustí skutečný zápas s boty v nativním macOS přehrávači a měří ho. Hráč stojí bez vstupu, boti bojují kolem. Postup popisuje skill playtest.
+- **Bez vsync, Apple M2, 1600×900, každá aréna samostatně a po vychladnutí:**
+  - Vanta: medián 5,7–6,9 ms, p99 9–10 ms.
+  - Relay: medián 3–8 ms, p99 ≤ 13 ms.
+  - Meridian: medián ≈ 13 ms, p99 ≈ 20 ms.
+  - Kordilera: medián ≈ 12 ms, p99 17–24 ms.
+  - Všude je s rezervou nad 60 snímků/s. S vsync drží Relay stabilních 16,67 ms.
+- Počet rendererů (≈ 1000–1400) ani paměť GC (5–7 MB) během zápasu nerostou.
+- **Neprokázáno:** druhý běh za sebou na M2 bez ventilátoru zpomalil až 2× (Vanta v sérii z 6 na 15 ms, Relay z 8 na 17 ms). Samostatný běh Vanty po vychladnutí byl stabilní. Nejpravděpodobněji jde o tepelné omezení, macOS ale varování nezaznamenal.
+- Nativní snímky z boje odpovídají revizním záběrům. Sonda tedy ukazuje to, co hra.
+
 **Zbývající slabiny.**
 - Přebíjení a výstřel mají společné časování. Jejich pohyb ze sedmé vlny posoudil jen člověk ve Feel Lab, ne sonda.
 - Řetěz hybnosti a rána do štítu se odehrávají ve visoru a ve zbrani z první osoby, takže sonda je nezachytí.
 - Kopce Kordilery mají tvarově hladkou geometrii (barevně už ne). Paluba Meridianu je prostá plocha. 
 - Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
-- Hra s boty, měření snímkové frekvence v nativním přehrávači a spuštění Windows buildu chybí.
+- Windows build se nespouštěl. Měření snímků proběhlo jen na Apple M2. Hráč při playtestu nehrál, takže pohyb a střelba z první osoby nebyly v nativním měření zatížené.
