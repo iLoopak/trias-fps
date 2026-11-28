@@ -28,7 +28,12 @@ namespace Trias.Native
             // Fires a gameplay event through the shipped RelayEffects and captures it EventAge seconds later.
             internal Action<Trias.Preview.RelayEffects, TriasWorld> Event;
             internal float EventAge;
+            // "equip" or "land": renders the first-person timeline through WeaponHandling.Grip at fixed times.
+            internal string Motion;
         }
+
+        static readonly float[] EquipFrames = { 0, .06f, .12f, .18f, .24f, .32f, .45f, .7f };
+        static readonly float[] LandFrames = { 0, .03f, .06f, .1f, .16f, .26f, .4f };
 
         // Set by Trias.Preview.ArtReview before the probe starts; null leaves event shots out.
         public static Trias.Preview.RelayEffects Effects;
@@ -93,6 +98,13 @@ namespace Trias.Native
             EventShot("fx-dodge", .1f, (fx, w) => fx.Motion(EventSpot, w.TeamLight[2].color, MotionCue.Dodge, false, 1, 2)),
             EventShot("fx-echo-rupture-late", .36f, (fx, w) => fx.Phase(EventSpot, w.TeamLight[0].color, "rupture", false, 1)),
             EventShot("fx-echo-rupture", .16f, (fx, w) => fx.Phase(EventSpot, w.TeamLight[0].color, "rupture", false, 1)),
+            new Shot { Key = "motion-pulse-equip", Arena = "relay", Weapon = "pulse", Motion = "equip", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
+            new Shot { Key = "motion-scatter-equip", Arena = "relay", Weapon = "scatter", Motion = "equip", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
+            new Shot { Key = "motion-lance-equip", Arena = "relay", Weapon = "lance", Motion = "equip", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
+            new Shot { Key = "motion-arc-equip", Arena = "relay", Weapon = "arc", Motion = "equip", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
+            new Shot { Key = "motion-rift-equip", Arena = "relay", Weapon = "rift", Motion = "equip", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
+            new Shot { Key = "motion-scatter-land", Arena = "relay", Weapon = "scatter", Motion = "land", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
+            new Shot { Key = "motion-lance-land", Arena = "relay", Weapon = "lance", Motion = "land", Eye = P(-13.5f, 1.58f, -20.5f), Aim = P(-4f, 1.4f, -9f) },
             new Shot { Key = "kordilera-crossing", Arena = "island", Mode = "ctf", Eye = G(27.5f, 11.3f, 1.58f), Aim = G(23.4f, 6.6f, .68f) },
         };
 
@@ -177,6 +189,7 @@ namespace Trias.Native
                 {
                     var props = new List<GameObject>();
                     Transform grip = null;
+                    WeaponHandling hands = null;
                     var eye = shot.Eye(world);
                     view.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(shot.Aim(world) - eye));
                     view.fieldOfView = shot.Fov;
@@ -188,7 +201,7 @@ namespace Trias.Native
                         var art = TriasWorld.Group(grip, shot.Weapon);
                         var accent = world.MaterialAt(Catalog.Find(catalog.weapons, shot.Weapon)?.color ?? "#b9fff1", true);
                         TriasModels.Gun(world, art, shot.Weapon, accent);
-                        var hands = new WeaponHandling(world, art, shot.Weapon, accent, true, "vector", false);
+                        hands = new WeaponHandling(world, art, shot.Weapon, accent, true, "vector", false);
                         hands.Update(WeaponHandling.At(shot.Weapon, 0), 0);
                         props.Add(grip.gameObject);
                     }
@@ -229,6 +242,53 @@ namespace Trias.Native
                                 yield return null;
                             }
                         }
+                    }
+                    if (shot.Motion != null && grip != null)
+                    {
+                        // Simulate the client's equip or landing timeline at 240 Hz and render the listed instants.
+                        var temper = WeaponHandling.Temperament(shot.Weapon);
+                        bool landing = shot.Motion == "land";
+                        float[] instants = landing ? LandFrames : EquipFrames;
+                        float equip = landing ? 0 : 1, settledAt = -1, step = landing ? .1f : 0, stepVelocity = 0, gun = 0, gunVelocity = 0;
+                        const float dt = 1f / 240;
+                        var curve = new List<string> { "t,equip,landing,pitch,y" };
+                        int next = 0;
+                        for (int tick = 0; next < instants.Length; tick++)
+                        {
+                            float t = tick * dt;
+                            if (!landing)
+                            {
+                                float was = equip;
+                                equip = Mathf.MoveTowards(equip, 0, dt / temper.RaiseTime);
+                                if (was > 0 && equip <= 0) settledAt = t;
+                            }
+                            step = Mathf.SmoothDamp(step, 0, ref stepVelocity, .15f, Mathf.Infinity, dt);
+                            gun = Mathf.SmoothDamp(gun, step * temper.LandingWeight, ref gunVelocity, .055f, Mathf.Infinity, dt);
+                            var v = new WeaponHandling.View
+                            {
+                                Reload = WeaponHandling.At(shot.Weapon, 0), Motion = 1, Inertia = 1, Landing = gun,
+                                Presentation = WeaponHandling.Presentation(shot.Weapon, t, equip, 0, 0, step, 1),
+                                Settle = settledAt >= 0 ? WeaponHandling.SettleRotation(shot.Weapon, t - settledAt) : Vector3.zero,
+                            };
+                            WeaponHandling.Grip(v, out var at, out var turn);
+                            if (tick % 4 == 0)
+                                curve.Add(string.Format(CultureInfo.InvariantCulture, "{0:F4},{1:F3},{2:F4},{3:F2},{4:F4}",
+                                    t, equip, gun, Mathf.DeltaAngle(0, turn.eulerAngles.x), at.y));
+                            if (t + dt * .5f < instants[next]) continue;
+                            grip.SetLocalPositionAndRotation(at, turn);
+                            hands?.Update(WeaponHandling.At(shot.Weapon, 0), 0);
+                            view.targetTexture = target;
+                            view.Render();
+                            view.targetTexture = null;
+                            RenderTexture.active = target;
+                            var still = new Texture2D(width, height, TextureFormat.RGB24, false);
+                            still.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                            RenderTexture.active = null;
+                            File.WriteAllBytes(Path.Combine(output, $"{shot.Key}-{next}.png"), still.EncodeToPNG());
+                            Destroy(still);
+                            next++;
+                        }
+                        File.WriteAllLines(Path.Combine(output, shot.Key + ".csv"), curve);
                     }
                     // TRIAS_ART_PICK=1 logs the nearest renderer (by bounds) under a 5x4 screen grid; =2 also admits large distant structures.
                     string pickMode = Environment.GetEnvironmentVariable("TRIAS_ART_PICK");
