@@ -2,8 +2,8 @@ import { performance } from 'node:perf_hooks';
 import { WebSocketServer } from 'ws';
 import { fireProfileData, Match } from '../match.js';
 import { interactionFlags } from '../interactions.js';
-import { aimVector, ARMORY, eyeHeight, PILOT_HP, TICK, wallDistance, WEAPONS } from '../public/rules.js';
-import { NETWORK_VERSION, unpackInput } from '../public/netcode.js';
+import { aimVector, ARMORY, eyeHeight, PILOT_HP, TICK, wallDistance, WEAPONS } from '../shared/rules.js';
+import { NETWORK_VERSION, unpackInput } from '../shared/netcode.js';
 
 const port = 3035;
 const now = () => performance.now() / 1000;

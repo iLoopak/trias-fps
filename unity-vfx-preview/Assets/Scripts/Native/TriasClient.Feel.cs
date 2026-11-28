@@ -20,7 +20,7 @@ namespace Trias.Native
         float reloadProgressShown, reloadCueProgress;
         float chaseArm, spectatorYaw, spectatorHeight, nextNearMissAt;
         Avatar followedPilot;
-        Vector3 lastVelocity, inertia, reticleWorld, viewVelocity;
+        Vector3 inertia, reticleWorld, viewVelocity;
         ViewComposer.Style viewStyle;
         readonly float[] localMotionAt = new float[5];
         float sceneFade, resultAge;
@@ -62,7 +62,7 @@ namespace Trias.Native
             chaseArm = 0;
             followedPilot = null;
             nextNearMissAt = 0;
-            lastVelocity = inertia = viewVelocity = correction = Vector3.zero;
+            inertia = viewVelocity = correction = Vector3.zero;
             System.Array.Fill(localMotionAt, -10f);
             kickShot = 0;
             alternateImpulse = false;
@@ -169,18 +169,26 @@ namespace Trias.Native
         void UpdateFeel(float now, float dt, bool driving)
         {
             dt = Mathf.Min(.05f, dt);
-            // Cosmetic terms read the velocity interpolated like the view, not the raw 30 Hz step, so roll,
-            // FOV, bob and weapon inertia change every frame instead of in steps.
-            viewVelocity = driving ? predicted.Velocity : SteppedVelocity(now);
-            float speed = new Vector2(viewVelocity.x, viewVelocity.z).magnitude;
+            // Presentation follows the motion the view shows this frame (between this step and the next),
+            // so lean, bob and FOV change every frame instead of in 30 Hz stairs.
+            Vector3 shownVelocity = viewVelocity = ShownVelocity(now);
+            float speed = new Vector2(shownVelocity.x, shownVelocity.z).magnitude;
             var tuning = ViewComposer.For(viewStyle);
             if (!predicted.Grounded) airSpeed = Mathf.Min(airSpeed, predicted.Velocity.y);
             else if (!wasGrounded)
             {
+                float carried = new Vector2(predicted.Velocity.x, predicted.Velocity.z).magnitude - 10.1f;
                 if (airSpeed < -4.3f && !driving)
                 {
                     landingStep = Mathf.Min(.125f, -airSpeed * .010f);
                     effects.Land(display, Mathf.Clamp01(-airSpeed / 14), FootSurface(display));
+                }
+                else if (carried > 1.5f && !driving)
+                {
+                    // A dodge that touches down still fast (about 17 m/s) brakes to a run in four steps: the
+                    // boots bite and the body settles, though the fall itself was too slow to count as a landing.
+                    landingStep = Mathf.Max(landingStep, Mathf.Min(.045f, carried * .006f));
+                    effects.Land(display, Mathf.Clamp01(carried / 12) * .55f, FootSurface(display));
                 }
                 airSpeed = 0;
             }
@@ -191,10 +199,8 @@ namespace Trias.Native
             cameraKick = Mathf.SmoothDamp(cameraKick, 0, ref cameraKickVelocity, .112f, Mathf.Infinity, dt);
             landingStep = Mathf.SmoothDamp(landingStep, 0, ref landingVelocity, .15f, Mathf.Infinity, dt);
             var temper = WeaponHandling.Temperament(weaponName);
-            float damping = 1 - Mathf.Exp(-dt * 17);
-            float swayFollow = 1 - Mathf.Exp(-dt * temper.SwayRate);
-            swayX = Mathf.Lerp(swayX, Mathf.Clamp(ViewComposer.TurnRate(previousYaw, yaw, dt) * -.48f * temper.SwayScale, -5.5f, 5.5f), swayFollow);
-            swayY = Mathf.Lerp(swayY, Mathf.Clamp(ViewComposer.TurnRate(previousPitch, pitch, dt) * -.38f * temper.SwayScale, -4.5f, 4.5f), swayFollow);
+            swayX = KineticView.Sway(swayX, Mathf.DeltaAngle(previousYaw, yaw), dt, -.48f * temper.SwayScale, 5.5f, temper.SwayRate);
+            swayY = KineticView.Sway(swayY, Mathf.DeltaAngle(previousPitch, pitch), dt, -.38f * temper.SwayScale, 4.5f, temper.SwayRate);
             gunLanding = Mathf.SmoothDamp(gunLanding, landingStep * temper.LandingWeight, ref gunLandingVelocity, .055f, Mathf.Infinity, dt);
             previousYaw = yaw; previousPitch = pitch;
             float progress = ReloadProgress(now);
@@ -224,9 +230,11 @@ namespace Trias.Native
             float strideReach = predicted.Grounded && !cleanView ? Mathf.Min(speed * .0025f, .022f) * strideAmplitude : 0;
             float stride = Mathf.Sin(stridePhase) * strideReach;
             Quaternion aim = Quaternion.Euler(pitch, yaw, 0);
-            inertia = Vector3.Lerp(inertia, Quaternion.Inverse(aim) * ViewComposer.StepAcceleration(viewVelocity, lastVelocity, dt), damping);
-            lastVelocity = viewVelocity;
-            Quaternion angle = aim * Quaternion.Euler(0, 0, ViewComposer.Roll(tuning, viewVelocity, aim, motion, driving));
+            // The acceleration the current prediction step applies, held for the whole step.
+            Vector3 acceleration = driving ? Vector3.zero : (peek.Velocity - predicted.Velocity) / Motor.Tick;
+            inertia = KineticView.Inertia(inertia, Quaternion.Inverse(aim) * acceleration, dt, 17);
+            float lean = driving ? 0 : KineticView.Lean(Vector3.Dot(shownVelocity, aim * Vector3.right)) * tuning.Roll;
+            Quaternion angle = aim * Quaternion.Euler(0, 0, lean * motion);
             float eye = predicted.Crouch ? .92f : 1.58f;
             stanceHeight = Mathf.SmoothDamp(stanceHeight, eye, ref stanceVelocity, predicted.Crouch ? .046f : .083f, Mathf.Infinity, dt);
             float shownHeight = Mathf.Lerp(eye, stanceHeight, motion);

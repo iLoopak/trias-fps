@@ -30,7 +30,7 @@ namespace Trias.Native
 
         readonly Dictionary<string, PhaseStats> phaseStats = new();
         Vector2 lastReticle = new(float.NaN, float.NaN);
-        int corrections; float correctionSum, correctionMax;
+        int viewCorrections; float viewCorrectionSum, viewCorrectionMax;
 
         // Burst capture of consecutive frames: read back into preallocated textures and encode afterwards,
         // so the captured frames are as close as practical to uninterrupted play.
@@ -128,12 +128,12 @@ namespace Trias.Native
             if (burstIndex >= 0 && burstIndex < burstReticle.Length) burstReticle[burstIndex] = (drawn - new Vector2(w / 2, h / 2)) * scale;
         }
 
-        void NoteCorrection(float metres)
+        void NoteViewCorrection(float metres)
         {
             if (frameLogPath == null || metres <= .001f || own[6].Int <= 0) return;
-            corrections++;
-            correctionSum += metres;
-            correctionMax = Mathf.Max(correctionMax, metres);
+            viewCorrections++;
+            viewCorrectionSum += metres;
+            viewCorrectionMax = Mathf.Max(viewCorrectionMax, metres);
         }
 
         void FlushViewDiagnostics()
@@ -159,9 +159,9 @@ namespace Trias.Native
             lastReticle = new Vector2(float.NaN, float.NaN);
             File.AppendAllText(frameLogPath, string.Format(CultureInfo.InvariantCulture,
                 "  corrections count={0} mean_cm={1:F1} max_cm={2:F1} clean_view={3} fps_target={4} vsync={5} msaa={6} quality={7}\n",
-                corrections, corrections > 0 ? correctionSum / corrections * 100 : 0, correctionMax * 100, cleanView ? 1 : 0,
+                viewCorrections, viewCorrections > 0 ? viewCorrectionSum / viewCorrections * 100 : 0, viewCorrectionMax * 100, cleanView ? 1 : 0,
                 fpsTarget, QualitySettings.vSyncCount, QualitySettings.antiAliasing, QualitySettings.names[QualitySettings.GetQualityLevel()]));
-            corrections = 0; correctionSum = correctionMax = 0;
+            viewCorrections = 0; viewCorrectionSum = viewCorrectionMax = 0;
         }
 
         void UpdateBurst(float now)

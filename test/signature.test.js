@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
 import { SIGNATURE } from '../signature.js';
-import { ARMORY, PILOT_HP, WEAPONS } from '../public/rules.js';
+import { ARMORY, PILOT_HP, WEAPONS } from '../shared/rules.js';
 
 function setup(flags) {
   const match = new Match('ECHO', 'tdm', false, undefined, flags);

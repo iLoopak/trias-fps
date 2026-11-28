@@ -1,4 +1,4 @@
-import { WEAPONS } from './public/rules.js';
+import { WEAPONS } from './shared/rules.js';
 
 export class Practice {
   constructor(room, pilot, now) {

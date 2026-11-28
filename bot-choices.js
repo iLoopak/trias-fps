@@ -1,4 +1,4 @@
-import { PILOT_HP, WEAPONS, blocked, distanceSquared } from './public/rules.js';
+import { PILOT_HP, WEAPONS, blocked, distanceSquared } from './shared/rules.js';
 import { WEAPON_ROLES } from './bot-profiles.js';
 import { visible } from './bot-perception.js';
 

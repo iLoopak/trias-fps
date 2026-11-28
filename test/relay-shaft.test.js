@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { route } from '../bots.js';
 import { Match } from '../match.js';
-import { ARENAS, blocked, floorBelow, movePlayer, BODY_RADIUS, TICK, wallDistance } from '../public/rules.js';
+import { ARENAS, blocked, floorBelow, movePlayer, BODY_RADIUS, TICK, wallDistance } from '../shared/rules.js';
 
 const map = ARENAS.relay;
 const routeTargets = [

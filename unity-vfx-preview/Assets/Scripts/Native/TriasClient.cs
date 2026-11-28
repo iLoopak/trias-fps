@@ -36,21 +36,39 @@ namespace Trias.Native
         TriasWorld world;
         TriasSocket socket;
         WireValue state, own;
-        Motor predicted;
-        Vector3 display;
-        // Prediction advances in whole 30 Hz input steps. The view follows a line between the last two
-        // steps, timed on the step schedule rather than on the frame that sent it, so at 60 fps or more
-        // the camera moves every frame by the same amount; chasing the raw step moved it .66 then .34 of
-        // a step on alternate frames.
-        // That line is the only interpolation of the own view (no second smoothing on top of it). A server
-        // correction shifts the line with the prediction and its visible part fades in `correction`.
-        Vector3 stepFrom, stepFromVelocity, correction;
+        Motor predicted, peek;
+        Vector3 display, correction;
+        // Prediction advances in whole 30 Hz input steps. The view travels from the last step toward the
+        // next one (`peek`: the same Motor stepped with the keys held this frame), timed on the step schedule,
+        // so the camera moves every frame by the same amount and shows a key press in the frame it happens
+        // instead of a tick later. A reconciliation shift is kept as `correction` and blended out quickly;
+        // the view is never filtered otherwise.
         float stepAt = -1;
+        Command sentCommand;
 
-        Vector3 Stepped(float now) => ViewComposer.Stepped(stepFrom, predicted.Position, stepAt, now);
-        Vector3 SteppedVelocity(float now) => ViewComposer.Stepped(stepFromVelocity, predicted.Velocity, stepAt, now);
+        float StepFraction(float now) => ViewComposer.StepFraction(stepAt, now);
+        Vector3 Stepped(float now) => Vector3.Lerp(predicted.Position, peek.Position, StepFraction(now));
+        Vector3 ShownVelocity(float now) => Vector3.Lerp(predicted.Velocity, peek.Velocity, StepFraction(now));
 
-        void SnapDisplay() { display = predicted.Position; stepAt = -1; correction = Vector3.zero; }
+        void SnapDisplay() { peek = predicted; display = predicted.Position; correction = Vector3.zero; stepAt = -1; }
+
+        // The command SendInput would send now, without its side effects, so the view can show it early.
+        void PeekStep()
+        {
+            peek = predicted;
+            var command = sentCommand;
+            command.Bits &= 7;
+            if (!Playing) command = default;
+            else if (!autopilot && !sweep)
+            {
+                command.Bits = (Input.GetKey(KeyCode.C) ? 1 : 0) | (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? 2 : 0)
+                    | (Input.GetKey(KeyCode.Space) ? 4 : 0) | queuedButtons & (1 << 5 | 1 << 6);
+                command.Horizontal = -Input.GetAxisRaw("Horizontal");
+                command.Vertical = Input.GetAxisRaw("Vertical");
+            }
+            command.Yaw = Mathf.Round(WebYaw * 1000) * .001f;
+            peek.Step(command, movement ?? world.Spec);
+        }
         Transform grip;
         string identity, mode, room, weaponName, requestedWeapon;
         float sendAt, pingAt, pingSent, joinedAt, lastPacket, yaw, pitch, tension, hurt, hit, toastUntil;
@@ -270,10 +288,14 @@ namespace Trias.Native
                     if (Input.GetKeyDown(KeyCode.E)) spectator = NextAlly(spectator);
                 }
             }
-            if (now >= sendAt)
+            // 30 Hz command clock. A frame up to one command late sends both (below 30 fps that is every frame),
+            // so the server has a command for each tick it simulates; a longer stall re-bases, because the server
+            // has already bridged it by repeating the last command.
+            for (int burst = 0; burst < 2 && now >= sendAt; burst++)
             {
                 SendInput();
-                sendAt = Mathf.Max(sendAt + Motor.Tick, now - Motor.Tick * .6f);
+                sendAt += Motor.Tick;
+                if (now - sendAt > Motor.Tick) sendAt = now - Motor.Tick * .6f;
             }
             if (now >= pingAt && socket != null)
             {
@@ -351,11 +373,11 @@ namespace Trias.Native
             if (own[6].Int <= 0 || own[15].Int >= 0 || own[16].Int >= 0 || state["winner"]["label"].Text != null) return;
             commands.Add(command);
             if (commands.Count > 24) commands.RemoveAt(0);
-            float scheduled = Mathf.Min(sendAt, Time.unscaledTime);
-            stepFrom = Stepped(scheduled);
-            stepFromVelocity = SteppedVelocity(scheduled);
-            stepAt = scheduled;
+            sentCommand = command;
+            stepAt = Mathf.Min(sendAt, Time.unscaledTime);
+            bool airborne = !predicted.Grounded;
             var cue = predicted.Step(command, movement ?? world.Spec);
+            NoteGrace(cue, command, airborne);
             if (cue != MotionCue.None) PlayLocalMotion(cue, predicted.Position);
         }
 
@@ -541,11 +563,11 @@ namespace Trias.Native
                 foreach (var input in commands) predicted.Step(input, movement ?? world.Spec);
             if (!spawn && !mountChange)
             {
-                Vector3 shift = predicted.Position - beforeCorrection;
-                predictedCorrection = shift.magnitude;
-                NoteCorrection(predictedCorrection);
-                stepFrom += shift;
-                correction = ViewComposer.AddCorrection(correction, shift);
+                predictedCorrection = Vector3.Distance(beforeCorrection, predicted.Position);
+                NoteCorrection(predictedCorrection, beforeCorrection);
+                NoteViewCorrection(predictedCorrection);
+                // A large disagreement (teleport, respawn race) snaps; anything smaller is blended out.
+                correction = ViewComposer.AddCorrection(correction, beforeCorrection, predicted.Position);
             }
             if (previous != null)
             {
@@ -1044,14 +1066,10 @@ namespace Trias.Native
             if (alive)
             {
                 followedPilot = null;
-                if (driving || mounted)
-                    // Vehicles and nests are not predicted: the view follows the 30 Hz server position.
-                    display = Vector3.Lerp(display, predicted.Position, 1 - Mathf.Exp(-dt * 60));
-                else
-                {
-                    correction = ViewComposer.FadeCorrection(correction, dt);
-                    display = Stepped(now) + correction;
-                }
+                if (!driving && !mounted) PeekStep();
+                else peek = predicted;
+                correction = ViewComposer.FadeCorrection(correction, dt);
+                display = Stepped(now) + correction;
                 UpdateFeel(now, dt, driving);
             }
             else if (replay)

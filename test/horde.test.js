@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from '../match.js';
-import { packCover, PILOT_HP, TICK } from '../public/rules.js';
+import { packCover, PILOT_HP, TICK } from '../shared/rules.js';
 
 function enter(match, id) {
   const peer = { id, readyState: 0 };

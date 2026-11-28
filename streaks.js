@@ -1,4 +1,4 @@
-import { aimVector, distanceSquared, eyeHeight, floorBelow, PILOT_HP, wallDistance, WEAPONS } from './public/rules.js';
+import { aimVector, distanceSquared, eyeHeight, floorBelow, PILOT_HP, wallDistance, WEAPONS } from './shared/rules.js';
 
 const PERKS = ['scan', 'module', 'strike', 'overdrive'];
 const GOALS = [3, 5, 7, 9];

@@ -1,5 +1,5 @@
-import { blocked, BODY_RADIUS, distanceSquared, TICK, wallDistance } from './public/rules.js';
-import { boardingVehicle, moveVehicle, VEHICLES, vehicleBlocked } from './public/vehicles.js';
+import { blocked, BODY_RADIUS, distanceSquared, TICK, wallDistance } from './shared/rules.js';
+import { boardingVehicle, moveVehicle, VEHICLES, vehicleBlocked } from './shared/vehicles.js';
 
 const BRAKE = { x: 0, z: 0, brake: true };
 

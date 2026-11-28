@@ -54,34 +54,35 @@ namespace Trias.Preview
         static void Fail(string what) => Check(false, what);
         static string F(float value) => value.ToString("F2", CultureInfo.InvariantCulture);
 
-        // Mirrors TriasClient's input schedule: steps at 30 Hz on `sendAt`, the view on the step line.
+        // Mirrors TriasClient: the 30 Hz command clock (up to two sends per frame), the view between the last
+        // prediction step and the next one (`peek`, here the same constant input), plus the fading correction.
         sealed class Sim
         {
-            internal Vector3 Predicted, StepFrom, Correction, Display;
+            internal Vector3 Predicted, Correction, Display;
             internal float StepAt = -1, SendAt;
             internal Vector3 Velocity;
 
             internal void Frame(float now, float dt, bool legacy)
             {
-                while (now >= SendAt)
+                for (int burst = 0; burst < 2 && now >= SendAt; burst++)
                 {
-                    float scheduled = Mathf.Min(SendAt, now);
-                    StepFrom = ViewComposer.Stepped(StepFrom, Predicted, StepAt, scheduled);
-                    StepAt = scheduled;
+                    StepAt = Mathf.Min(SendAt, now);
                     Predicted += Velocity * Motor.Tick;
-                    SendAt = Mathf.Max(SendAt + Motor.Tick, now - Motor.Tick * .6f);
+                    SendAt += Motor.Tick;
+                    if (now - SendAt > Motor.Tick) SendAt = now - Motor.Tick * .6f;
                 }
+                var peek = Predicted + Velocity * Motor.Tick;
                 Correction = ViewComposer.FadeCorrection(Correction, dt);
-                var stepped = ViewComposer.Stepped(StepFrom, Predicted, StepAt, now);
-                // legacy: the second exponential chase removed in this pass.
-                Display = legacy ? Vector3.Lerp(Display, stepped, 1 - Mathf.Exp(-dt * 60)) : stepped + Correction;
+                var shown = Vector3.Lerp(Predicted, peek, ViewComposer.StepFraction(StepAt, now));
+                // legacy: an exponential chase on top of the step interpolation, as wave 13 had it.
+                Display = legacy ? Vector3.Lerp(Display, shown, 1 - Mathf.Exp(-dt * 60)) : shown + Correction;
             }
 
             internal void Correct(Vector3 shift)
             {
+                var before = Predicted;
                 Predicted += shift;
-                StepFrom += shift;
-                Correction = ViewComposer.AddCorrection(Correction, shift);
+                Correction = ViewComposer.AddCorrection(Correction, before, Predicted);
             }
         }
 
@@ -112,7 +113,7 @@ namespace Trias.Preview
                 float shown = (sim.Display - previous).magnitude / frames[i];
                 if (last >= 0) { error += Mathf.Abs(shown - last) / 7.55f; samples++; }
                 last = shown; previous = sim.Display;
-                lagMax = Mathf.Max(lagMax, (now * 7.55f) - sim.Display.x);
+                lagMax = Mathf.Max(lagMax, Mathf.Abs(now * 7.55f - sim.Display.x));
             }
             return (error / Mathf.Max(1, samples) * 100, lagMax);
         }
@@ -123,10 +124,10 @@ namespace Trias.Preview
             {
                 var now = Strafe(fps, .15f, false);
                 var old = Strafe(fps, .15f, true);
-                report.Add($"     strafe {fps} fps ±15%: judder {F(now.judder)}% (with the removed second chase {F(old.judder)}%), lag behind the continuous path {F(now.lagMax * 100)} cm (with the second chase {F(old.lagMax * 100)} cm)");
+                report.Add($"     strafe {fps} fps ±15%: judder {F(now.judder)}% (with the removed second chase {F(old.judder)}%), distance from the continuous path {F(now.lagMax * 100)} cm (with a second chase {F(old.lagMax * 100)} cm)");
                 Check(now.judder < 1.5f, $"own view moves evenly at {fps} fps with frame-time jitter (judder {F(now.judder)}% < 1.5%)");
-                // At most one input step of render interpolation behind the true path, plus the send schedule.
-                Check(now.lagMax <= 7.55f * Motor.Tick * 1.75f, $"own view lags at most ~1 step at {fps} fps ({F(now.lagMax * 100)} cm)");
+                // Within about one input step of the continuous path (the send clock re-bases by 0.6 step).
+                Check(now.lagMax <= 7.55f * Motor.Tick * 1.75f, $"own view stays within ~1 step of the true path at {fps} fps ({F(now.lagMax * 100)} cm)");
             }
             var slow = Strafe(30, 0, false);
             report.Add($"     strafe 30 fps steady: judder {F(slow.judder)}%");
@@ -149,8 +150,8 @@ namespace Trias.Preview
             Check(sim.Correction.magnitude < .001f, $"the correction is gone within 2.5 s ({F(sim.Correction.magnitude * 1000)} mm)");
             Check(Mathf.Abs(sim.Display.z - .10f) < .001f, "after the fade the view sits exactly on the corrected prediction");
             var snap = new Sim();
-            snap.Correct(new Vector3(3, 0, 0));
-            Check(snap.Correction == Vector3.zero, "a 3 m correction (knockback, pad) is shown at once, not smoothed");
+            snap.Correct(new Vector3(2, 0, 0));
+            Check(snap.Correction == Vector3.zero, "a 2 m correction (teleport, respawn race) is shown at once, not smoothed");
         }
 
         static void NoAccumulation()
@@ -164,7 +165,7 @@ namespace Trias.Preview
                 float dt = .004f + (float)random.NextDouble() * .03f;
                 var velocity = new Vector3((float)random.NextDouble() * 20 - 10, 0, (float)random.NextDouble() * 20 - 10);
                 fov = ViewComposer.FollowFov(fov, ViewComposer.Fov(tuning, 70, velocity.magnitude, (float)random.NextDouble(), (float)random.NextDouble() * 1.7f, 1, false), dt);
-                if (i % 7 == 0) correction = ViewComposer.AddCorrection(correction, new Vector3((float)random.NextDouble() - .5f, 0, 0) * .2f);
+                if (i % 7 == 0) correction = ViewComposer.AddCorrection(correction, Vector3.zero, new Vector3((float)random.NextDouble() - .5f, 0, 0) * .2f);
                 correction = ViewComposer.FadeCorrection(correction, dt);
             }
             for (int i = 0; i < 240; i++)
@@ -174,31 +175,41 @@ namespace Trias.Preview
             }
             Check(Mathf.Abs(fov - 70) < .01f, $"FOV returns to the base value at rest ({F(fov)})");
             Check(correction.magnitude < 1e-4f, "reconciliation offset returns to zero at rest");
-            Check(ViewComposer.Roll(tuning, Vector3.zero, Quaternion.identity, 1, false) == 0, "no roll at rest");
+            Check(KineticView.Lean(0) * tuning.Roll == 0, "no roll at rest");
         }
 
         static void Presets()
         {
             var competitive = ViewComposer.For(ViewComposer.Style.Competitive);
             var cinematic = ViewComposer.For(ViewComposer.Style.Cinematic);
-            var aim = Quaternion.identity;
-            Check(ViewComposer.Roll(competitive, new Vector3(10, 0, 0), aim, 1, false) == 0, "competitive: no strafe roll");
+            Check(KineticView.Lean(10) * competitive.Roll == 0, "competitive: no strafe roll");
             float span = ViewComposer.Fov(competitive, 70, 10.1f, 1, 1.7f, 1, false) - 70;
             Check(span <= 2.5f, $"competitive: sprint + dodge + recoil widen the FOV by at most 2.5° ({F(span)}°)");
             Check(ViewComposer.Fov(competitive, 70, 0, 0, 1.7f, 1, false) == 70, "competitive: recoil does not pump the FOV");
             Check(competitive.HeadBob <= .5f, "competitive: head bob at most half");
-            Check(Mathf.Abs(ViewComposer.Roll(cinematic, new Vector3(10, 0, 0), aim, 1, false)) > 1, "cinematic keeps the strafe roll");
+            Check(Mathf.Abs(KineticView.Lean(10) * cinematic.Roll) > 1, "cinematic keeps the strafe roll");
             Check(ViewComposer.Fov(cinematic, 70, 10.1f, 1, 1.7f, 1, false) - 70 > 6, "cinematic keeps the full FOV motion");
             Check(ViewComposer.Fov(cinematic, 70, 10.1f, 1, 1.7f, 0, false) == 70, "camera motion 0 removes every FOV change");
         }
 
+        // KineticView (kinetic flow) turns mouse and body motion into rates, so sway and inertia settle at the
+        // same value at every frame rate.
         static void FrameRateIndependentWeapon()
         {
-            float turn = 300; // deg/s
-            var rates = new[] { 30f, 60f, 144f, 240f }.Select(fps => ViewComposer.TurnRate(0, turn / fps, 1 / fps)).ToArray();
-            Check(rates.Max() - rates.Min() < .001f, $"weapon sway input is the same at 30-240 fps ({F(rates.Min())}-{F(rates.Max())})");
-            var accel = new[] { 30f, 60f, 144f, 240f }.Select(fps => ViewComposer.StepAcceleration(new Vector3(30 / fps, 0, 0), Vector3.zero, 1 / fps).x).ToArray();
-            Check(accel.Max() - accel.Min() < .001f, $"weapon inertia input is the same at 30-240 fps ({F(accel.Min())}-{F(accel.Max())})");
+            var sway = new[] { 30f, 60f, 144f, 240f }.Select(fps =>
+            {
+                float value = 0;
+                for (int i = 0; i < fps * 2; i++) value = KineticView.Sway(value, 300 / fps, 1 / fps, -.48f, 5.5f, 14);
+                return value;
+            }).ToArray();
+            Check(sway.Max() - sway.Min() < .01f, $"weapon sway settles the same at 30-240 fps ({F(sway.Min())}-{F(sway.Max())})");
+            var inertia = new[] { 30f, 60f, 144f, 240f }.Select(fps =>
+            {
+                var value = Vector3.zero;
+                for (int i = 0; i < fps * 2; i++) value = KineticView.Inertia(value, new Vector3(60, 0, 0), 1 / fps, 17);
+                return value.x;
+            }).ToArray();
+            Check(inertia.Max() - inertia.Min() < .01f, $"weapon inertia settles the same at 30-240 fps ({F(inertia.Min())}-{F(inertia.Max())})");
         }
 
         static void ReticleCentre()
@@ -246,8 +257,8 @@ namespace Trias.Preview
             string feel = File.ReadAllText("Assets/Scripts/Native/TriasClient.Feel.cs");
             Check(!Regex.IsMatch(feel, @"view\.transform\.(position|rotation|localPosition|localRotation)\s*\+="), "no camera offset is accumulated onto the previous frame's transform");
             string client = File.ReadAllText("Assets/Scripts/Native/TriasClient.cs");
-            Check(Regex.Matches(client, @"display\s*=\s*Vector3\.Lerp\(display,\s*(Stepped|predicted\.Position)").Count <= 1,
-                "the own view is not smoothed a second time on top of the step interpolation (only the unpredicted vehicle view chases)");
+            Check(!Regex.IsMatch(client, @"display\s*=\s*Vector3\.Lerp\(display,"),
+                "the own view is not smoothed on top of the step interpolation (no chase of display)");
         }
 
         static void SceneAudit()

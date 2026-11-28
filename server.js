@@ -1,52 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
-import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, LAYOUT_SET, RELAY_HORDE, TEAM_SIZE, TICK, roomCode } from './public/rules.js';
+import { ARENAS, CAPACITY, CHARACTERS, DEFAULT_ARENA, DEFAULT_CHARACTER, DEFAULT_MODE, MODES, LAYOUT_SET, RELAY_HORDE, TEAM_SIZE, TICK, roomCode } from './shared/rules.js';
 import { fireProfileData, Match } from './match.js';
 import { interactionFlags } from './interactions.js';
 import { directorOptions } from './combat-director.js';
 import { RoomSessions, RESUME_SECONDS } from './room-sessions.js';
 import { invitePage } from './room-invite.js';
 import { Practice } from './practice.js';
-import { NETWORK_VERSION, unpackInput } from './public/netcode.js';
+import { NETWORK_VERSION, unpackInput } from './shared/netcode.js';
 
-const files = new Map([
-  ...['pulse', 'scatter', 'lance', 'arc', 'pickup'].map(name => [
-    '/sfx/' + name + '.mp3', ['public/sfx/' + name + '.mp3', 'audio/mpeg'],
-  ]),
-  ['/', ['public/index.html', 'text/html']], ['/style.css', ['public/style.css', 'text/css']],
-  ['/client.js', ['public/client.js', 'text/javascript']], ['/arena.js', ['public/arena.js', 'text/javascript']],
-  ['/pilot.js', ['public/pilot.js', 'text/javascript']],
-  ['/netcode.js', ['public/netcode.js', 'text/javascript']],
-  ['/snapshot-clock.js', ['public/snapshot-clock.js', 'text/javascript']],
-  ['/death-view.js', ['public/death-view.js', 'text/javascript']],
-  ['/pilot-portraits.png', ['public/pilot-portraits.png', 'image/png']],
-  ['/weapon-motion.js', ['public/weapon-motion.js', 'text/javascript']],
-  ['/game-audio.js', ['public/game-audio.js', 'text/javascript']],
-  ['/island.js', ['public/island.js', 'text/javascript']],
-  ['/island-terrain.js', ['public/island-terrain.js', 'text/javascript']],
-  ['/meadow.jpg', ['public/meadow.jpg', 'image/jpeg']],
-  ['/siege-view.js', ['public/siege-view.js', 'text/javascript']],
-  ['/tactical-map.js', ['public/tactical-map.js', 'text/javascript']],
-  ['/vehicle-view.js', ['public/vehicle-view.js', 'text/javascript']],
-  ['/vehicles.js', ['public/vehicles.js', 'text/javascript']],
-  ['/basin.jpg', ['public/basin.jpg', 'image/jpeg']],
-  ['/station.js', ['public/station.js', 'text/javascript']],
-  ['/effects.js', ['public/effects.js', 'text/javascript']],
-  ['/rules.js', ['public/rules.js', 'text/javascript']], ['/orbit.jpg', ['public/orbit.jpg', 'image/jpeg']],
-  ['/armor.jpg', ['public/armor.jpg', 'image/jpeg']],
-  ['/foundry-deck.jpg', ['public/foundry-deck.jpg', 'image/jpeg']],
-  ['/deck.jpg', ['public/deck.jpg', 'image/jpeg']],
-  ['/bulkhead.jpg', ['public/bulkhead.jpg', 'image/jpeg']],
-  ['/three.module.js', ['node_modules/three/build/three.module.min.js', 'text/javascript']],
-  ['/three.core.min.js', ['node_modules/three/build/three.core.min.js', 'text/javascript']],
-  ['/geometry-utils.js', ['node_modules/three/examples/jsm/utils/BufferGeometryUtils.js', 'text/javascript']],
-]);
-const assets = new Map(await Promise.all((process.env.TRIAS_NATIVE_ONLY === '1' ? [] : [...files]).map(async ([route, [file, type]]) =>
-  [route, { type, data: await readFile(new URL(file, import.meta.url)) }],
-)));
 const rooms = new Map();
 const director = directorOptions(process.env);
 const pick = (options, value, fallback) => typeof value === 'string' && Object.hasOwn(options, value) ? value : fallback;
@@ -70,24 +34,15 @@ const server = createServer((request, response) => {
       return;
     }
   }
-  const asset = assets.get(route);
-  if (!asset) {
-    response.writeHead(404).end('Not found');
-    return;
-  }
-  response.writeHead(200, {
-    'Content-Type': asset.type,
-    'Content-Length': asset.data.length,
-    'X-Content-Type-Options': 'nosniff',
-    'Cache-Control': asset.type.startsWith('image/') || asset.type.startsWith('audio/') ? 'public, max-age=3600' : 'no-cache',
-  }).end(request.method === 'HEAD' ? undefined : asset.data);
+  // The game is the native Unity client; this server only plays matches (/play), opens invites and reports health.
+  response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'X-Content-Type-Options': 'nosniff' })
+    .end(request.method === 'HEAD' ? undefined : 'TRIAS server. Join with the TRIAS game client.');
 });
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1024, perMessageDeflate: false });
 server.on('upgrade', (request, socket, head) => {
-  let origin;
-  try { origin = new URL(request.headers.origin); } catch { /* Native clients can omit Origin. */ }
-  if (request.url !== '/play' || wss.clients.size >= 256 || (request.headers.origin && origin?.host !== request.headers.host)) {
+  // Only the native client plays: it sends no Origin, so any browser page is refused.
+  if (request.url !== '/play' || wss.clients.size >= 256 || request.headers.origin) {
     socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
     return;
   }
