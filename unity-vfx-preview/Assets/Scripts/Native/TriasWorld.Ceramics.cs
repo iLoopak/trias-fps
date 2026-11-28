@@ -79,6 +79,37 @@ namespace Trias.Native
             }
         }
 
+        // An elevated deck slab with open floor beneath shows its structure: shallow transverse ribs at a
+        // 2.4 m pitch, two edge girders and flush strip lights between the ribs. Nothing hangs more than
+        // .18 m below the collider, so the ceiling height players read stays honest.
+        Material soffitLamp;
+
+        void DressRelaySoffit(BoxSpec box, Transform home)
+        {
+            float thickness = box.h - box.bottom;
+            if (box.bottom < 1.9f || thickness > 1.5f || box.w * box.d < 20) return;
+            foreach (var other in Spec.cover)
+            {
+                if (other == box || other.h > box.bottom + .05f || other.h < box.bottom - 2.4f) continue;
+                if (box.Overlaps(other.x, other.z, Mathf.Max(other.w, other.d) * .5f)) return;
+            }
+            bool alongWidth = box.w >= box.d;
+            float length = alongWidth ? box.w : box.d, span = alongWidth ? box.d : box.w;
+            soffitLamp ??= MaterialAt("#cbd9dc", true);
+            var soffit = Group(home, "Deck soffit structure");
+            if (!alongWidth) soffit.localRotation = Quaternion.Euler(0, 90, 0);
+            int ribs = Mathf.Max(2, Mathf.RoundToInt(length / 2.4f));
+            for (int i = 0; i <= ribs; i++)
+            {
+                float x = Mathf.Lerp(-length * .5f + .2f, length * .5f - .2f, (float)i / ribs);
+                Part(soffit, Graphite, new Vector3(x, -.07f, 0), new Vector3(.16f, .14f, span - .3f));
+                if (i < ribs && i % 2 == 0)
+                    Part(soffit, soffitLamp, new Vector3(x + length / ribs * .5f, -.006f, 0), new Vector3(.08f, .01f, span * .55f));
+            }
+            for (int side = -1; side <= 1; side += 2)
+                Part(soffit, relayDrain, new Vector3(0, -.09f, side * (span * .5f - .22f)), new Vector3(length - .1f, .18f, .26f));
+        }
+
         void BuildRelayHorizon()
         {
             var distantHull = CeramicFinish("#556173", .12f, .32f);
@@ -111,6 +142,14 @@ namespace Trias.Native
                     float height = side % 2 == column ? 24f : 17f;
                     var shaft = Group(perimeter,"Habitat pier",new Vector3(x,0,z));
                     shaft.localRotation = Quaternion.Euler(-5, column == 0 ? 10 : -11,column == 0 ? -8 : 9);
+                    // The Blender pier carries the habitat on a bearing beam; boxes remain the fallback.
+                    if (Megastructure("HabitatPier", shaft, Vector3.zero, column == 0 ? 6 : -9, height / 30f,
+                            slot => slot switch
+                            {
+                                "Shell" => distantHull, "Trim" => distantInsulation, "Signal" or "Heat" => signal,
+                                _ => distantFrame,
+                            }))
+                        continue;
                     Armor(shaft, distantFrame, new Vector3(0,-2.4f,0),new Vector3(5.2f,height,5.9f),false);
                     Armor(shaft, distantHull, new Vector3(-.2f,height*.31f,-2.63f),new Vector3(3.9f,height*.52f,1.62f),false);
                     Armor(shaft, distantInsulation, new Vector3(-.35f,height*.51f,-2.63f),new Vector3(3.35f,1.48f,1.82f),false);

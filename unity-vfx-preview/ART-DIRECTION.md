@@ -222,12 +222,25 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
   - Globální zvýšení kontrastu a snížení ambientu ve Vantě a Meridianu (`l1`, `l2`): stíny zčernaly a achát zmizel.
   - Násobení `reflectionIntensity`: hodnota by se při opakovaném načítání arén sčítala.
 
+**Pátá vlna (pozadí, útulna, Přízrak, podhledy).** Záběry jsou v `output/beyond/`: výchozí stav `a-baseline`, finální `final`, srovnání `final/before-after.png` a `final/grayscale.png`.
+- **Megastruktury pozadí** (`tools/blender/build-megastructures.py`, FBX `TRIAS/Megastructures`) nahrazují kvádry, které z dálky prozrazovaly prototyp. Nemají kolizi. `TriasWorld.Megastructure()` je usadí s návětrnou stranou na lokální −z a jednotným měřítkem. Když asset chybí, zůstanou původní bloky.
+  - **HabitatPier (Relay):** sloup se třemi keramickými plášti posunutými mimo osu a oddělenými fázovou spárou. Nese vodorovný ložný trám, nad ním je mřížový stožár s majákem.
+  - **KilnStack a KilnHall (Vanta):** osmiboké komíny s obručemi, žebříkovou klecí, stoupačkou a rozšířenou korunou, k tomu hala s pilovou střechou, jejíž svislá zasklení žhnou. Nový záběr `vanta-works` míří na ně.
+  - Zamítnuto: první verze pilíře s oblými plášti a hřibovou hlavou četla jako raketa. Pilová střecha z šikmých desek nad kvádry četla jako solární panely, správně je to hranol s jednou svislou a jednou šikmou plochou.
+- **Horní útulna (Kordilera):** kolize se nemění. Na kamenné podezdívce s krycí vrstvou leží srubové trámy různé hloubky a každý pátý je tmavší, vyměněný kus. Rohové sloupky jsou tesané, střecha má drnový povrch a vyčnívající konce krokví. Cedule „HORNÍ ÚTULNA“ s diakritikou visí na tesané desce místo velkého plovoucího nápisu. Chakra Petch má Í i Ú.
+- **Přízrak:** `tools/blender/explore-wraith.py` vyrenderoval tři skutečně odlišné hlavy, rozdělenou masku, čočkovou optiku a kápi. Vyhrála kápě s fasetovanou keramickou čepelí (kýlem) a jednou svislou optikou mimo střed. Rozdělená maska četla jako otevřená kniha, čočky zanikly ve velikosti hlavy. Lemovaný okraj kápě se zamítl, četl jako béžové prkno.
+- **Podhledy Relay:** zvýšené desky šachty (`service`, `gallery`) bez podlahy do 2,4 m pod sebou dostaly mělká příčná žebra s roztečí 2,4 m, okrajové nosníky a zapuštěná světla (`DressRelaySoffit`). Nic nevisí víc než 0,18 m pod kolizí. Strop z dolní paluby tak už není prázdná deska.
+- **Měření** (`TRIAS_ART_PERF=60 tools/unity/art-review.sh …`) uvádí medián a p95 CPU času `Camera.Render` včetně kompozice visoru v editoru, počet draw callů, SetPass a trojúhelníků. Neměří GPU čas, ani snímkový čas přehrávače.
+  - Relay: +0,08 až +0,16 ms (≈3 %), +20 až 23 draw callů a +5 tis. trojúhelníků.
+  - Vanta: +0,04 ms a +12 draw callů. Kordilera: +0,05 ms a +8 draw callů.
+  - Hodnoty p95 jsou v editoru šumivé (až 7,8 ms), mediány jsou stabilní.
+- `TRIAS_ART_PICK=2` přijme i velké vzdálené stavby a k objektu vypíše jeho hranice. Pomohl odhalit, že strop nad dolní palubou je deska šachty, ne kryt.
+
 **Zbývající slabiny.**
-- Pozadí Relay a Vanty tvoří hranaté bloky (megastruktury, komíny).
-- Zastíněná strana krytů v Meridianu je skoro černá.
-- Kordilera potřebuje nové modely skal a terénu: fasetované skály s pruhy mechu, hladké kopce a krabicová bouda s nápisem.
-- Plochá maska Přízraka je nejslabší hlavou mezi piloty.
+- Signální události (Echo, řetěz hybnosti, oživení, likvidace, úskok) a pohyb zbraně z první osoby nebyly v této vlně upraveny. Sonda je umí jen staticky, chybí záznam pohybu.
+- Kryty ve Vantě na mostě jsou pořád světlé kvádry. Paluba Meridianu a přední bedny jsou prosté plochy.
+- Skála v řece na Kordileře čte jako vrstvené desky s maskovacím vzorem mechu. Kopce jsou hladké.
 - Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
 - Herní texty mohou Hordu dál nazývat „nakažení“.
 - Vozidla jsou tvarově jednodušší než zbraně. Kanystr lékárničky je z boku hladký.
-- Nativní build, hra s boty a měření snímkové frekvence po přestavbě nebyly ověřeny.
+- Hra s boty, záznam pohybu a měření snímkové frekvence v nativním přehrávači chybí. Windows build se nespouštěl.

@@ -12,3 +12,5 @@ Use [the Relay art notes](../../../ART-DIRECTION.md) when adjusting architectura
 For a fitted Blender cover, compare the authored blocker with the rendered top and corners. Preserve real passage gaps and check the legs of a new frame stay on the original jambs. Keep nature low along paths and place decorative ruins against existing banks. Compare sorted enabled collider transforms and bounds before and after the fit.
 
 At the two outer Kordilera crossings, reserve the full deck width through both ends. For rotated bank hardware, project both horizontal half-extents onto the deck width axis, sample terrain height at the offset foot, and test the actual catalog cover there.
+
+Decor under a walkable slab (ribs, girders, lights) may hang at most about .18 m below the collider, and only where no floor lies within 2.4 m beneath it (`DressRelaySoffit`). Re-dress a building's faces (for example the Kordilera refuge's stone plinth, log courses and turf) rather than adding a cosmetic pitched roof over a walkable flat one.
