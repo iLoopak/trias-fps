@@ -227,7 +227,9 @@ namespace Trias.Native
             int variant = EnvironmentVariant(box);
             if (box.nature == "tree")
             {
-                string species = variant % 3 == 0 ? "TreeSentinel" : variant % 3 == 1 ? "TreeRidge" : "TreeWindward";
+                // The rules name the form (its trunk collision is fitted to it); older data falls back to the hash.
+                string species = !string.IsNullOrEmpty(box.species) ? box.species
+                    : variant % 3 == 0 ? "TreeSentinel" : variant % 3 == 1 ? "TreeRidge" : "TreeWindward";
                 // Keep branch clearance and the visible rootstock close to the legacy trunk footprint.
                 return NatureMesh(species, parent, Vector3.up * (foot + previousSize.y * .5f), previousSize);
             }

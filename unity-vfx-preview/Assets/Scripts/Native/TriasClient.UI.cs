@@ -120,7 +120,7 @@ namespace Trias.Native
             hudText.Draw(new Rect(53, 38, 137, 18), linkText.Of(latency, 0, 0, room, static (l, _, _, r) => l + " ms  ·  " + r), caption);
             float cx = w * .5f;
             int time = state["time"].Int;
-            if (mode == "horde") PaintHordeGauge(cx, h, scale);
+            if (mode == "horde") { var mark = AllocMark(); PaintHordeGauge(cx, h, scale); AllocNote("hud_hordegauge", mark); }
             else
             {
                 float width = mode == "ffa" ? 236 : 372;
@@ -144,28 +144,28 @@ namespace Trias.Native
                 }
                 hudText.Draw(new Rect(scores.xMax - 60, 20, 54, 28), clockText.Of(time, 0, 0, null, static (t, _, _, _) => (t / 60) + ":" + (t % 60).ToString("00")), center);
             }
-            PaintArenaRhythm(cx);
-            PaintPractice(cx);
-            if (mode == "horde") PaintCouncil(cx);
+            { var mark = AllocMark(); PaintArenaRhythm(cx); AllocNote("hud_arenarhythm", mark); }
+            { var mark = AllocMark(); PaintPractice(cx); AllocNote("hud_practice", mark); }
+            if (mode == "horde") { var mark = AllocMark(); PaintCouncil(cx); AllocNote("hud_council", mark); }
             if (Time.unscaledTime < toastUntil && !string.IsNullOrEmpty(toast))
             {
                 HudStrip(new Rect(w - 300, 18, 278, 33), teamTint);
                 hudText.Draw(new Rect(w - 291, 20, 260, 28), toast, caption);
             }
             bool alive = own[6].Int > 0;
-            PaintObjectiveHints(h, scale);
-            PaintConstruction(w, h, scale);
-            PaintPerks(w);
-            if (captured && !scoreboard) PaintKillFeed(w);
-            if (alive && captured && !scoreboard) PaintRadar();
-            PaintWaveBanner(cx, h);
-            if (alive && captured && !scoreboard) PaintBotRadio(h);
+            { var mark = AllocMark(); PaintObjectiveHints(h, scale); AllocNote("hud_objectivehints", mark); }
+            { var mark = AllocMark(); PaintConstruction(w, h, scale); AllocNote("hud_construction", mark); }
+            { var mark = AllocMark(); PaintPerks(w); AllocNote("hud_perks", mark); }
+            if (captured && !scoreboard) { var mark = AllocMark(); PaintKillFeed(w); AllocNote("hud_killfeed", mark); }
+            if (alive && captured && !scoreboard) { var mark = AllocMark(); PaintRadar(); AllocNote("hud_radar", mark); }
+            { var mark = AllocMark(); PaintWaveBanner(cx, h); AllocNote("hud_wavebanner", mark); }
+            if (alive && captured && !scoreboard) { var mark = AllocMark(); PaintBotRadio(h); AllocNote("hud_botradio", mark); }
             if (alive && state["winner"]["label"].Text == null)
             {
-                PaintReticle(w, h);
-                PaintSignature(w, h);
-                PaintVitals(w, h);
-                PaintDeployment(w,h);
+                { var mark = AllocMark(); PaintReticle(w, h); AllocNote("hud_reticle", mark); }
+                { var mark = AllocMark(); PaintSignature(w, h); AllocNote("hud_signature", mark); }
+                { var mark = AllocMark(); PaintVitals(w, h); AllocNote("hud_vitals", mark); }
+                { var mark = AllocMark(); PaintDeployment(w,h); AllocNote("hud_deployment", mark); }
                 string stateLabel = Prompt();
                 if (stateLabel != null)
                 {

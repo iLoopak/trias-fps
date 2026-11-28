@@ -47,13 +47,19 @@ round_band("Carry handle", [(.27, .04, .04, 0), (.31, .05, .05, 0), (.33, .03, .
 
 art.group = "Shield"
 # Three curved ceramic petals around a hexagonal core: the shield folds closed around its source.
-petal = [(-.13, -.24, .26), (.13, -.24, .26), (.17, .02, .30), (.10, .26, .27), (-.10, .26, .27), (-.17, .02, .30)]
+# Each petal carries a glowing hexagon (the shield mark) and a broad light seam, and the petals flare
+# open at the top so the core shows between them; closed and plain, the cell read as a wall panel.
+petal = [(-.13, -.24, .26), (.13, -.24, .26), (.17, .02, .30), (.11, .26, .32), (-.11, .26, .32), (-.17, .02, .30)]
 for i in range(3):
-    plate("Ceramic shield petal", turned(petal, i * math.tau / 3), 0, .045, "Ceramic", .008)
-    plate("Petal backing", turned([(x * .86, y * .9, z - .045) for x, y, z in petal], i * math.tau / 3), 0, .03, "Graphite", .006)
-    plate("Petal edge light", turned([(-.012, -.18, .31), (.012, -.18, .31), (.012, .20, .30), (-.012, .20, .30)], i * math.tau / 3),
-          0, .01, "Glow", .002)
-band("Hexagonal core", (0, 0, 0), [(-.17, .0, .0, 0), (-.08, .10, .10, 0), (.10, .10, .10, 0), (.19, .0, .0, 0)], "Glow", 6, 1.0)
+    angle = i * math.tau / 3
+    plate("Ceramic shield petal", turned(petal, angle), 0, .045, "Ceramic", .008)
+    plate("Petal backing", turned([(x * .86, y * .9, z - .045) for x, y, z in petal], angle), 0, .03, "Graphite", .006)
+    plate("Petal light seam", turned([(-.022, -.21, .275), (.022, -.21, .275), (.022, -.06, .292), (-.022, -.06, .292)], angle),
+          0, .012, "Glow", .002)
+    hexagon = [(math.cos(k * math.tau / 6) * .075, .06 + math.sin(k * math.tau / 6) * .075, .312) for k in range(6)]
+    plate("Shield mark", turned(hexagon, angle), 0, .014, "Glow", .003)
+    plate("Shield mark rim", turned([(x * 1.32, .06 + (y - .06) * 1.32, .305) for x, y, z in hexagon], angle), 0, .01, "Graphite", .003)
+band("Hexagonal core", (0, 0, 0), [(-.19, .0, .0, 0), (-.08, .135, .135, 0), (.12, .135, .135, 0), (.22, .0, .0, 0)], "Glow", 6, 1.0)
 
 art.group = "Surge"
 # Overcharge: a split crystal held apart by three alloy clamps above a graphite collar.

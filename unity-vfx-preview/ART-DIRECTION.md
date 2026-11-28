@@ -374,3 +374,22 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - Kmeny stromů v Kordileře mají kvádr 4,9 m, který končí pod korunou nebo vedle ní (5–9 zásahů na strom). Zábradlí mostu u x = 16,3 hlásí 9 zásahů a pod ním nic viditelného není.
 - Občasné snímky přes 25 ms zatím nikdo neprofiloval (vykreslování, fyzika, kompozitor).
 - Power-up štítu je ze všech sběratelných předmětů nejméně výrazný.
+
+**Patnáctá vlna (stromy, zábradlí, štít, propady snímků).** Sonda je v `output/craft/k-trees*` a `m-verify`, měření v `output/ws-*`.
+- **Kmeny stromů:** sonda `TRIAS_ART_TREES=1` naměřila průřez kmene po 0,25 m. Kmeny jsou zahnuté a posunuté od středu a do 1,75 m se rozvětvují do koruny.
+  - Celý strom je teď ve `scenery`. V `cover` zůstal jen kvádr jádra kmene (`TREE_TRUNKS` v `public/rules.js`) od země do 1,75 m, tedy největší obdélník, který kmen vyplňuje ve všech výškách.
+  - Koruna už není neviditelný sloup 0,64 × 0,59 × 3,6 m.
+- **Zábradlí lávek:** kolize je jeden plný panel, ale vizuál tvořily jen sloupky a dvě madla, takže těsně nad mostovkou stála neviditelná stěna. Přibyla okopová lišta.
+  - Sonda na Kordileře: stromy z 5–9 zásahů a zábradlí z 9 na 0. Zbývá nejvýš 2 zásahy na hranách skal.
+- **Power-up štítu:** každý plátek má zářící šestiúhelník (znak štítu, obdoba kříže na lékárničce) a širší světelný šev. Jádro je větší a plátky se nahoře rozevírají.
+- **Propady snímků:** log je přiřazuje přes `FrameTimingManager` (řádek `spike_causes`; v Player Settings je zapnuté Frame Timing Stats).
+  - Bez vsync (bez dalšího zatížení stroje) je medián snímku 2,5–3,7 ms na Relay a ~4,6 ms na Meridianu. Meridian má p95 11–14 ms a GPU p95 8–9 ms, takže práce hry má při 60 Hz velkou rezervu.
+  - Při vsync je propadů 0–7 za 10 s (do 1 % snímků), vždy jeden snímek 25–34 ms, a CPU ani GPU v nich budget nepřekračují. Hlavní vlákno při vsync čeká na prezentaci renderovacího vlákna, takže jeho čas vychází ~17 ms a dřív se mylně hlásil jako `main`; teď se takový snímek hlásí jako `present`.
+  - Nejpravděpodobnější příčina je časování prezentace okna (kompozitor macOS v okenním režimu). Neověřeno ve fullscreenu.
+  - Zkrácení stínů na 90 m se 2 kaskádami ani vypnutí AO počet propadů měřitelně nezměnilo (rozptyl mezi stejnými běhy je větší než rozdíl). MSAA 0 vyšlo lépe, ale za cenu hran, proto zůstává.
+  - GC: texty HUDu (alternativní akce, panel hybnosti) se skládají jen při změně. Alokace HUDu klesly zhruba na polovinu a propady souběžné s GC na 0–1 za 10 s. Zbytek alokací je uvnitř Unity GUI (`GUI.matrix`, `DrawTexture`) a parseru paketů (~120 KB/s).
+
+**Zbývající slabiny.**
+- Občasné propady o jeden snímek při vsync (0–7 za 10 s) pocházejí z prezentace, ne z práce hry. Ověřit je fullscreen (exkluzivní nebo bez rámečku) a případně Metal display link.
+- Parser paketů stále alokuje ~120 KB/s, protože každý snapshot staví nové `WireValue`. Recyklace by vyžadovala vlastnictví snapshotů (předchozí stav drží reference).
+- Sonda hlásí okraje galerijních desek na Relay (4–16 zásahů přesně na hraně collideru, x = ±20,5). Vizuální hrana je o centimetry zúžená; herně nepodstatné, ale ve výpisu sondy to ruší.

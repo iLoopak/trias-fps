@@ -9,6 +9,7 @@ namespace Trias.Native
         static readonly string[] Perks = { "scan", "module", "strike", "overdrive" };
         static readonly string[] PerkNames = { "Sken", "Modul", "Úder", "Pohon" };
         static readonly int[] PerkGoals = { 3, 5, 7, 9 };
+        static readonly string[] TeamKeys = { "0", "1", "2" };
         static readonly KeyCode[] PerkKeys = { KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8, KeyCode.Alpha9 };
         readonly Dictionary<int, (Transform marker, LineRenderer circle)> orbitalWarnings = new Dictionary<int, (Transform, LineRenderer)>();
         readonly HashSet<int> activeWarnings = new HashSet<int>();
@@ -51,7 +52,7 @@ namespace Trias.Native
                 perkMask = entry[2].Int;
                 break;
             }
-            string scope = mode == "ffa" ? identity : own[3].Int.ToString();
+            string scope = mode == "ffa" ? identity : own[3].Int is >= 0 and < 3 ? TeamKeys[own[3].Int] : own[3].Int.ToString();
             foreach (var scan in frame["scans"].Items)
                 if (scan[0].Text == scope) scanLeft = scan[1].Float;
 

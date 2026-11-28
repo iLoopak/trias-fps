@@ -324,6 +324,40 @@ namespace Trias.Native
                             }
                             log.Add($"  rock-top {stone} at=({box.x:F2},{box.z:F2}) w={box.w:F2} d={box.d:F2} span={span:F2} rows={rows}");
                         }
+                    // TRIAS_ART_TREES=1 (with the collider probe) measures each Kordilera tree's visible trunk: its
+                    // half widths along local x and z at several heights, and where the crown starts to spread.
+                    if (Environment.GetEnvironmentVariable("TRIAS_ART_TREES") == "1")
+                        foreach (var box in world.Spec.scenery ?? world.Spec.cover)
+                        {
+                            if (box.nature != "tree") continue;
+                            Transform home = null;
+                            foreach (Transform child in world.Root)
+                                if (child.name == "tree" && (child.position - new Vector3(box.x, box.bottom, box.z)).sqrMagnitude < .01f) home = child;
+                            if (home == null) continue;
+                            int vx = Mathf.RoundToInt(box.x * 17), vz = Mathf.RoundToInt(box.z * 23), variant = Mathf.Abs((vx ^ vz) % 12);
+                            string species = variant % 3 == 0 ? "TreeSentinel" : variant % 3 == 1 ? "TreeRidge" : "TreeWindward";
+                            // Horizontal slices: parallel rays across the tree at each height give the trunk's
+                            // local bounding rectangle; the crown starts where a slice grows past 1.2 m.
+                            var line = new System.Text.StringBuilder();
+                            float crown = -1;
+                            for (float above = .25f; above < 4.2f; above += .25f)
+                            {
+                                float y = box.ground - box.bottom + above;
+                                float x0 = 9, x1 = -9, z0 = 9, z1 = -9;
+                                for (float o = -1.6f; o <= 1.6f; o += .04f)
+                                    foreach (var (origin, dir) in new[] { (new Vector3(-4, y, o), Vector3.right), (new Vector3(4, y, o), Vector3.left) })
+                                        foreach (var hit in Physics.RaycastAll(home.TransformPoint(origin), home.TransformDirection(dir), 8, 1 << VisualLayer, QueryTriggerInteraction.Ignore))
+                                            if (hit.collider.transform.IsChildOf(home))
+                                            {
+                                                var local = home.InverseTransformPoint(hit.point);
+                                                x0 = Mathf.Min(x0, local.x); x1 = Mathf.Max(x1, local.x); z0 = Mathf.Min(z0, local.z); z1 = Mathf.Max(z1, local.z);
+                                            }
+                                if (x1 < x0) { line.Append($" {above:F2}:none"); continue; }
+                                if (crown < 0 && Mathf.Max(x1 - x0, z1 - z0) > 1.2f) crown = above;
+                                line.Append($" {above:F2}:[{x0:F2},{x1:F2},{z0:F2},{z1:F2}]");
+                            }
+                            log.Add($"  tree-trunk {species} at=({box.x:F2},{box.z:F2}) box={box.w:F2}x{box.d:F2} top={box.h - box.ground:F2} crown={crown:F2}{line}");
+                        }
                     foreach (var proxy in proxies) Destroy(proxy);
                     foreach (var pair in flagged.OrderByDescending(p => p.Value.Count))
                     {
