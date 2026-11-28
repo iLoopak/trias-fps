@@ -298,9 +298,24 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - **Neprokázáno:** druhý běh za sebou na M2 bez ventilátoru zpomalil až 2× (Vanta v sérii z 6 na 15 ms, Relay z 8 na 17 ms). Samostatný běh Vanty po vychladnutí byl stabilní. Nejpravděpodobněji jde o tepelné omezení, macOS ale varování nezaznamenal.
 - Nativní snímky z boje odpovídají revizním záběrům. Sonda tedy ukazuje to, co hra.
 
+**Dvanáctá vlna (Kordilera, paluba Meridianu, HUD, úchop pilotů).** Výstupy jsou v `output/beyond/` (`w-*`, `x-*`, `y-hands`) a `output/playtest5/`.
+- **Kopce Kordilery – zamítnuto:**
+  - Nízké skalní desky na svazích (vyčnívaly nejvýš 0,25 m, aby netvořily klamavý kryt) z herní vzdálenosti zanikly.
+  - Shaderové erozní rýhy se neprojevily ani natvrdo zapnuté na celé strmé ploše. Kopce jsou na to příliš mírné.
+  - Skalní žebra na útesech pod okrajem ostrova nejsou ze hry vidět.
+  - Hladkost tedy plyne přímo z tvaru autoritativní výškové mřížky. Skutečné zdrsnění by změnilo pohyb, výhledy i navigaci botů, a to je herní rozhodnutí, ne vizuální.
+- **Paluba Meridianu:** na volné podlaze vystupuje jedna achátová žíla. Jsou to čočkovité broušené výbrusy podél společné zlomové osy, s matným materiálem (lesk 0,18) a tmavým grafitovým lemem.
+  - Leštěný achát pod nízkým úhlem zrcadlil oblohu a splýval s podlahou.
+  - Úseky po souvislé trase zakrývaly kryty a byly příliš úzké.
+  - Pozor: pás vrcholů po směru cesty musí jít při pohledu shora po směru hodinových ručiček, jinak je Unity ořízne jako odvrácený.
+- **HUD v nativní hře:** `-trias-autopilot` nechá pilota při playtestu běhat, kličkovat, skákat a uskakovat normální vstupní cestou.
+  - Panel řetězce hybnosti (Surge ×2, Kinetic ×1,5, Overdrive ×2,5 s popisem akce) i ztráta zdraví jsou čitelné a nepřekrývají se s municí.
+  - Prolomení štítu se nezachytilo, protože pilot nesebral štít.
+  - Výkon s autopilotem v Relay: se vsync 16,67 ms, bez vsync medián 2–3 ms a p99 10–13 ms.
+- **Revizní piloti** jsou teď herní `Avatar` sestavený z řádku hráče jako v hangáru. Drží svou zbraň přes stejné IK (`PlaceHands`) jako v zápase, sestava i portréty. Portréty na webu jsou obnovené.
+
 **Zbývající slabiny.**
 - Přebíjení a výstřel mají společné časování. Jejich pohyb ze sedmé vlny posoudil jen člověk ve Feel Lab, ne sonda.
-- Řetěz hybnosti a rána do štítu se odehrávají ve visoru a ve zbrani z první osoby, takže sonda je nezachytí.
-- Kopce Kordilery mají tvarově hladkou geometrii (barevně už ne). Paluba Meridianu je prostá plocha. 
-- Sestava pilotů v náhledu nemá úchop zbraně (sonda nevolá `PlaceHands`).
+- Prolomení štítu ve visoru zatím žádný záběr nezachytil (při playtestu chybí sebrání štítu).
+- Kopce Kordilery mají hladký tvar autoritativní výškové mřížky; změna je herní rozhodnutí. 
 - Windows build se nespouštěl. Měření snímků proběhlo jen na Apple M2. Hráč při playtestu nehrál, takže pohyb a střelba z první osoby nebyly v nativním měření zatížené.

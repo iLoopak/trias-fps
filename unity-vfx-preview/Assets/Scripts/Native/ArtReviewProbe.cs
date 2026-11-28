@@ -100,6 +100,8 @@ namespace Trias.Native
             new Shot { Key = "vanta-works", Arena = "foundry", Weapon = "scatter", Eye = P(5, 1.58f, -22), Aim = P(0, 7, 30) },
             new Shot { Key = "vanta-terrace", Arena = "foundry", Weapon = "pulse", Eye = P(1.5f, 1.58f, -9.5f), Aim = P(-1.5f, .8f, -2) },
             new Shot { Key = "meridian-terrace", Arena = "basin", Weapon = "arc", Eye = P(-3, 1.58f, -15), Aim = P(0, .9f, -6.4f) },
+            // Along Meridian's floor vein from the south-west towards the central machine.
+            new Shot { Key = "meridian-vein", Arena = "basin", Weapon = "lance", Eye = P(-30, 1.58f, -21), Aim = P(-14, -.8f, -11) },
             new Shot { Key = "meridian-approach", Arena = "basin", Weapon = "lance", Eye = P(-8.8f, 1.58f, -37.4f), Aim = P(-5.3f, 1.4f, -31) },
             EventShot("fx-elimination", .14f, (fx, w) => fx.Elimination(EventSpot, w.TeamLight[1].color)),
             EventShot("fx-elimination-mid", .3f, (fx, w) => fx.Elimination(EventSpot, w.TeamLight[1].color)),
@@ -137,6 +139,10 @@ namespace Trias.Native
                 Eye = w => w.Flags[0].position + new Vector3(1.3f, 1.4f, -1.6f), Aim = w => w.Flags[0].position + Vector3.up * 1.05f },
             new Shot { Key = "obj-flag", Arena = "island", Mode = "ctf", Weapon = "pulse", Fov = 60,
                 Eye = w => w.Flags[0].position + new Vector3(2.2f, 1.58f, -2.2f), Aim = w => w.Flags[0].position + Vector3.up * .9f },
+            // Kordilera from a raised edge position across the hills, and along the cliff rim.
+            new Shot { Key = "kordilera-hills", Arena = "island", Mode = "ctf", Weaponless = true, Fov = 62,
+                Eye = w => new Vector3(-w.Spec.edgeRadius * .62f, w.Height(-w.Spec.edgeRadius * .62f, -w.Spec.edgeRadius * .3f) + 2.2f, -w.Spec.edgeRadius * .3f),
+                Aim = w => new Vector3(w.Spec.edgeRadius * .3f, w.Height(w.Spec.edgeRadius * .3f, w.Spec.edgeRadius * .2f) + 1, w.Spec.edgeRadius * .2f) },
             new Shot { Key = "kordilera-crossing", Arena = "island", Mode = "ctf", Eye = G(27.5f, 11.3f, 1.58f), Aim = G(23.4f, 6.6f, .68f) },
         };
 
@@ -243,22 +249,29 @@ namespace Trias.Native
                         shot.Extras(world, home);
                         props.Add(home.gameObject);
                     }
+                    // Review pilots are the game's own Avatar, built from a player row like the hangar's, so they
+                    // carry their weapon with the same IK grip (PlaceHands) as in a match.
+                    var avatars = new List<Avatar>();
                     foreach (var pilot in shot.Pilots)
                     {
-                        var root = TriasWorld.Group(world.Actors, "Review pilot " + pilot.Kit);
-                        root.SetPositionAndRotation(pilot.At(world), Quaternion.Euler(0, pilot.Yaw, 0));
-                        world.Kit.Pilot(root, pilot.Kit, world.TeamLight[pilot.Team], pilot.Team, pilot.Kit == "vector" || pilot.Kit == "bulwark", out var rig);
-                        var gun = TriasWorld.Group(root, "Pulse", new Vector3(.17f, 1.36f, .34f));
-                        gun.localScale = Vector3.one * .9f;
-                        TriasModels.Gun(world, gun, shot.PilotWeapon ?? "pulse", world.TeamLight[pilot.Team]);
-                        if (rig != null && rig["idle"] != null) { var s = rig["idle"]; s.enabled = true; s.weight = 1; s.time = .4f; rig.Sample(); s.enabled = false; }
-                        props.Add(root.gameObject);
+                        var at = pilot.At(world);
+                        string weapon = shot.PilotWeapon ?? Catalog.Find(catalog.pilots, pilot.Kit)?.weapon ?? "pulse";
+                        string frame = pilot.Kit == "vector" || pilot.Kit == "bulwark" ? "male" : "female";
+                        var row = WireValue.Parse(string.Format(CultureInfo.InvariantCulture,
+                            "[\"review\",\"{0}\",2,{1},0,\"{0}\",150,0,0,\"{2}\",[],0,0,1,0,-1,-1,0,{3},{4},{5},0,0,0,{6},0,0,0,0,0,0,null,\"{7}\"]",
+                            pilot.Kit, pilot.Team, weapon, at.x, at.y, at.z, pilot.Yaw * Mathf.Deg2Rad - Mathf.PI, frame));
+                        var avatar = new Avatar(world, "review-" + pilot.Kit, row, world.TeamLight[pilot.Team]);
+                        avatar.Accept(row, Time.unscaledTime);
+                        avatars.Add(avatar);
+                        props.Add(avatar.Root.gameObject);
                     }
                     for (int frame = 0; frame < 24; frame++)
                     {
                         world.Animate(40 + frame / 60f, 1, 0, eye, 1, 1, 40 + frame / 60f, 719);
+                        foreach (var avatar in avatars) avatar.Tick(Time.unscaledTime);
                         yield return null;
                     }
+                    foreach (var avatar in avatars) avatar.PlaceHands();
                     if (shot.Event != null)
                     {
                         if (Effects == null) log.Add($"{shot.Key}: event skipped (no effects)");

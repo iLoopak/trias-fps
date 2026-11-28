@@ -196,6 +196,7 @@ namespace Trias.Native
             }
             if (IsRelayArt) BuildRelayContacts();
             else BuildGroundContacts();
+            BuildMeridianFloorSeam();
             var gold = MaterialAt("#ffae62", true);
             launchPadParts ??= new BlenderParts("TRIAS/LaunchPad/LaunchPad");
             foreach (var pad in Spec.launchPads)

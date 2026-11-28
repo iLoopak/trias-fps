@@ -2,7 +2,7 @@
 # Unattended native playtest: opens a bot room on a running local server (npm start), joins it with
 # the native macOS player, logs frame-time percentiles and captures gameplay every 8 s.
 #   tools/playtest/run.sh <player.app> <out-dir> <arena> [mode] [seconds]
-# Extra player flags go in TRIAS_PLAYTEST_FLAGS (for example "-trias-uncapped").
+# Extra player flags go in TRIAS_PLAYTEST_FLAGS (for example "-trias-uncapped -trias-autopilot").
 set -e
 APP="$1"; OUT="$2"; ARENA="$3"; MODE="${4:-tdm}"; SECONDS_TO_RUN="${5:-80}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

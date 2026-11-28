@@ -13,6 +13,8 @@ namespace Trias.Native
     //   -trias-quit-after <s>     quits the player after that many seconds
     //   -trias-uncapped           disables vsync and the frame cap so the log shows real frame cost
     //   -trias-no-capture         overrides -trias-capture (screenshots stall the main thread ~150 ms)
+    //   -trias-autopilot          while alive, sprints, weaves, turns, jumps and dodges through the normal input
+    //                             path, so movement, Momentum Chain and first-person motion are in the measured load
     // Used with tools/playtest/host-room.mjs and -trias-invite; normal play is unaffected.
     public sealed partial class TriasClient
     {
@@ -20,7 +22,8 @@ namespace Trias.Native
         float quitAfter = -1, nextFrameReport, nextCapture;
         readonly List<float> frameSamples = new(1200);
         int captureIndex, unfocusedFrames;
-        bool uncapped;
+        bool uncapped, autopilot;
+        float autopilotTurn;
         ProfilerRecorder mainThread, gcMemory;
 
         void InitDiagnostics()
@@ -34,6 +37,7 @@ namespace Trias.Native
             }
             if (Array.IndexOf(args, "-trias-uncapped") >= 0) uncapped = true;
             if (Array.IndexOf(args, "-trias-no-capture") >= 0) capturePath = null;
+            if (Array.IndexOf(args, "-trias-autopilot") >= 0) autopilot = true;
             if (capturePath != null) Directory.CreateDirectory(capturePath);
             // An unattended player is rarely the focused window; keep simulating and rendering anyway.
             if (frameLogPath != null || capturePath != null || quitAfter > 0) Application.runInBackground = true;
@@ -61,6 +65,24 @@ namespace Trias.Native
                 nextCapture = now + 8;
                 StartCoroutine(CaptureFrame(Path.Combine(capturePath, $"{world.Spec.id}-{captureIndex++:D2}.png")));
             }
+        }
+
+        // Scripted movement for unattended playtests; it uses the same command bits as the keyboard.
+        void Autopilot(ref int bits, ref float horizontal, ref float vertical)
+        {
+            if (!autopilot || own == null || own[6].Int <= 0 || state["winner"]["label"].Text != null) return;
+            float t = Time.unscaledTime;
+            vertical = 1;
+            horizontal = Mathf.Sin(t * 1.3f) * .7f;
+            bits |= 1 << 1;                                   // sprint
+            if (Mathf.Repeat(t, 2.6f) < Motor.Tick) bits |= 1 << 5;          // jump press
+            if (Mathf.Repeat(t + 1.1f, 4.3f) < Motor.Tick) bits |= 1 << 6;   // dodge
+            // Wander: a slow sweep plus a sharp turn every few seconds keeps the pilot off walls.
+            if (Mathf.Repeat(t, 3.7f) < Motor.Tick) autopilotTurn = 70 + Mathf.Repeat(t * 37, 110);
+            float turn = Mathf.MoveTowards(0, autopilotTurn, 120 * Motor.Tick);
+            autopilotTurn -= turn;
+            yaw = Mathf.Repeat(yaw + turn + Mathf.Sin(t * .7f) * .6f, 360);
+            pitch = Mathf.Lerp(pitch, 4, .1f);
         }
 
         // The Screen Capture module is not in this project, so read the finished frame back directly.
