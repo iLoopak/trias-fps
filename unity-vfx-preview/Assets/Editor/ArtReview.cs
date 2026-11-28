@@ -26,6 +26,8 @@ namespace Trias.Preview
         {
             if (change != PlayModeStateChange.EnteredPlayMode || !SessionState.GetBool(Pending, false)) return;
             SessionState.SetBool(Pending, false);
+            // The shipped effects rig, so event shots show exactly what the game plays.
+            Trias.Native.ArtReviewProbe.Effects = BuildTrias.CreateEffects(null);
             new GameObject("Art review eye").AddComponent<Trias.Native.ArtReviewProbe>();
         }
     }

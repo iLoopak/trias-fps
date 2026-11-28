@@ -93,6 +93,11 @@ def skimmer():
             wheel("Skimmer wheel", side * .86, .30, z, .30, .26, side)
             slab("Wheel fender", [(z - .42, .52), (z - .32, .66), (z + .32, .66), (z + .42, .52)], side * .86, .16, "Graphite", .03, .01)
         slab("Rear lamp", [(-1.60, .60), (-1.60, .66), (-1.56, .66), (-1.56, .60)], side * .55, .12, "Signal", .01, 0)
+        # Raked tail fin: one per side, it breaks the box read of the rear shell from every angle.
+        slab("Raked tail fin", [(-1.50, 1.00), (-1.66, 1.30), (-1.56, 1.32), (-1.10, 1.06)], side * .60, .03, "Graphite", .01, .006)
+        slab("Side intake", [(.62, .56), (.62, .70), (.86, .72), (.86, .56)], side * .80, .05, "Fabric", .015, .004)
+        slab("Intake lip", [(.60, .70), (.60, .74), (.88, .76), (.88, .72)], side * .81, .06, "Alloy", .01, .003)
+        slab("Headlamp", [(1.50, .50), (1.56, .56), (1.58, .54), (1.53, .48)], side * .52, .10, "Signal", .01, 0)
 
 
 def bastion():
@@ -113,6 +118,24 @@ def bastion():
         for z in (-1.60, 0, 1.60):
             wheel("Bastion wheel", side * 1.30, .42, z, .42, .36, side)
         slab("Track guard", [(-2.05, .86), (-2.05, .92), (2.05, .92), (2.05, .86)], side * 1.30, .22, "Graphite", .02, .008)
+        slab("Headlamp", [(2.28, 1.00), (2.33, 1.06), (2.36, 1.03), (2.31, .97)], side * .78, .12, "Signal", .01, 0)
+        slab("Tow hook", [(2.30, .44), (2.30, .56), (2.46, .56), (2.46, .44)], side * .62, .06, "Alloy", .01, .004)
+        # Smoke dischargers on the turret ring cheeks, three tubes per side angled forward.
+        for i in range(3):
+            band("Smoke discharger", (side * (.62 + i * .1), 1.60, .52 - i * .07), [(0, .045, .045, 0), (.20, .045, .045, .06)], "Alloy", 10, 1.0)
+        slab("Tail lamp", [(-2.36, 1.10), (-2.36, 1.16), (-2.30, 1.16), (-2.30, 1.10)], side * .86, .08, "Amber", .01, 0)
+    # Roof: three fired-ceramic armour plates held apart by gaps, a commander's hatch off the axis,
+    # rear stowage and two whip antennas, so the large hull top has a large-medium-small rhythm.
+    for z0, z1 in ((-1.86, -.92), (-.80, .34), (.86, 1.50)):
+        slab("Roof armour plate", [(z0, 1.42), (z0 + .03, 1.49), (z1 - .03, 1.49), (z1, 1.42)], 0, .98, "Ceramic", .03, .01)
+    slab("Roof gap light", [(-.88, 1.42), (-.88, 1.46), (-.84, 1.46), (-.84, 1.42)], 0, .80, "Signal", .004, 0)
+    band("Commander hatch", (.62, 1.49, -1.30), [(0, .26, .26, 0), (.08, .24, .24, 0), (.12, .16, .16, 0)], "Graphite", 16, 1.0)
+    slab("Stowage bin", [(-2.24, 1.42), (-2.24, 1.72), (-1.90, 1.74), (-1.88, 1.42)], 0, .90, "Secondary", .04, .012)
+    for x in (-.58, .58):
+        slab("Stowage strap", [(-2.26, 1.40), (-2.26, 1.76), (-2.22, 1.76), (-2.22, 1.40)], x, .05, "Graphite", .005, 0)
+    for x, z in ((-.96, -1.70), (.96, -1.80)):
+        band("Antenna base", (x, 1.49, z), [(0, .05, .05, 0), (.10, .04, .04, 0)], "Alloy", 10, 1.0)
+        band("Whip antenna", (x, 1.59, z), [(0, .012, .012, 0), (1.15, .006, .006, -.18)], "Graphite", 6, 1.0)
 
 
 art.reset()
