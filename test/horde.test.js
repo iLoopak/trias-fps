@@ -176,3 +176,51 @@ test('solid cover blocks airborne infected attacks even if the core was visible 
   assert.equal(match.events.at(-1).type, 'horde-impact');
   assert.equal(match.events.at(-1).objective, false);
 });
+
+test('defenders can build and repair during a wave, but not with infected at the socket', () => {
+  const match = new Match('WAVEBUILD', 'horde', false);
+  const pilot = enter(match, 'Pilot');
+  const horde = match.horde;
+  const site = horde.structures[1];
+  Object.assign(pilot, { x: site.x, z: site.z - 2 });
+  horde.scrap = 200;
+  horde.start(2);
+  horde.dispatch(2, []);
+  const enemy = horde.alive[0];
+  Object.assign(enemy, { x: site.x + 1, y: 0, z: site.z + 1 });
+  assert.equal(horde.build(pilot, site.id, 'barricade', 3), 'Nepřátelé jsou u stavebního místa.');
+  Object.assign(enemy, { x: site.x + 20, z: site.z + 20 });
+  assert.equal(horde.build(pilot, site.id, 'barricade', 3), null);
+  assert.equal(horde.scrap, 170);
+  assert.equal(horde.build(pilot, site.id, 'repair', 4), 'Obrana je v pořádku.');
+  horde.damageStructure(site, 150);
+  assert.ok(match.events.some(event => event.type === 'structure-hit' && event.site === site.id));
+  assert.equal(horde.build(pilot, site.id, 'repair', 4), null);
+  assert.equal(site.hp, 150);
+  assert.equal(horde.scrap, 155);
+  horde.scrap = 5;
+  assert.equal(horde.build(pilot, site.id, 'repair', 5), 'Týmu chybí šrot.');
+});
+
+test('ready defenders cut the preparation, and a cleared wave pays salvage', () => {
+  const match = new Match('READY', 'horde', false);
+  const first = enter(match, 'First');
+  const second = enter(match, 'Second');
+  const horde = match.horde;
+  const start = horde.nextWaveAt;
+  assert.ok(horde.markReady(first, 1));
+  assert.equal(horde.nextWaveAt, start, 'one of two ready keeps the timer');
+  assert.ok(horde.markReady(first, 1.5));
+  assert.ok(horde.markReady(first, 2));
+  assert.ok(horde.markReady(second, 2));
+  assert.equal(horde.nextWaveAt, 5, 'both ready: wave in three seconds');
+  assert.deepEqual(new Set(horde.snapshot(2).ready.ids), new Set([first.id, second.id]));
+  horde.start(5);
+  assert.equal(horde.ready.size, 0);
+  assert.equal(horde.markReady(first, 6), false, 'no readiness during a wave');
+  const scrap = horde.scrap;
+  horde.remaining = 0;
+  horde.step(7);
+  assert.equal(horde.scrap, scrap + 15);
+  assert.ok(match.events.some(event => event.type === 'notice' && event.text.includes('+15 šrotu')));
+});

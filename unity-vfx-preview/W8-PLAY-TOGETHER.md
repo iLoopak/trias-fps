@@ -18,7 +18,7 @@ V lobby zvol **Výcvik pilota**. Klient založí soukromou střelnici na zvolen�
 
 ## Horda a Meridian Basin
 
-- **Rada obrany** probíhá po 2., 4. a 6. vlně. Každý hráč má jeden hlas a může ho změnit do výjezdu další vlny. **F1** přidá 90 HP jádru a opraví stávající stavby až o 35 HP. **F2** dá aktivním obráncům štít a granát. **F3** přidá 45 šrotu do společné zásoby. Při remíze má po druhé vlně přednost oprava, po čtvrté zásoby a po šesté šrot. Když nikdo nehlasuje, tým dostane běžné odměny za vlnu.
+- **Rada obrany** probíhá po 2., 4. a 6. vlně. Každý hráč má jeden hlas. Hlasuje klávesou **V**, která přepíná mezi volbami, a hlas může změnit do výjezdu další vlny. První volba přidá 90 HP jádru a opraví stávající stavby až o 35 HP. Druhá dá aktivním obráncům štít a granát. Třetí přidá 45 šrotu do společné zásoby. Při remíze má po druhé vlně přednost oprava, po čtvrté zásoby a po šesté šrot. Když nikdo nehlasuje, tým dostane běžné odměny za vlnu.
 - **Krytí na Meridianu** se počítá, když obsazené spojenecké vozidlo vidí na uzel z prostoru mimo kruh obsazování do 13 m. Pěchotě přidá 18 % základní rychlosti obsazování. Vozidlo samo uzel nezabere. Protihráč může poslat pěchotu do kruhu, vozidlo odříznout překážkou nebo ho zničit. Na HUD sleduj popisky **DOBÝT**, **ODPOJENO**, **SPOR** a **KRYTÍ**.
 
 ## Odezva a obtížnost

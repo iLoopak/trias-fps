@@ -40,12 +40,33 @@ namespace Trias.Native
             hudText.Draw(new Rect(cx - 215, 116, 430, 22), instruction, caption);
         }
 
+        // Horde preparation keys sit next to the movement hand: V cycles the council vote (it used to be
+        // F1-F3, a reach off the home row mid-fight) and N toggles "ready for the next wave".
         void ReadCouncil()
         {
-            if (!captured || Input.GetKey(KeyCode.Tab) || state["horde"]["council"]["counts"].Count != 3) return;
-            for (int slot = 0; slot < CouncilKeys.Length; slot++)
-                if (Input.GetKeyDown((KeyCode)((int)KeyCode.F1 + slot)))
-                    socket.Send("{\"type\":\"horde-vote\",\"option\":\"" + CouncilKeys[slot] + "\"}");
+            if (!captured || mode != "horde" || Input.GetKey(KeyCode.Tab) || own[6].Int <= 0) return;
+            var horde = state["horde"];
+            if (Input.GetKeyDown(KeyCode.N) && horde["countdown"].Int > 0)
+                socket.Send("{\"type\":\"horde-ready\"}");
+            if (!Input.GetKeyDown(KeyCode.V) || horde["council"]["counts"].Count != 3) return;
+            int next = (System.Array.IndexOf(CouncilKeys, OwnVote(horde["council"])) + 1) % CouncilKeys.Length;
+            socket.Send("{\"type\":\"horde-vote\",\"option\":\"" + CouncilKeys[next] + "\"}");
+        }
+
+        string OwnVote(WireValue council)
+        {
+            foreach (var vote in council["votes"].Items)
+                if (vote[0].Text == identity) return vote[1].Text;
+            return null;
+        }
+
+        bool OwnReady
+        {
+            get
+            {
+                foreach (var id in state["horde"]["ready"]["ids"].Items) if (id.Text == identity) return true;
+                return false;
+            }
         }
 
         void PaintCouncil(float cx)
@@ -61,19 +82,20 @@ namespace Trias.Native
                     hudText.Draw(new Rect(cx - 205, 149, 410, 25), "PODPORA TÝMU   ·   " + CouncilNames[option], center);
                 return;
             }
-            string voted = null;
-            foreach (var vote in panel["votes"].Items)
-                if (vote[0].Text == identity) voted = vote[1].Text;
+            string voted = OwnVote(panel);
             float x = cx - 262;
-            CornerPanel(new Rect(x, 88, 524, 65), Amber);
-            hudText.Draw(new Rect(x + 12, 91, 494, 23), "RADA OBRANY  ·  " + horde["countdown"].Int + " s", section);
+            float y = construction != null ? 126 : 88;
+            CornerPanel(new Rect(x, y, 524, 65), Amber);
+            hudText.Draw(new Rect(x + 12, y + 3, 494, 23), (voted == null ? "RADA OBRANY  ·  V HLASUJ  ·  " : "RADA OBRANY  ·  V ZMĚNIT  ·  ")
+                + horde["countdown"].Int + " s", section);
             for (int i = 0; i < CouncilKeys.Length; i++)
             {
-                var box = new Rect(x + 12 + i * 168, 116, 164, 28);
+                var box = new Rect(x + 12 + i * 168, y + 28, 164, 28);
                 bool selected = voted == CouncilKeys[i];
                 Fill(box, selected ? new Color(.28f,.19f,.09f,.94f) : new Color(.055f,.088f,.12f,.93f));
+                if (selected) Fill(new Rect(box.x, box.yMax - 2, box.width, 2), Amber);
                 hudText.Draw(new Rect(box.x + 5, box.y, box.width - 8, box.height),
-                    $"F{i + 1} {CouncilNames[i]} · {panel["counts"][i].Int}", caption);
+                    (selected ? "● " : "") + CouncilNames[i] + " · " + panel["counts"][i].Int, caption);
             }
         }
 
