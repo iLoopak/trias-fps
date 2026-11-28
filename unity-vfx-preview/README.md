@@ -70,7 +70,21 @@ Všechny čtyři balíčky mají licenci CC0. Původní licenční soubory jsou 
 
 V lobby vyber **HORDA**. Až čtyři piloti spolu brání jádro na Relay Station během osmi vln. Nakažení se snaží dostat k jádru. Běžní nakažení a drtiči útočí zblízka holýma rukama. Od třetí vlny se objevuje plivač a od páté vrhač trosek. Každý útok má čitelný nápřah. Úderu lze uhnout a plivanec nebo trosku zastaví kryt. Mezi vlnami má posádka čas přeskupit se. V průběhu zápasu přibývá munice, zbraně, granáty, štíty a Overcharge. Výhra vyžaduje ubránit jádro do konce osmé vlny.
 
-Během přípravy stiskni **B**. Klávesou **1** vybereš barikádu za 30 šrotu a **2** automatickou věž za 65. Namiř na volné stavební místo a klikni levým tlačítkem. Posádka začíná se 40 kusy šrotu a další získává za vyřazené nepřátele. Postavená obrana přetrvává mezi vlnami a nepřátelé ji mohou zničit. Modely obrany využívají bedny a blaster z Kenney Blaster Kit.
+**Stavění:**
+- Stiskni **B**. Klávesa **1** nebo kolečko vybere barikádu za 30 šrotu, **2** automatickou věž za 65.
+- Namiř na stavební místo. Zelený obrys ukazuje, co postavíš. Červený znamená, že chybí šrot, na místě stojíš, nebo jsou u něj nepřátelé.
+- Klikni levým tlačítkem. Kliknutím na poškozenou obranu ji opravíš o 80 HP za 15 šrotu.
+- Stavět i opravovat jde v přípravě i během vlny, jen ne s nakaženými do 5 m od místa.
+
+**Šrot a obrana:**
+- Posádka začíná se 40 kusy šrotu. Další získává za vyřazené nepřátele (nad každým vyskočí „+šrot“) a za každou odraženou vlnu (10 + 5 × číslo vlny).
+- Volná místa mají v přípravě svítící maják a jsou na radaru jako oranžové čtverečky. Nakažení jsou na radaru vždy červeně.
+- Postavená obrana přetrvává mezi vlnami a má nad sebou pruh zdraví. Pruh zčervená, když ji nakažení bijí.
+- Útok na jádro hlásí banner uprostřed obrazovky.
+
+**Příprava:** **N** označí připravenost. Když jsou připraveni všichni, další vlna začne za 3 s.
+
+Modely obrany využívají bedny a blaster z Kenney Blaster Kit.
 
 Nastavení dynamických hlídek, živé arény, rytmu Hordy a zkoušky týmového rádia najdeš v [návodu k W7](W7-DIRECTOR.md).
 

@@ -5,7 +5,13 @@ const WAVES = 8;
 const MAX_ACTIVE = 8;
 const CORE_HP = 740;
 const PREPARATION = 22;
+// When every defender is ready the preparation is cut to this many seconds.
+const READY_LEAD = 3;
 const BUILD_RANGE = 6;
+// Building during a wave is allowed while no infected is this close to the socket.
+const BUILD_CLEARANCE = 5;
+// Repairs restore this much structure health for this much shared salvage.
+const REPAIR = { cost: 15, hp: 80 };
 const SITES = [[-8, -20, .25], [0, -17, 0], [8, -20, -.25], [-5.5, -24, .55], [5.5, -24, -.55]];
 const STRUCTURES = {
   barricade: { cost: 30, hp: 220, w: 2.9, d: .8, h: 1.2 },
@@ -43,6 +49,7 @@ export class Horde {
     this.wave = this.remaining = 0;
     this.scrap = 40;
     this.votes = new Map();
+    this.ready = new Set();
     this.lastSupport = null;
     const sites = this.room.layout.construction ?? SITES.map(([x,z,angle])=>({x,y:0,z,angle}));
     this.structures = sites.map((site,id)=>({ ...site,id,kind:null }));
@@ -87,14 +94,49 @@ export class Horde {
     }
   }
 
+  // Defenders mark themselves ready during preparation; when all are, the next wave starts in a few seconds.
+  markReady(pilot, now) {
+    if (!this.nextWaveAt || now >= this.nextWaveAt || this.room.restartAt || pilot?.hordeType
+        || ![...this.room.humans].some(peer => peer.player === pilot)) return false;
+    if (this.ready.has(pilot.id)) this.ready.delete(pilot.id);
+    else this.ready.add(pilot.id);
+    const everyone = [...this.room.humans].every(peer => this.ready.has(peer.player.id));
+    if (everyone && this.nextWaveAt - now > READY_LEAD) {
+      this.nextWaveAt = now + READY_LEAD;
+      this.room.events.push({ type: 'notice', text: 'Všichni připraveni · vlna za ' + READY_LEAD + ' s' });
+    }
+    return true;
+  }
+
+  // Sockets stay buildable during a wave, just not with infected at arm's length.
+  contested(site, now) {
+    return !!this.nextWaveAt && now < this.nextWaveAt ? false
+      : this.alive.some(enemy => distanceSquared(enemy, site) < BUILD_CLEARANCE ** 2);
+  }
+
+  repair(pilot, site, now) {
+    if (!site?.kind) return 'Vyber postavenou obranu.';
+    if (site.hp >= site.maxHp) return 'Obrana je v pořádku.';
+    if (distanceSquared(pilot, site) > BUILD_RANGE ** 2 || Math.abs(pilot.y - site.y) > 1.4)
+      return 'Přibliž se k obraně.';
+    if (this.contested(site, now)) return 'Nepřátelé jsou u obrany.';
+    if (this.scrap < REPAIR.cost) return 'Týmu chybí šrot.';
+    this.scrap -= REPAIR.cost;
+    site.hp = Math.min(site.maxHp, site.hp + REPAIR.hp);
+    this.room.events.push({ type: 'repaired', position: [site.x, site.y + .25, site.z], kind: site.kind });
+    return null;
+  }
+
   build(pilot, id, kind, now) {
     const site = Number.isInteger(id) ? this.structures[id] : null;
+    if (!pilot || pilot.bot || pilot.hp <= 0 || this.room.restartAt || this.core.hp <= 0)
+      return 'Teď stavět nemůžeš.';
+    if (kind === 'repair') return this.repair(pilot, site, now);
     const spec = Object.hasOwn(STRUCTURES, kind) ? STRUCTURES[kind] : null;
-    if (!pilot || pilot.bot || pilot.hp <= 0 || this.room.restartAt || !this.nextWaveAt || now >= this.nextWaveAt)
-      return 'Stavět můžeš jen během přípravy.';
     if (!site || !spec || site.kind) return 'Vyber volné stavební místo.';
     if (distanceSquared(pilot, site) > BUILD_RANGE ** 2 || Math.abs(pilot.y - site.y) > 1.4)
       return 'Přibliž se ke stavebnímu místu.';
+    if (this.contested(site, now)) return 'Nepřátelé jsou u stavebního místa.';
     if (this.scrap < spec.cost) return 'Týmu chybí šrot.';
     const { w, d, h, hp, cost } = spec;
     const [box] = packCover([{ x: site.x, z: site.z, angle: site.angle, w, d, bottom:site.y, h:site.y + h }]);
@@ -114,12 +156,17 @@ export class Horde {
     this.layout = { ...this.room.layout, cover: [...this.room.layout.cover, ...this.structures.filter(s => s.kind).map(s => s.box)] };
   }
 
-  salvage(enemy) { this.scrap += SALVAGE[enemy.hordeType]; }
+  salvage(enemy) {
+    const amount = SALVAGE[enemy.hordeType];
+    this.scrap += amount;
+    this.room.events.push({ type: 'salvage', amount, position: [enemy.x, enemy.y + 1.2, enemy.z] });
+  }
 
   damageStructure(site, damage) {
     site.hp = Math.max(0, site.hp - damage);
+    this.room.events.push({ type: 'structure-hit', site: site.id, hp: site.hp, position: [site.x, site.y + .6, site.z] });
     if (site.hp) return;
-    this.room.events.push({ type: 'wreck', position: [site.x, site.y + .42, site.z] });
+    this.room.events.push({ type: 'wreck', position: [site.x, site.y + .42, site.z], structure: site.kind });
     this.structures[site.id] = { id: site.id, x: site.x, y: site.y, z: site.z, angle: site.angle, kind: null };
     this.refreshCover();
   }
@@ -162,6 +209,7 @@ export class Horde {
   start(now) {
     const support = this.council ? this.resolveSupport() : null;
     this.votes.clear();
+    this.ready.clear();
     this.lastSupport = support;
     this.wave++;
     this.nextWaveAt = 0;
@@ -326,7 +374,10 @@ export class Horde {
     if (!this.nextWaveAt && !this.remaining && !active.some(enemy => enemy.hp > 0)) {
       if (this.wave === WAVES) return 'Jádro ubráněno';
       this.nextWaveAt = now + PREPARATION;
-      this.room.events.push({ type: 'notice', text: `Vlna ${this.wave} odražena · ${PREPARATION} sekund na přípravu` });
+      // Clearing a wave pays the team, so every preparation has something to build or repair.
+      const bonus = 10 + this.wave * 5;
+      this.scrap += bonus;
+      this.room.events.push({ type: 'notice', text: `Vlna ${this.wave} odražena · +${bonus} šrotu · ${PREPARATION} s na přípravu` });
     }
   }
 
@@ -335,7 +386,8 @@ export class Horde {
       countdown: Math.max(0, Math.ceil(this.nextWaveAt - now)), core: this.core,
       council: this.council ? { counts: this.supportCounts(), votes: [...this.votes] } : undefined,
       support: this.lastSupport ?? undefined,
-      build: { scrap: this.scrap, range: BUILD_RANGE, types: STRUCTURES,
+      ready: this.nextWaveAt ? { ids: [...this.ready], needed: this.room.humans.size } : undefined,
+      build: { scrap: this.scrap, range: BUILD_RANGE, clearance: BUILD_CLEARANCE, repair: REPAIR, types: STRUCTURES,
         sites: this.structures.map(({ id, x, y, z, angle, kind, hp, maxHp, yaw, pitch }) => ({ id, x, y, z, angle, kind, hp, maxHp, yaw, pitch })) } };
   }
 }

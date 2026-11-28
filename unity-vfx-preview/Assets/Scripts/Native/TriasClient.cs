@@ -795,7 +795,14 @@ namespace Trias.Native
                     effects.OrbitalImpact(At(evt["from"]));
                     break;
                 case "built":
+                case "repaired":
                     effects.Pickup(At(evt["position"]), Catalog.Tint("#c3fa83"), false);
+                    break;
+                case "salvage":
+                    NoteSalvage(evt, now);
+                    break;
+                case "structure-hit":
+                    NoteStructureHit(evt, now);
                     break;
                 case "horde-windup":
                     if (actorId != null && pilots.TryGetValue(actorId, out var infected))
@@ -807,7 +814,7 @@ namespace Trias.Native
                     break;
                 case "horde-impact":
                     effects.InfectedAttack(At(evt["position"]), evt["attack"].Text, "impact", visualEffects);
-                    if (evt["objective"].Bool) coreFlash = 1;
+                    if (evt["objective"].Bool) { coreFlash = 1; coreAlertUntil = now + 1.8f; }
                     break;
                 case "tower-shot":
                     effects.Shot(At(evt["from"]), At(evt["position"]), true, false, Catalog.Tint("#99f8ff"), "arc");
@@ -865,6 +872,7 @@ namespace Trias.Native
                     effects.Detonation(At(evt["position"]));
                     world.SurgeLandmark();
                     if (type == "core-wreck") AddNotice("Jádro " + catalog.teams[evt["team"].Int].name + " zničeno.");
+                    else if (evt["structure"].Text != null) AddNotice(evt["structure"].Text == "turret" ? "Věž zničena" : "Barikáda zničena");
                     break;
                 case "pickup":
                     string item = evt["item"].Text;

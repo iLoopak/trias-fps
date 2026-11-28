@@ -120,7 +120,7 @@ namespace Trias.Native
             hudText.Draw(new Rect(53, 38, 137, 18), linkText.Of(latency, 0, 0, room, static (l, _, _, r) => l + " ms  ·  " + r), caption);
             float cx = w * .5f;
             int time = state["time"].Int;
-            if (mode == "horde") PaintHordeGauge(cx);
+            if (mode == "horde") PaintHordeGauge(cx, h, scale);
             else
             {
                 float width = mode == "ffa" ? 236 : 372;
@@ -205,7 +205,7 @@ namespace Trias.Native
                     return "E · nastoupit · " + (hull[2].Text == "bastion" ? "Bastion" : "Skimmer");
             foreach (var gun in world.Spec.turrets)
                 if ((gun.Position - display).sqrMagnitude < 5.8f) return "E · obsloužit hnízdo";
-            return null;
+            return ConstructionPrompt();
         }
 
         struct ObjectiveHint
