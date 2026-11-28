@@ -83,7 +83,7 @@ namespace Trias.Native
             }
 
             bool automatic = key == "pulse" || key == "arc";
-            if (!click && !alt && !(automatic && Input.GetMouseButton(0))) return;
+            if (!click && !alt && !(automatic && (Input.GetMouseButton(0) || sweepTrigger))) return;
             if (requestedWeapon != null || (queuedButtons & (1 << 9 | 1 << 4)) != 0 ||
                 (own[2].Int & 64) != 0 || now < reloadPreviewUntil || now < nextLocalShot || now < echoAwaitUntil) return;
             var profile = fireProfiles[key];

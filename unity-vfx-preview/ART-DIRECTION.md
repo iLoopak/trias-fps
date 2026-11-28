@@ -393,3 +393,39 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
 - Občasné propady o jeden snímek při vsync (0–7 za 10 s) pocházejí z prezentace, ne z práce hry. Ověřit je fullscreen (exkluzivní nebo bez rámečku) a případně Metal display link.
 - Parser paketů stále alokuje ~120 KB/s, protože každý snapshot staví nové `WireValue`. Recyklace by vyžadovala vlastnictví snapshotů (předchozí stav drží reference).
 - Sonda hlásí okraje galerijních desek na Relay (4–16 zásahů přesně na hraně collideru, x = ±20,5). Vizuální hrana je o centimetry zúžená; herně nepodstatné, ale ve výpisu sondy to ruší.
+
+**Šestnáctá vlna (stabilita obrazu: zdvojený zaměřovač, kamera, snímkování).** Měření a snímky jsou v `output/visual-stability/` (`report.md`, `before-run-sheet.png`, `after-run-sheet.png`, logy `b-*` před a `a-*` po opravě). Nativní přehrávač macOS na Apple M2, Relay, TDM s boty, 1600 × 900 v okně, lokální server; `net` přes `latency-proxy.mjs` (60 ms jedním směrem ± 15 ms).
+- **Hlášení:** zdvojený zaměřovač, nestálý pohyb a dojem dvojitého vidění.
+- **Příčina (ověřeno):** zaměřovač se nekreslil uprostřed obrazovky. Promítal se bod z paprsku vedeného z posledního kroku predikce (30 Hz), zatímco kamera ukazovala polohu interpolovanou mezi kroky. Při pohybu tak skákal každý snímek jinam a při 60 Hz oko vidělo dva zaměřovače.
+  - Sweep `-trias-sweep` před opravou: při samotném otáčení myší 0 px.
+  - Úkrok se střelbou: odchylka od středu p95 4–5 px.
+  - Sledování s úkrokem: odchylka 9–12 px.
+  - Sprint, skok a úhyb: odchylka až 333–354 px a skok mezi snímky p95 73–297 px.
+  - `burst` zachytil v osmi po sobě jdoucích snímcích svislé odchylky −44, +6, −37 … px.
+- **Izolace:** se základní diagnostickou konfigurací `-trias-clean-view` (bez houpání, náklonu, dynamického FOV, výkyvu a setrvačnosti zbraně a atmosféry) zaměřovač dál ujížděl (sledování p95 9,2 px, skok 4 px). Herní efekty kamery tedy příčinou nebyly.
+  - Vykreslování nemá žádnou časovou techniku: žádné TAA, vektory pohybu, rozmazání pohybem ani historii. Kompozitor visoru nedrží texturu mezi snímky, kamera i HUD jsou jen jednou (`ViewStabilityCheck`).
+- **Druhá chyba:** vlna 13 přidala k interpolaci kroků ještě exponenciální dohánění (`dt·60`). Šlo o dvojitou interpolaci se zpožděním závislým na snímkové frekvenci. V simulaci přidávala 1–3 % judderu a 8–11 cm zpoždění při 60–240 fps.
+- **Oprava:**
+  - Zaměřovač je vždy ve středu, zarovnaný na celý pixel (`ViewComposer.Reticle`). Kamera míří přesně podél směru výstřelu.
+  - Vlastní poloha se interpoluje jen jednou. Paralelně to vyřešil kinetic flow (PR #20, [KINETIC-FLOW.md](KINETIC-FLOW.md)): pohled jde od posledního kroku k `peek`, korekce bledne za 65 ms a nad 1,5 m se ukáže hned. Po sloučení tuto verzi převzala i tato oprava; pravidla korekce jsou ve `ViewComposer`, takže je klient i `ViewStabilityCheck` sdílí.
+  - Náklon, FOV, houpání, setrvačnost zbraně i rozevření zaměřovače čtou rychlost zobrazenou v tomto snímku (`ShownVelocity`), ne skokovou rychlost 30 Hz. Výkyv a setrvačnost zbraně nezávisí na snímkové frekvenci (`KineticView`).
+  - Paprsky pro zaměřovač, identifikaci pilota a strop vycházejí ze zobrazeného oka, ne z `predicted`.
+  - Skladbu kamery drží `ViewComposer` a `UpdateFeel` zůstává jediným zapisovatelem pózy.
+- **Po opravě:** zaměřovač má odchylku i skok 0,0 px ve všech fázích a bězích (vsync, bez limitu, 30 fps, síť, čistá konfigurace, filmová kamera).
+  - Oko kamery se drží za poslední predikcí o 10 cm místo 17 cm (úkrok 7,55 m/s), tedy o ≈ 10 ms méně zpoždění pohybu.
+  - `local_judder` při 60 Hz vsync: před opravou 13–31 % (4 běhy), po opravě 9,9–12,3 % (4 běhy).
+- **Snímkování:** při vsync je medián 16,67 ms, p95 17,5–17,7 ms a p99 nejhoršího okna 25–33 ms před i po opravě. Propadů nad 25 ms bylo před opravou 25–52 na běh a po opravě 15–48; rozdíl je v mezích rozptylu.
+  - Bez vsync: vždy byl pomalejší druhý z dvojice běhů (5,9 → 7,7 ms i 6,2 → 9,6 ms, GPU stejně), tedy teplota pasivně chlazeného M2, ne změna. Oprava stojí několik desítek aritmetických operací na snímek.
+  - Běhy s 30 fps ztratily fokus okna, takže jejich časy snímků nejsou platné. Data zaměřovače z nich platí.
+- **Po sloučení s kinetic flow (PR #20):** `main` zaměřovač neměnil, takže se dál promítal z `predicted`. Výsledky jsou v `output/visual-stability/report-merged.md`.
+  - Varianta „sloučeno + zaměřovač z main“: při úkroku a sledování odchylka až 8 px a skok mezi snímky až 9,8 px. Je to méně než dřív, protože pohled `peek` leží blíž predikci.
+  - Sloučená oprava: 0,0 px ve všech fázích, lokálně i přes proxy 60 ms ± 15 ms, včetně dvou sérií po osmi snímcích.
+  - Pozdější běhy obou variant měly horší snímkování (p99 až 83–100 ms). Varianty se liší jen dvěma řádky zaměřovače, takže jde o stav stroje (teplota, zátěž), ne o sloučení.
+- **Kamera „Soutěžní / Filmový“** (`trias.view`, výchozí Soutěžní): bez náklonu při úkroku (dřív 0,93°), FOV při sprintu a úhybu nanejvýš +2,4° (dřív až +7,3° včetně pumpování při střelbě), poloviční houpání hlavy.
+  - Filmový zachovává dřívější pohyb a ověřený statický zaměřovač (náklon 0,93°, rozpětí FOV 3,1°).
+  - Posuvník Pohyb kamery škáluje obě varianty.
+
+**Zbývající slabiny.**
+- Výstřel letí z poslední predikce, která je před zobrazeným okem nanejvýš o jeden vstupní krok (při sprintu ≈ 34 cm). Směr sedí přesně, počátek se liší o tuto rovnoběžnou vzdálenost. Zmenšit ji jde jen vyšší frekvencí vstupu a simulace (serverové rozhodnutí).
+- Nikdo zatím opravu nehrál. Pocit pohodlí, ostrost zaměřovače na displeji a chování monitoru (odezva, overdrive, 120 Hz ProMotion, VRR) nikdo neověřil. Měření proběhlo jen v okně 1600 × 900 na vestavěném 60 Hz displeji M2, ne ve fullscreenu ani na Windows.
+- Ověřena byla jen Relay. Vanta, Meridian a Kordilera (tmavé a světlé prostředí), Combat Echo, vozidla a samotný 30 fps strop zůstávají na playtest. Kód zaměřovače je pro všechny arény stejný.

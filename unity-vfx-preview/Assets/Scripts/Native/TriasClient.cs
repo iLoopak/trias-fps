@@ -46,7 +46,7 @@ namespace Trias.Native
         float stepAt = -1;
         Command sentCommand;
 
-        float StepFraction(float now) => stepAt < 0 ? 0 : Mathf.Clamp01((now - stepAt) / Motor.Tick);
+        float StepFraction(float now) => ViewComposer.StepFraction(stepAt, now);
         Vector3 Stepped(float now) => Vector3.Lerp(predicted.Position, peek.Position, StepFraction(now));
         Vector3 ShownVelocity(float now) => Vector3.Lerp(predicted.Velocity, peek.Velocity, StepFraction(now));
 
@@ -59,7 +59,7 @@ namespace Trias.Native
             var command = sentCommand;
             command.Bits &= 7;
             if (!Playing) command = default;
-            else if (!autopilot)
+            else if (!autopilot && !sweep)
             {
                 command.Bits = (Input.GetKey(KeyCode.C) ? 1 : 0) | (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? 2 : 0)
                     | (Input.GetKey(KeyCode.Space) ? 4 : 0) | queuedButtons & (1 << 5 | 1 << 6);
@@ -565,8 +565,9 @@ namespace Trias.Native
             {
                 predictedCorrection = Vector3.Distance(beforeCorrection, predicted.Position);
                 NoteCorrection(predictedCorrection, beforeCorrection);
+                NoteViewCorrection(predictedCorrection);
                 // A large disagreement (teleport, respawn race) snaps; anything smaller is blended out.
-                correction = predictedCorrection < 1.5f ? correction + beforeCorrection - predicted.Position : Vector3.zero;
+                correction = ViewComposer.AddCorrection(correction, beforeCorrection, predicted.Position);
             }
             if (previous != null)
             {
@@ -1067,7 +1068,7 @@ namespace Trias.Native
                 followedPilot = null;
                 if (!driving && !mounted) PeekStep();
                 else peek = predicted;
-                correction *= Mathf.Exp(-dt / .065f);
+                correction = ViewComposer.FadeCorrection(correction, dt);
                 display = Stepped(now) + correction;
                 UpdateFeel(now, dt, driving);
             }

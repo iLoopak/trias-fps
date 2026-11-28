@@ -20,7 +20,8 @@ namespace Trias.Native
         float reloadProgressShown, reloadCueProgress;
         float chaseArm, spectatorYaw, spectatorHeight, nextNearMissAt;
         Avatar followedPilot;
-        Vector3 inertia, reticleWorld;
+        Vector3 inertia, reticleWorld, viewVelocity;
+        ViewComposer.Style viewStyle;
         readonly float[] localMotionAt = new float[5];
         float sceneFade, resultAge;
         int kickShot;
@@ -33,6 +34,7 @@ namespace Trias.Native
         {
             baseFov = Mathf.Clamp(PlayerPrefs.GetFloat("trias.fov", 70), 60, 95);
             cameraMotion = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.motion", .82f));
+            viewStyle = PlayerPrefs.GetInt("trias.view", 0) == 1 ? ViewComposer.Style.Cinematic : ViewComposer.Style.Competitive;
             masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.volume", .85f));
             radioVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.radio", .74f));
             musicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("trias.music", .65f));
@@ -60,7 +62,7 @@ namespace Trias.Native
             chaseArm = 0;
             followedPilot = null;
             nextNearMissAt = 0;
-            inertia = Vector3.zero;
+            inertia = viewVelocity = correction = Vector3.zero;
             System.Array.Fill(localMotionAt, -10f);
             kickShot = 0;
             alternateImpulse = false;
@@ -169,8 +171,9 @@ namespace Trias.Native
             dt = Mathf.Min(.05f, dt);
             // Presentation follows the motion the view shows this frame (between this step and the next),
             // so lean, bob and FOV change every frame instead of in 30 Hz stairs.
-            Vector3 shownVelocity = ShownVelocity(now);
+            Vector3 shownVelocity = viewVelocity = ShownVelocity(now);
             float speed = new Vector2(shownVelocity.x, shownVelocity.z).magnitude;
+            var tuning = ViewComposer.For(viewStyle);
             if (!predicted.Grounded) airSpeed = Mathf.Min(airSpeed, predicted.Velocity.y);
             else if (!wasGrounded)
             {
@@ -212,7 +215,7 @@ namespace Trias.Native
                 reloadCueProgress = reloadProgressShown;
             }
             else if (!reloading) reloadCueProgress = 0;
-            float motion = cameraMotion;
+            float motion = cleanView ? 0 : cameraMotion;
             if (predicted.Grounded && !driving && speed > .35f)
             {
                 strideDistance += dt * speed;
@@ -224,13 +227,13 @@ namespace Trias.Native
                 }
             }
             else strideDistance = 0;
-            float strideReach = predicted.Grounded ? Mathf.Min(speed * .0025f, .022f) * strideAmplitude : 0;
+            float strideReach = predicted.Grounded && !cleanView ? Mathf.Min(speed * .0025f, .022f) * strideAmplitude : 0;
             float stride = Mathf.Sin(stridePhase) * strideReach;
             Quaternion aim = Quaternion.Euler(pitch, yaw, 0);
             // The acceleration the current prediction step applies, held for the whole step.
             Vector3 acceleration = driving ? Vector3.zero : (peek.Velocity - predicted.Velocity) / Motor.Tick;
             inertia = KineticView.Inertia(inertia, Quaternion.Inverse(aim) * acceleration, dt, 17);
-            float lean = driving ? 0 : KineticView.Lean(Vector3.Dot(shownVelocity, aim * Vector3.right));
+            float lean = driving ? 0 : KineticView.Lean(Vector3.Dot(shownVelocity, aim * Vector3.right)) * tuning.Roll;
             Quaternion angle = aim * Quaternion.Euler(0, 0, lean * motion);
             float eye = predicted.Crouch ? .92f : 1.58f;
             stanceHeight = Mathf.SmoothDamp(stanceHeight, eye, ref stanceVelocity, predicted.Crouch ? .046f : .083f, Mathf.Infinity, dt);
@@ -239,8 +242,10 @@ namespace Trias.Native
             else
             {
                 chaseArm = 0;
-                Vector3 camera = display + Vector3.up * (shownHeight + (stride - landingStep) * motion);
-                Vector3 eyeOrigin = predicted.Position + Vector3.up * eye;
+                // Every presentation ray starts at the displayed eye, the camera's own base, so the camera,
+                // crosshair and pilot identification agree on every frame.
+                Vector3 eyeOrigin = display + Vector3.up * eye;
+                Vector3 camera = display + Vector3.up * (shownHeight + (stride * tuning.HeadBob - landingStep) * motion);
                 if (Physics.Linecast(eyeOrigin, camera, out var ceiling, TriasWorld.TerrainMask, QueryTriggerInteraction.Ignore))
                     camera = ceiling.point + ceiling.normal * .048f;
                 view.transform.SetPositionAndRotation(camera, angle);
@@ -277,8 +282,8 @@ namespace Trias.Native
             if (weaponName != null && weaponActions.TryGetValue(weaponName, out var weaponAction))
                 weaponAction.Update(reload, gunTravel, flowTier * .25f * momentumPresentation * visualEffects,
                     motion, alternateImpulse, kickShot);
-            float fov = baseFov + (driving ? 3 : (Mathf.Clamp01((speed - 6) / 4f) * 3.5f + movementPulse * 2.1f + cameraKick) * motion);
-            view.fieldOfView = Mathf.Lerp(view.fieldOfView, fov, 1 - Mathf.Exp(-dt * 6));
+            float fov = ViewComposer.Fov(tuning, baseFov, speed, movementPulse, cameraKick, motion, driving);
+            view.fieldOfView = ViewComposer.FollowFov(view.fieldOfView, fov, dt);
         }
 
         void UpdateResult(float dt)
@@ -305,9 +310,9 @@ namespace Trias.Native
 
         void PaintPause(float w, float h)
         {
-            float x = w / 2 - 242, y = h / 2 - 223;
+            float x = w / 2 - 242, y = h / 2 - 238;
             Fill(new Rect(0,0,w,h),new Color(.012f,.024f,.041f,.80f));
-            CornerPanel(new Rect(x, y, 484, 477), Amber);
+            CornerPanel(new Rect(x, y, 484, 507), Amber);
             DrawInsignia(new Vector2(x + 37, y + 35), 17, Amber);
             hudText.Draw(new Rect(x + 62, y + 16, 388, 38), "Nastavení", heading);
             if (!practiceRoom && Preset(new Rect(x + 278, y + 20, 184, 32),
@@ -317,16 +322,17 @@ namespace Trias.Native
                 ? "Online zápas běží dál  ·  Dynamické hlídky aktivní" : "Online zápas běží dál", caption);
             DrawFeelOptions(new Rect(x + 22,y + 94,440,34));
             bool waitingInvite = pendingInviteServer != null;
-            if (Preset(new Rect(x + 22, y + 367, waitingInvite ? 207 : 440, 39), "Zpět do zápasu", null, true)) Capture(true);
-            if (waitingInvite && Preset(new Rect(x + 239, y + 367, 223, 39), "Přijmout pozvánku", null, false)) EnterInvite();
-            if (Preset(new Rect(x + 22, y + 412, 440, 35), "Opustit místnost", null, false)) Disconnect(null);
-            hudText.Draw(new Rect(x + 24, y + 450, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
+            if (Preset(new Rect(x + 22, y + 397, waitingInvite ? 207 : 440, 39), "Zpět do zápasu", null, true)) Capture(true);
+            if (waitingInvite && Preset(new Rect(x + 239, y + 397, 223, 39), "Přijmout pozvánku", null, false)) EnterInvite();
+            if (Preset(new Rect(x + 22, y + 442, 440, 35), "Opustit místnost", null, false)) Disconnect(null);
+            hudText.Draw(new Rect(x + 24, y + 480, 430, 22), "Q úhyb  ·  " + echoActivation + " ozvěna  ·  R přebít  ·  E použít", caption);
         }
 
         void DrawFeelOptions(Rect box)
         {
             Option(box, "Zorné pole", "trias.fov", ref baseFov, 60, 95, false);
             box.y += 30; Option(box, "Citlivost myši", "trias.sensitivity", ref sensitivity, .5f, 5, false, 1);
+            box.y += 30; ViewStyleOption(box);
             box.y += 30; Option(box, "Pohyb kamery", "trias.motion", ref cameraMotion, 0, 1, true);
             box.y += 30; Option(box, "Hlasitost", "trias.volume", ref masterVolume, 0, 1, true);
             box.y += 30; Option(box, "Atmosféra", "trias.ambience", ref ambienceVolume, 0, 1, true);
@@ -338,6 +344,34 @@ namespace Trias.Native
             effects.MusicMix(musicVolume);
             AudioListener.volume = masterVolume;
             effects.AmbienceMix(ambienceVolume, false);
+        }
+
+        // Soutěžní: stable aiming camera (no strafe roll, no recoil FOV pumping, small sprint FOV, half head bob).
+        // Filmový: the full first-person motion. Both keep the static crosshair.
+        void ViewStyleOption(Rect row)
+        {
+            const string key = "trias.view";
+            hudText.Draw(new Rect(row.x, row.y + 1, 145, 28), "Kamera", section);
+            bool cinematic = viewStyle == ViewComposer.Style.Cinematic, next = cinematic;
+            if (Preset(new Rect(row.x + 156, row.y + 3, 107, 26), "Soutěžní", null, !cinematic)) next = false;
+            if (Preset(new Rect(row.x + 268, row.y + 3, 107, 26), "Filmový", null, cinematic)) next = true;
+            if (world == null)
+            {
+                if (Event.current.type == EventType.Layout) lobbyControls.Add(key);
+                var evt = Event.current;
+                if (lobbyFocus == key)
+                {
+                    Fill(new Rect(row.x + 152, row.y + 31, 227, 1), Chalk);
+                    if (evt.type == EventType.KeyDown && (evt.keyCode == KeyCode.LeftArrow || evt.keyCode == KeyCode.RightArrow))
+                    {
+                        next = evt.keyCode == KeyCode.RightArrow;
+                        evt.Use();
+                    }
+                }
+            }
+            if (next == cinematic) return;
+            viewStyle = next ? ViewComposer.Style.Cinematic : ViewComposer.Style.Competitive;
+            PlayerPrefs.SetInt(key, next ? 1 : 0);
         }
 
         void Option(Rect row, string name, string key, ref float value, float min, float max, bool percent, int decimals = 0)

@@ -89,6 +89,7 @@ namespace Trias.Native
                 else if (args[i] == "-trias-msaa" && int.TryParse(args[i + 1], out var aa)) msaaOverride = aa;
                 else if (args[i] == "-trias-quit-after" && float.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var s)) quitAfter = s;
             }
+            InitViewDiagnostics(args);
             if (Array.IndexOf(args, "-trias-uncapped") >= 0) uncapped = true;
             if (Array.IndexOf(args, "-trias-no-capture") >= 0) capturePath = null;
             if (Array.IndexOf(args, "-trias-autopilot") >= 0) autopilot = true;
@@ -115,6 +116,10 @@ namespace Trias.Native
             if (shadowDistanceOverride > 0) QualitySettings.shadowDistance = shadowDistanceOverride;
             if (shadowCascadesOverride > 0) QualitySettings.shadowCascades = shadowCascadesOverride;
             if (msaaOverride >= 0) QualitySettings.antiAliasing = msaaOverride;
+            ApplyFrameTarget();
+            if (cleanView) visor.Intensity = 0;
+            DriveSweep(now, Time.unscaledDeltaTime);
+            UpdateBurst(now);
             if (world == null || own == null) { frameSamples.Clear(); nextFrameReport = now + 10; nextCapture = now + 6; return; }
             if (frameLogPath != null)
             {
@@ -208,6 +213,7 @@ namespace Trias.Native
         // Scripted movement for unattended playtests; it uses the same command bits as the keyboard.
         void Autopilot(ref int bits, ref float horizontal, ref float vertical)
         {
+            if (SweepInput(ref bits, ref horizontal, ref vertical)) return;
             if (!autopilot || own == null || own[6].Int <= 0 || state["winner"]["label"].Text != null) return;
             if (autobuild && AutoBuild(ref horizontal, ref vertical)) return;
             float t = Time.unscaledTime;
@@ -302,6 +308,7 @@ namespace Trias.Native
                 corrections1cm, corrections10cm, correctionMax * 100, graceJumps, coyoteJumps, graceDodges));
             corrections1cm = corrections10cm = graceJumps = coyoteJumps = graceDodges = 0;
             correctionMax = 0;
+            FlushViewDiagnostics();
             File.AppendAllText(frameLogPath, "  alloc_kb_per_s " + string.Join(" ", parts) + "\n");
             parts.Clear();
             foreach (var pair in slowestBy) parts.Add(string.Format(CultureInfo.InvariantCulture, "{0}={1:F1}", pair.Key, pair.Value));
