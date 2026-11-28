@@ -158,6 +158,8 @@ wss.on('connection', (socket, request) => {
       }
       if (socket.protocolVersion === NETWORK_VERSION && message.type === 'horde-vote' && !request.headers.origin)
         socket.room.horde?.vote(socket.player, message.option, time);
+      if (socket.protocolVersion === NETWORK_VERSION && message.type === 'horde-ready' && !request.headers.origin)
+        socket.room.horde?.markReady(socket.player, time);
       if (message.type === 'ping' && Number.isSafeInteger(message.id) && socket.bufferedAmount < 8192) {
         socket.send(JSON.stringify({ type: 'pong', id: message.id }));
       }

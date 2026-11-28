@@ -319,7 +319,9 @@ namespace Trias.Native
                     Color.Lerp(Subtle, active, Mathf.Clamp01(fraction * count - i)));
         }
 
-        void PaintHordeGauge(float cx)
+        float coreAlertUntil;
+
+        void PaintHordeGauge(float cx, float h, float scale)
         {
             var defense = state["horde"];
             var core = defense["core"];
@@ -335,6 +337,27 @@ namespace Trias.Native
             var tint = Color.Lerp(Fault, teamTint, life);
             tint = Color.Lerp(tint, Fault, coreFlash);
             Segments(new Rect(cx + 6, 50, 130, 4), 12, life, tint);
+            float now = Time.unscaledTime;
+            if (countdown > 0 && defense["ready"]["needed"].Int > 0)
+            {
+                int ready = defense["ready"]["ids"].Count, needed = defense["ready"]["needed"].Int;
+                var strip = new Rect(cx + 156, 18, 150, 27);
+                HudStrip(strip, OwnReady ? lime : Subtle);
+                hudText.Draw(strip, (OwnReady ? "● PŘIPRAVEN  " : "N  PŘIPRAVEN  ") + ready + "/" + needed, caption);
+            }
+            // The core is the loss condition: when it is struck, say so in the middle of the screen and mark it.
+            if (now < coreAlertUntil && captured && !scoreboard)
+            {
+                float pulse = .55f + .45f * Mathf.Sin(now * 18);
+                var alert = new Rect(cx - 140, 200, 280, 30);
+                HudStrip(alert, Fault);
+                var previous = GUI.color;
+                GUI.color = new Color(1, 1, 1, pulse);
+                hudText.Draw(alert, "JÁDRO POD ÚTOKEM  ·  " + core["hp"].Int, center);
+                GUI.color = previous;
+                if (world.DefendedCore != null)
+                    Objective(world.DefendedCore.position + Vector3.up * 2.4f, "JÁDRO", Fault, h, scale, life);
+            }
         }
 
         void PaintWaveBanner(float cx, float h)
@@ -387,7 +410,24 @@ namespace Trias.Native
                 }
             }
             if (world.DefendedCore != null && world.DefendedCore.gameObject.activeSelf)
-                RadarDiamond(Map(world.DefendedCore.position), teamTint);
+                RadarDiamond(Map(world.DefendedCore.position), Time.unscaledTime < coreAlertUntil ? Fault : teamTint);
+            if (mode == "horde")
+            {
+                // Horde defenders always see the infected and the free build sockets on the radar.
+                foreach (var actor in pilots.Values)
+                {
+                    if (actor.Row[6].Int <= 0 || actor.Row[31].Text == null) continue;
+                    var threat = Map(actor.Position);
+                    Stroke(threat + new Vector2(-3.5f, 3), threat + new Vector2(0, -3), 1.7f, Fault);
+                    Stroke(threat + new Vector2(0, -3), threat + new Vector2(3.5f, 3), 1.7f, Fault);
+                }
+                foreach (var site in sites.Values)
+                    if (site.Kind == null && CanBuild)
+                    {
+                        var socketSpot = Map(site.Marker.position);
+                        Fill(new Rect(socketSpot.x - 2.5f, socketSpot.y - 2.5f, 5, 5), Amber);
+                    }
+            }
             if (mode == "dom" || mode == "siege")
             {
                 var frames = mode == "dom" ? state["points"] : state["siege"]["nodes"];

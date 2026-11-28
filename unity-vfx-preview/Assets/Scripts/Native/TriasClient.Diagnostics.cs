@@ -33,7 +33,8 @@ namespace Trias.Native
         float quitAfter = -1, nextFrameReport, nextCapture;
         readonly List<float> frameSamples = new(1200);
         int captureIndex, unfocusedFrames, spikeFrames, spikesWithGc, collections, lastGcCount = -1;
-        bool uncapped, autopilot;
+        bool uncapped, autopilot, autobuild;
+        float nextAutoBuild;
         // Managed allocation attribution: heap growth per frame section, summed over the report window.
         readonly Dictionary<string, long> allocatedBy = new();
         readonly Dictionary<string, double> slowestBy = new();
@@ -89,6 +90,9 @@ namespace Trias.Native
             if (Array.IndexOf(args, "-trias-no-capture") >= 0) capturePath = null;
             if (Array.IndexOf(args, "-trias-autopilot") >= 0) autopilot = true;
             if (Array.IndexOf(args, "-trias-no-ao") >= 0) VisorComposite.OcclusionOff = true;
+            // -trias-autobuild: in Horde the autopilot walks to the nearest free socket, opens build mode,
+            // aims and places defenses through the same selection and message as a player, then readies up.
+            if (Array.IndexOf(args, "-trias-autobuild") >= 0) autopilot = autobuild = true;
             if (capturePath != null) Directory.CreateDirectory(capturePath);
             // An unattended player is rarely the focused window; keep simulating and rendering anyway.
             if (frameLogPath != null || capturePath != null || quitAfter > 0) Application.runInBackground = true;
@@ -182,6 +186,7 @@ namespace Trias.Native
         void Autopilot(ref int bits, ref float horizontal, ref float vertical)
         {
             if (!autopilot || own == null || own[6].Int <= 0 || state["winner"]["label"].Text != null) return;
+            if (autobuild && AutoBuild(ref horizontal, ref vertical)) return;
             float t = Time.unscaledTime;
             vertical = 1;
             horizontal = Mathf.Sin(t * 1.3f) * .7f;
@@ -194,6 +199,50 @@ namespace Trias.Native
             autopilotTurn -= turn;
             yaw = Mathf.Repeat(yaw + turn + Mathf.Sin(t * .7f) * .6f, 360);
             pitch = Mathf.Lerp(pitch, 4, .1f);
+        }
+
+        bool AutoBuild(ref float horizontal, ref float vertical)
+        {
+            if (mode != "horde" || construction == null) return false;
+            float now = Time.unscaledTime;
+            int scrap = construction["scrap"].Int, target = -1;
+            float best = float.MaxValue;
+            foreach (var pair in sites)
+            {
+                if (pair.Value.Kind != null) continue;
+                float distance = (pair.Value.Marker.position - display).sqrMagnitude;
+                if (distance < best) { best = distance; target = pair.Key; }
+            }
+            int built = 0;
+            foreach (var site in sites.Values) if (site.Kind != null) built++;
+            string kind = built % 2 == 1 && scrap >= Cost("turret") ? "turret" : "barricade";
+            if (target < 0 || scrap < Cost(kind))
+            {
+                building = false;
+                if (Preparing && !OwnReady && now > nextAutoBuild)
+                {
+                    socket.Send("{\"type\":\"horde-ready\"}");
+                    nextAutoBuild = now + 2;
+                }
+                return false;
+            }
+            var to = sites[target].Marker.position - display;
+            float flat = new Vector2(to.x, to.z).magnitude;
+            yaw = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+            pitch = Mathf.Atan2(1.4f, Mathf.Max(.5f, flat)) * Mathf.Rad2Deg;
+            horizontal = 0;
+            vertical = flat > 3.6f ? 1 : flat < 2.6f ? -1 : 0;
+            if (flat < 5)
+            {
+                building = true;
+                buildKind = kind;
+                if (aimedSite == target && now > nextAutoBuild)
+                {
+                    socket.Send($"{{\"type\":\"build\",\"site\":{target},\"kind\":\"{kind}\"}}");
+                    nextAutoBuild = now + 1.6f;
+                }
+            }
+            return true;
         }
 
         // The Screen Capture module is not in this project, so read the finished frame back directly.
