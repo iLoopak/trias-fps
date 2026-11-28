@@ -80,6 +80,7 @@ namespace Trias.Native
             displayFont = Resources.Load<Font>("TRIAS/Fonts/ChakraPetch-Bold");
             textFont = Resources.Load<Font>("TRIAS/Fonts/BarlowSemiCondensed-Medium");
             LoadLobby();
+            InitDiagnostics();
             InitInvites();
         }
 
@@ -206,6 +207,7 @@ namespace Trias.Native
         void Update()
         {
             float now = Time.unscaledTime;
+            UpdateDiagnostics(now);
             if (socket != null)
             {
                 DrainMatchPackets(now);
