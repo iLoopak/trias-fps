@@ -10,14 +10,13 @@ Nainstaluj Node.js v podporované LTS verzi alespoň 22. V kořeni repozitáře 
 
 ```sh
 npm ci --omit=dev
-TRIAS_NATIVE_ONLY=1 HOST=127.0.0.1 PORT=3000 npm start
+HOST=127.0.0.1 PORT=3000 npm start
 ```
 
 Varianta pro PowerShell:
 
 ```powershell
 npm ci --omit=dev
-$env:TRIAS_NATIVE_ONLY = '1'
 $env:HOST = '127.0.0.1'
 $env:PORT = '3000'
 npm start
@@ -33,7 +32,7 @@ V Renderu vytvoř **Web Service**, připoj repozitář `iLoopak/trias-fps` a vyb
 | --- | --- |
 | Build Command | `npm ci --omit=dev` |
 | Start Command | `npm start` |
-| Environment variables | `TRIAS_NATIVE_ONLY=1`, `HOST=0.0.0.0` |
+| Environment variables | `HOST=0.0.0.0` |
 | Health Check Path | `/health` |
 
 Render poskytne HTTPS adresu jako `https://moje-trias.onrender.com`. Před prvním zápasem po pauze otevři `https://moje-trias.onrender.com/health` a počkej na odpověď se stavem `ok`. Hráči pak zadají do Unity `wss://moje-trias.onrender.com` a společný kód místnosti. Bezplatný plán se uspává po 15 minutách bez příchozího provozu a probuzení může trvat přibližně minutu. Zápasy běží v paměti a restart serveru je ukončí. [Render Free](https://render.com/docs/free) · [WebSocket na Renderu](https://render.com/docs/websocket)

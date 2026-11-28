@@ -1,8 +1,8 @@
 import { performance } from 'node:perf_hooks';
 import { Match } from '../match.js';
 import { normalizeDifficulty } from '../bot-profiles.js';
-import { ARENAS, TICK } from '../public/rules.js';
-import { NETWORK_VERSION } from '../public/netcode.js';
+import { ARENAS, TICK } from '../shared/rules.js';
+import { NETWORK_VERSION } from '../shared/netcode.js';
 import { directorOptions } from '../combat-director.js';
 
 const scenarios = [

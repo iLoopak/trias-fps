@@ -1,5 +1,5 @@
-import { distanceSquared, radial, rayBox, SIEGE_CORE_HP, TEAMS, TICK, wallDistance } from './public/rules.js';
-import { vehicleBlocked, vehicleCockpit } from './public/vehicles.js';
+import { distanceSquared, radial, rayBox, SIEGE_CORE_HP, TEAMS, TICK, wallDistance } from './shared/rules.js';
+import { vehicleBlocked, vehicleCockpit } from './shared/vehicles.js';
 
 const CAPTURE_SECONDS = 4;
 const ESCORT_RANGE = 13;

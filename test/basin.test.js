@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
-import { ARENAS, blocked, movePlayer, radial, TICK } from '../public/rules.js';
-import { moveVehicle, VEHICLES, vehicleBlocked } from '../public/vehicles.js';
+import { ARENAS, blocked, movePlayer, radial, TICK } from '../shared/rules.js';
+import { moveVehicle, VEHICLES, vehicleBlocked } from '../shared/vehicles.js';
 
 const layout = ARENAS.basin;
 

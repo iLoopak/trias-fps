@@ -8,6 +8,10 @@ const PLAYER_FIELDS = [
 ];
 const PLAYER_MOTION = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'yaw', 'pitch', 'dodgeCooldown', 'dodgeTime', 'padCooldown', 'respawn', 'reloadRemaining'];
 const PLAYER_FLAGS = ['bot', 'grounded', 'airJump', 'airDodge', 'crouch', 'sprint', 'reload', 'shield'];
+// Kinetic grace ticks (0-3 each) ride above the flags: jump buffer, dodge buffer, coyote time.
+const GRACE = ['jumpBuffer', 'dodgeBuffer', 'coyote'];
+const GRACE_SHIFT = PLAYER_FLAGS.length;
+const grace = player => GRACE.reduce((bits, key, i) => bits | (Math.min(3, player[key] ?? 0) << (GRACE_SHIFT + i * 2)), 0);
 const VEHICLE_FIELDS = ['id', 'index', 'kind', 'team', 'driver', 'hp', 'boosting'];
 const VEHICLE_MOTION = ['x', 'z', 'heading', 'yaw', 'pitch', 'speed', 'boost', 'respawn'];
 const INPUT_FLAGS = ['crouch', 'sprint', 'brake', 'fire', 'reload', 'jump', 'dodge', 'alt', 'grenade', 'use'];
@@ -45,7 +49,7 @@ export function packSnapshot(state, frame, time) {
   return {
     ...world, tick: frame, at: Math.round(time * 1000), v: NETWORK_VERSION,
     players: players.map(p => [
-      p.id, p.name, flags(p, PLAYER_FLAGS), ...PLAYER_FIELDS.map(key => p[key]), ...PLAYER_MOTION.map(key => round(p[key])),
+      p.id, p.name, flags(p, PLAYER_FLAGS) | grace(p), ...PLAYER_FIELDS.map(key => p[key]), ...PLAYER_MOTION.map(key => round(p[key])),
       ...(p.frame ? [p.hordeType ?? null, p.frame] : p.hordeType ? [p.hordeType] : []),
     ]),
     vehicles: vehicles.map(hull => [
@@ -60,6 +64,7 @@ export function unpackSnapshot(packet) {
   const players = packet.players.map(row => {
     const player = { id: row[0], name: row[1] };
     readFlags(player, row[2], PLAYER_FLAGS);
+    GRACE.forEach((key, i) => { player[key] = (row[2] >> (GRACE_SHIFT + i * 2)) & 3; });
     unpackRow(player, row, PLAYER_FIELDS, 3);
     unpackRow(player, row, PLAYER_MOTION, 3 + PLAYER_FIELDS.length);
     if (row[31]) player.hordeType = row[31];

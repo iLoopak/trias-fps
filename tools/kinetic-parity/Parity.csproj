@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compiles the Unity client's movement Motor, wire parser and arena data unchanged against a minimal
+       UnityEngine stub, so tools/kinetic-parity/run.mjs can check it step for step against shared/rules.js. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS8981</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="UnityStub.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="../../unity-vfx-preview/Assets/Scripts/Native/TriasMotor.cs" />
+    <Compile Include="../../unity-vfx-preview/Assets/Scripts/Native/TriasWire.cs" />
+    <Compile Include="../../unity-vfx-preview/Assets/Scripts/Native/TriasData.cs" />
+    <Compile Include="../../unity-vfx-preview/Assets/Scripts/Native/KineticView.cs" />
+  </ItemGroup>
+</Project>

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
-import { CHARACTERS, DEFAULT_WEAPON, WEAPONS } from '../public/rules.js';
+import { CHARACTERS, DEFAULT_WEAPON, WEAPONS } from '../shared/rules.js';
 
 test('pilot choice controls the starting weapon and resets pickups on respawn', () => {
   for (const [id, kit] of Object.entries(CHARACTERS)) {

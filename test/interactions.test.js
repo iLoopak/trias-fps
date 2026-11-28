@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { explosionImpulse, interactionFlags } from '../interactions.js';
 import { Match } from '../match.js';
-import { ARENAS, RELAY_SERVICE, eyeHeight, packCover, TICK, WEAPONS } from '../public/rules.js';
-import { NETWORK_VERSION } from '../public/netcode.js';
+import { ARENAS, RELAY_SERVICE, eyeHeight, packCover, TICK, WEAPONS } from '../shared/rules.js';
+import { NETWORK_VERSION } from '../shared/netcode.js';
 
 const time = 10;
 

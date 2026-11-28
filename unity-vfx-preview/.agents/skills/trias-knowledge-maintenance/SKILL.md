@@ -12,3 +12,5 @@ Update only skills whose workflows or evidence changed. Keep generated builds, r
 Keep the environment contract and measured acceptance status in [the environment handbook](../../../ENVIRONMENT-KIT.md). Update the generated manifest through Blender. Link to the fixture outputs from the handoff, and record whether a gap comes from the model, runtime evidence, or an arena that remains outside propagation.
 
 Keep [the weapon identity guide](../../../WEAPON-IDENTITY.md) current after changes to an instrument. Record server invariants and identify which recognition checks involved human observers.
+
+Keep [the kinetic flow reference](../../../KINETIC-FLOW.md) current after a change to movement rules, the server input path, the own-camera path or first-person motion. Mark authoritative changes and owner-review items separately from cosmetic ones, update its measured tables from the Kinetic Lab, and add rejected experiments with the number that rejected them.

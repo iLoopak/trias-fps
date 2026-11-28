@@ -33,6 +33,9 @@ namespace Trias.Native
         float quitAfter = -1, nextFrameReport, nextCapture;
         readonly List<float> frameSamples = new(1200);
         int captureIndex, unfocusedFrames, spikeFrames, spikesWithGc, collections, lastGcCount = -1;
+        // Kinetic flow: prediction corrections (own pilot) and presses that only happened thanks to grace.
+        int corrections1cm, corrections10cm, graceJumps, coyoteJumps, graceDodges, correctionLines;
+        float correctionMax;
         bool uncapped, autopilot, autobuild;
         float nextAutoBuild;
         // Managed allocation attribution: heap growth per frame section, summed over the report window.
@@ -182,6 +185,26 @@ namespace Trias.Native
             }
         }
 
+        void NoteCorrection(float distance, Vector3 before)
+        {
+            if (distance > .01f) corrections1cm++;
+            if (distance > .1f) corrections10cm++;
+            correctionMax = Mathf.Max(correctionMax, distance);
+            // Large disagreements get a line of context: client position, server position and state.
+            if (frameLogPath != null && distance > .5f && correctionLines++ < 40)
+                File.AppendAllText(frameLogPath, string.Format(CultureInfo.InvariantCulture,
+                    "  correction {0:F2} m client=({1:F2},{2:F2},{3:F2}) server=({4:F2},{5:F2},{6:F2}) hp={7} flags={8} pending={9} ack={10}\n",
+                    distance, before.x, before.y, before.z, predicted.Position.x, predicted.Position.y, predicted.Position.z,
+                    own[6].Int, own[2].Int, commands.Count, own[14].Int));
+        }
+
+        void NoteGrace(MotionCue cue, Command command, bool airborne)
+        {
+            if (cue == MotionCue.Jump && !command.Has(5)) graceJumps++;
+            else if (cue == MotionCue.Jump && airborne) coyoteJumps++;
+            else if (cue == MotionCue.Dodge && !command.Has(6)) graceDodges++;
+        }
+
         // Scripted movement for unattended playtests; it uses the same command bits as the keyboard.
         void Autopilot(ref int bits, ref float horizontal, ref float vertical)
         {
@@ -274,6 +297,11 @@ namespace Trias.Native
             remoteError = remoteShown = remoteServer = localError = 0; remoteSamples = localSamples = 0;
             var parts = new List<string>();
             foreach (var pair in allocatedBy) parts.Add($"{pair.Key}={pair.Value / 10240}");
+            File.AppendAllText(frameLogPath, string.Format(CultureInfo.InvariantCulture,
+                "  kinetic corrections1cm={0} corrections10cm={1} correction_max_cm={2:F1} grace_jumps={3} coyote_jumps={4} grace_dodges={5}\n",
+                corrections1cm, corrections10cm, correctionMax * 100, graceJumps, coyoteJumps, graceDodges));
+            corrections1cm = corrections10cm = graceJumps = coyoteJumps = graceDodges = 0;
+            correctionMax = 0;
             File.AppendAllText(frameLogPath, "  alloc_kb_per_s " + string.Join(" ", parts) + "\n");
             parts.Clear();
             foreach (var pair in slowestBy) parts.Add(string.Format(CultureInfo.InvariantCulture, "{0}={1:F1}", pair.Key, pair.Value));

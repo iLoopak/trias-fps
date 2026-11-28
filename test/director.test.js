@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { Match } from '../match.js';
 import { brainFor } from '../bot-profiles.js';
 import { directorOptions } from '../combat-director.js';
-import { ARENAS, PILOT_HP, TICK } from '../public/rules.js';
-import { NETWORK_VERSION } from '../public/netcode.js';
+import { ARENAS, PILOT_HP, TICK } from '../shared/rules.js';
+import { NETWORK_VERSION } from '../shared/netcode.js';
 
 function room(director, mode = 'tdm', layout) {
   return new Match('W7-TEST', mode, true, layout, { director, botDifficulty: 'regular', hordeSupport: mode === 'horde' });

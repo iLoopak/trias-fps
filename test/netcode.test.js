@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
-import { NETWORK_VERSION, packInput, unpackInput, unpackSnapshot } from '../public/netcode.js';
-import { presentedPose, rememberPose, SnapshotClock } from '../public/snapshot-clock.js';
+import { NETWORK_VERSION, packInput, unpackInput, unpackSnapshot } from '../shared/netcode.js';
 
 function connect(match, id, protocolVersion) {
   const packets = [];
@@ -130,29 +129,6 @@ test('only an authoritative depletion of a nonempty shield reports a break', () 
   assert.equal(match.damage(attacker, victim, 20, 2, attacker, 'arc').shieldBreak, undefined);
   assert.equal(match.damage(attacker, victim, 20, 2.1, attacker, 'arc').shieldBreak, true);
   assert.equal(match.damage(attacker, victim, 20, 2.2, attacker, 'arc').shieldBreak, undefined);
-});
-
-test('remote playhead is monotonic under jitter and stops advancing in a network gap', () => {
-  const clock = new SnapshotClock();
-  const received = [[10, 1200], [43, 1235], [76, 1235], [109, 1306], [142, 1306]];
-  const rendered = received.map(([server, local]) => {
-    clock.receive(server, local);
-    return clock.time(local);
-  });
-  assert(rendered.every((value, i) => !i || value >= rendered[i - 1]));
-  assert.equal(clock.time(5000), 184);
-  assert.equal(clock.receive(600, 5300), true);
-
-  const history = [];
-  const pose = { x: 0, y: 1, z: 3, yaw: 3.12, pitch: 0, vx: 10, vz: 0, grounded: true, vehicle: -1, turret: -1 };
-  rememberPose(history, 10, pose);
-  rememberPose(history, 43, { ...pose, x: 0.33, yaw: -3.12 });
-  const out = {};
-  assert(presentedPose(history, 26.5, out));
-  assert(Math.abs(out.x - 0.165) < 1e-8);
-  assert(Math.abs(out.yaw - Math.PI) < 1e-7);
-  presentedPose(history, 900, out);
-  assert(Math.abs(out.x - 0.75) < 1e-8);
 });
 
 test('pilot frame is cosmetic and uses an optional trailing snapshot field', () => {

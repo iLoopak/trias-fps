@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
-import { ARENAS, BODY_RADIUS, blocked, creekCenter, islandFord, movePlayer, riverCenter, wallDistance } from '../public/rules.js';
-import { ISLAND_CROSSINGS, ISLAND_SCALE as scale, ISLAND_TRAIL, islandHeight } from '../public/island-terrain.js';
+import { ARENAS, BODY_RADIUS, blocked, creekCenter, islandFord, movePlayer, riverCenter, wallDistance } from '../shared/rules.js';
+import { ISLAND_CROSSINGS, ISLAND_SCALE as scale, ISLAND_TRAIL, islandHeight } from '../shared/island-terrain.js';
 
 const island = ARENAS.island;
 

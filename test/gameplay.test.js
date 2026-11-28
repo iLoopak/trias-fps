@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Match } from '../match.js';
-import { ARENAS, PILOT_HP, WEAPONS, GANTRIES, GRENADE, LAUNCH_PADS, PICKUPS, TICK, TURRET, blocked, packCover, eyeHeight, movePlayer, wallDistance } from '../public/rules.js';
+import { ARENAS, PILOT_HP, WEAPONS, GANTRIES, GRENADE, LAUNCH_PADS, PICKUPS, TICK, TURRET, blocked, packCover, eyeHeight, movePlayer, wallDistance } from '../shared/rules.js';
 
 const neutral = { x: 0, z: 0, yaw: 0 };
 

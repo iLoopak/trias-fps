@@ -1,7 +1,7 @@
 import {
   aimVector, ARENAS, ARMORY, CAPACITY, CHARACTERS, DEFAULT_CHARACTER, DEFAULT_WEAPON, distanceSquared, eyeHeight, floorBelow,
   GRENADE, HEADSHOT_MULTIPLIER, hitHeight, HORDE_RESPAWN, MED_HEAL, MODES, movePlayer, PILOT_HP, POWERUPS, SHIELD_ARMOR, rayBox, RELAY_HORDE, RELAY_SERVICE, RESPAWN, TEAM_SIZE, TEAMS, TICK, TURRET, touchesHazard, turretYaw, wallDistance, WEAPONS,
-} from './public/rules.js';
+} from './shared/rules.js';
 import { botInput } from './bots.js';
 import { normalizeDifficulty } from './bot-profiles.js';
 import { botSound, noteBotHit } from './bot-perception.js';
@@ -9,8 +9,8 @@ import { Fleet } from './fleet.js';
 import { Siege } from './siege.js';
 import { Horde } from './horde.js';
 import { Streaks } from './streaks.js';
-import { hullDistance, vehicleAimFrame, VEHICLES } from './public/vehicles.js';
-import { NETWORK_VERSION, packSnapshot } from './public/netcode.js';
+import { hullDistance, vehicleAimFrame, VEHICLES } from './shared/vehicles.js';
+import { NETWORK_VERSION, packSnapshot } from './shared/netcode.js';
 import { Signature } from './signature.js';
 import { explosionImpulse, grenadeOnRay } from './interactions.js';
 import { CombatDirector } from './combat-director.js';
@@ -21,6 +21,24 @@ const BOT_NAMES = ['Apex', 'Flux', 'Helix', 'Ghost', 'Nova', 'Pulse', 'Drift', '
 const ROUND_PAUSE = 9;
 const HEAD_HALF_WIDTH = 0.20;
 const HEAD_BELOW_EYE = 0.09;
+// Human movement commands are simulated in arrival order, one per tick, exactly as the client predicted them.
+// When a command is late the pilot holds for that tick instead of repeating the last command, and the late
+// command then stays one tick in reserve, so further jitter is absorbed without holding again (an adaptive
+// jitter buffer of at most INPUT_HOLD_TICKS commands). Held ticks are the only ticks that may take two steps, so
+// a pilot never takes more movement steps than the server has ticked. Longer gaps repeat the last command as
+// before. A reserve untouched for INPUT_TRIM_TICKS is given back with one double step; a hold that never gets
+// its command (the client skipped it) is forgiven after the same window; a surplus that never drains (a client
+// clock running fast) loses its oldest command, keeping its jump and dodge presses.
+const INPUT_HOLD_TICKS = 3;
+const INPUT_HOLD_WINDOW = 0.1;
+const INPUT_QUEUE = 8;
+const INPUT_TRIM_TICKS = 60;
+
+function mergeOldest(queue) {
+  const dropped = queue.shift();
+  queue[0].jump ||= dropped.jump;
+  queue[0].dodge ||= dropped.dodge;
+}
 
 export const fireProfileData = () => ARMORY.map(key => {
   const spec = WEAPONS[key];
@@ -100,7 +118,7 @@ export class Match {
     }
     Object.assign(player, start, {
       hp: this.siege && !this.siege.alive(player.team) ? 0 : PILOT_HP, armor: 0, surgeUntil: 0, y: start.y ?? 0, vx: 0, vy: 0, vz: 0, grounded: true, airJump: true,
-      dodgeCooldown: 0, dodgeTime: 0, airDodge: true, padCooldown: 0, crouch: false, grenades: 1, turret: -1, vehicle: -1, vehiclePlanAt: -100, impactAt: 0, hazardAt: 0,
+      dodgeCooldown: 0, dodgeTime: 0, airDodge: true, padCooldown: 0, jumpBuffer: 0, dodgeBuffer: 0, coyote: 0, crouch: false, grenades: 1, turret: -1, vehicle: -1, vehiclePlanAt: -100, impactAt: 0, hazardAt: 0,
       weapon: kit.weapon, loadout,
       yaw: Math.atan2(start.x - toward.x, start.z - toward.z), pitch: 0, fireAt: now + 0.2,
       safeUntil: now + 1.4, reloadAt: 0, respawnAt: 0, input: EMPTY, inputAt: now, fireRequest: false, reloadRequest: false, jumpRequest: false, dodgeRequest: false, altRequest: false, grenadeRequest: false, useRequest: false, weaponRequest: null,
@@ -184,7 +202,7 @@ export class Match {
 
   stopPlayerInput(player) {
     this.clearRequests(player);
-    Object.assign(player, { input: EMPTY, inputAt: -Infinity, predictedTrigger: null, echoRequest: null });
+    Object.assign(player, { input: EMPTY, inputAt: -Infinity, inputQueue: [], inputOwed: 0, predictedTrigger: null, echoRequest: null });
   }
 
   park(player, now) {
@@ -216,19 +234,65 @@ export class Match {
       || !['x', 'z', 'yaw', 'pitch'].every(key => Number.isFinite(message[key]))) return;
     player.receivedSeq = message.seq;
     player.inputAt = now;
-    player.input = {
-      x: Math.max(-1, Math.min(1, message.x)), z: Math.max(-1, Math.min(1, message.z)),
+    const command = {
+      seq: message.seq, x: Math.max(-1, Math.min(1, message.x)), z: Math.max(-1, Math.min(1, message.z)),
       yaw: message.yaw % (Math.PI * 2), pitch: Math.max(-1.48, Math.min(1.48, message.pitch)),
       crouch: message.crouch === true, brake: message.brake === true, sprint: message.sprint === true, fire: message.fire === true, reload: message.reload === true,
+      jump: message.jump === true, dodge: message.dodge === true,
     };
-    player.fireRequest ||= player.input.fire;
-    player.reloadRequest ||= player.input.reload;
-    player.jumpRequest ||= message.jump === true;
-    player.dodgeRequest ||= message.dodge === true;
+    const queue = player.inputQueue ??= [];
+    queue.push(command);
+    while (queue.length > INPUT_QUEUE) mergeOldest(queue);
+    player.fireRequest ||= command.fire;
+    player.reloadRequest ||= command.reload;
     player.altRequest ||= message.alt === true;
     player.grenadeRequest ||= message.grenade === true;
     player.useRequest ||= message.use === true;
     if (typeof message.weapon === 'string' && Object.hasOwn(WEAPONS, message.weapon)) player.weaponRequest = message.weapon;
+  }
+
+  // Movement commands for one human pilot this tick, oldest first: none while a late command is awaited,
+  // two while repaying a held tick, otherwise one (the last command repeats for 0.24 s when the stream stops).
+  humanMoves(player, now) {
+    const queue = player.inputQueue ??= [];
+    player.inputFloor = Math.min(player.inputFloor ?? Infinity, queue.length);
+    let release = false;
+    if ((player.inputAge = (player.inputAge ?? 0) + 1) >= INPUT_TRIM_TICKS) {
+      if (player.inputFloor > 1) {
+        // The whole window had a spare command at every tick: the reserve was not needed.
+        if (player.inputOwed > 0) release = true;
+        else mergeOldest(queue);
+      } else if (player.inputFloor === 0 && player.inputOwed > 0) player.inputOwed--;
+      player.inputAge = 0;
+      player.inputFloor = Infinity;
+    }
+    if (!queue.length) {
+      if (player.ack > 0 && (player.inputOwed ?? 0) < INPUT_HOLD_TICKS && now - player.inputAt < INPUT_HOLD_WINDOW) {
+        player.inputOwed = (player.inputOwed ?? 0) + 1;
+        return [];
+      }
+      return [now - player.inputAt < 0.24 ? player.input : EMPTY];
+    }
+    const moves = [queue.shift()];
+    if (player.inputOwed > 0 && (queue.length > player.inputOwed || release && queue.length)) {
+      moves.push(queue.shift());
+      player.inputOwed--;
+    }
+    this.acceptCommand(player, moves.at(-1));
+    return moves;
+  }
+
+  acceptCommand(player, command) {
+    player.ack = command.seq;
+    player.input = { ...command, jump: false, dodge: false };
+  }
+
+  // Dead, parked or between rounds: nothing to simulate, but the client must see its commands acknowledged.
+  drainInput(player) {
+    const queue = player.inputQueue;
+    if (queue?.length) this.acceptCommand(player, queue.at(-1));
+    if (queue) queue.length = 0;
+    player.inputOwed = 0;
   }
 
   trigger(player, message, now) {
@@ -710,7 +774,7 @@ export class Match {
 
   step(now) {
     this.tickNumber++;
-    for (const socket of this.humans) socket.player.ack = socket.player.receivedSeq ?? socket.player.ack;
+    if (this.restartAt) for (const socket of this.humans) this.drainInput(socket.player);
     if (this.restartAt && now >= this.restartAt) this.reset(now);
     if (!this.restartAt) {
       this.signature.step(now);
@@ -720,6 +784,7 @@ export class Match {
       }
       for (const player of this.players.values()) {
         if (player.hp <= 0) {
+          this.drainInput(player);
           if (player.predictedTrigger) {
             this.rejectTrigger(player, player.predictedTrigger.fireId);
             player.predictedTrigger = null;
@@ -727,10 +792,13 @@ export class Match {
           if (!player.away && !player.hordeType && now >= player.respawnAt && (!this.siege || this.siege.alive(player.team))) this.spawn(player, now);
           continue;
         }
+        const human = !player.hordeType && !player.bot;
+        const moves = human ? this.humanMoves(player, now) : null;
         let input = player.hordeType ? this.horde.input(player, now)
-          : player.bot ? botInput(this, player, now) : now - player.inputAt < 0.24 ? player.input : EMPTY;
+          : player.bot ? botInput(this, player, now) : moves.at(-1) ?? (now - player.inputAt < 0.24 ? player.input : EMPTY);
         if (player.triggerAim && (now - player.triggerAim.time) <= 0.12 && player.triggerAim.time >= player.inputAt) {
           input = { ...input, yaw: player.triggerAim.yaw, pitch: player.triggerAim.pitch };
+          if (moves?.length) moves[moves.length - 1] = input;
         }
         if ((player.useRequest || input.use) && !this.fleet.use(player, now)) this.useTurret(player, now);
         if (player.vehicle >= 0 || player.turret >= 0) {
@@ -751,48 +819,18 @@ export class Match {
           this.clearRequests(player);
           continue;
         }
-        player.yaw = input.yaw ?? player.yaw;
-        player.pitch = input.pitch ?? player.pitch;
-        player.sprint = Boolean(input.sprint);
-        const startX = player.x;
-        const startZ = player.z;
-        const pose = { x: startX, y: player.y, z: startZ, yaw: player.yaw, crouch: player.crouch,
-          vy: player.vy, grounded: player.grounded, character: player.character, frame: player.frame, weapon: player.weapon, team: player.team, slot: player.slot };
-        let signal = movePlayer(player, {
-          ...input, yaw: player.yaw, jump: input.jump || player.jumpRequest, dodge: input.dodge || player.dodgeRequest,
-        }, TICK, this.combatLayout);
-        if (this.layout.fallY !== undefined && player.y < this.layout.fallY) {
-          this.damage(player, player, player.hp + player.armor, now, player, 'fall');
+        let alive = true;
+        if (moves && !moves.length) {
+          player.yaw = input.yaw ?? player.yaw;
+          player.pitch = input.pitch ?? player.pitch;
+        }
+        for (const [index, move] of (moves ?? [input]).entries()) {
+          alive = this.advancePilot(player, move, now, index === 0);
+          if (!alive) break;
+        }
+        if (!alive) {
           this.clearRequests(player);
           continue;
-        }
-        const hazard = this.layout.hazard;
-        if (now >= player.hazardAt && touchesHazard(hazard,player.x,player.y,player.z)) {
-          player.hazardAt = now + hazard.interval;
-          const position = [player.x, player.y + .08, player.z];
-          const hit = this.damage(player, player, hazard.damage, now, player, 'plasma', position, false);
-          this.events.push({ type:'hazard', id:player.id, source:'plasma', position, hits:[hit] });
-          if (player.hp <= 0) {
-            this.clearRequests(player);
-            continue;
-          }
-        }
-        this.signature.movement(player, pose, signal, now);
-        if (signal === 'dodge') this.practice?.dodge(player);
-        if (signal === 'launch') {
-          player.usedLaunch = true;
-          player.launchAt = now;
-        }
-        if (player.grounded && !signal) {
-          player.stride += Math.hypot(player.x - startX, player.z - startZ);
-          if (player.stride >= 2.4) {
-            player.stride -= 2.4;
-            signal = 'step';
-          }
-        } else player.stride = 0;
-        if (signal) {
-          this.events.push({ type: 'movement',id: player.id,action: signal,position: [player.x,player.y,player.z],team: player.team });
-          botSound(this,player,{ x: player.x,y: player.y + .6,z: player.z },now,signal === 'step' ? 9 : 13);
         }
         if (player.hordeType) {
           this.clearRequests(player);
@@ -848,6 +886,50 @@ export class Match {
     this.broadcast(now);
   }
 
+  // One movement step of a living pilot on foot. Returns false when the step killed the pilot.
+  advancePilot(player, input, now, requests = true) {
+    player.yaw = input.yaw ?? player.yaw;
+    player.pitch = input.pitch ?? player.pitch;
+    player.sprint = Boolean(input.sprint);
+    const startX = player.x;
+    const startZ = player.z;
+    const pose = { x: startX, y: player.y, z: startZ, yaw: player.yaw, crouch: player.crouch,
+      vy: player.vy, grounded: player.grounded, character: player.character, frame: player.frame, weapon: player.weapon, team: player.team, slot: player.slot };
+    let signal = movePlayer(player, {
+      ...input, yaw: player.yaw, jump: input.jump || requests && player.jumpRequest, dodge: input.dodge || requests && player.dodgeRequest,
+    }, TICK, this.combatLayout);
+    if (this.layout.fallY !== undefined && player.y < this.layout.fallY) {
+      this.damage(player, player, player.hp + player.armor, now, player, 'fall');
+      return false;
+    }
+    const hazard = this.layout.hazard;
+    if (now >= player.hazardAt && touchesHazard(hazard,player.x,player.y,player.z)) {
+      player.hazardAt = now + hazard.interval;
+      const position = [player.x, player.y + .08, player.z];
+      const hit = this.damage(player, player, hazard.damage, now, player, 'plasma', position, false);
+      this.events.push({ type:'hazard', id:player.id, source:'plasma', position, hits:[hit] });
+      if (player.hp <= 0) return false;
+    }
+    this.signature.movement(player, pose, signal, now);
+    if (signal === 'dodge') this.practice?.dodge(player);
+    if (signal === 'launch') {
+      player.usedLaunch = true;
+      player.launchAt = now;
+    }
+    if (player.grounded && !signal) {
+      player.stride += Math.hypot(player.x - startX, player.z - startZ);
+      if (player.stride >= 2.4) {
+        player.stride -= 2.4;
+        signal = 'step';
+      }
+    } else player.stride = 0;
+    if (signal) {
+      this.events.push({ type: 'movement',id: player.id,action: signal,position: [player.x,player.y,player.z],team: player.team });
+      botSound(this,player,{ x: player.x,y: player.y + .6,z: player.z },now,signal === 'step' ? 9 : 13);
+    }
+    return true;
+  }
+
   clearRequests(player) {
     player.fireRequest = player.reloadRequest = player.jumpRequest = player.dodgeRequest = false;
     player.altRequest = player.grenadeRequest = player.useRequest = false;
@@ -874,9 +956,10 @@ export class Match {
       return;
     }
     const players = [...this.players.values()].map(p => ({
-      id: p.id, name: p.name, team: p.team, slot: p.slot, character: p.character, frame: p.frame, bot: p.bot, x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100,
+      id: p.id, name: p.name, team: p.team, slot: p.slot, character: p.character, frame: p.frame, bot: p.bot, x: Math.round(p.x * 1000) / 1000, z: Math.round(p.z * 1000) / 1000,
       y: Math.round(p.y * 1000) / 1000, vx: p.vx, vy: p.vy, vz: p.vz, grounded: p.grounded, airJump: p.airJump,
       airDodge: p.airDodge, dodgeCooldown: p.dodgeCooldown, dodgeTime: p.dodgeTime, padCooldown: p.padCooldown, crouch: p.crouch, sprint: p.sprint, grenades: p.grenades, turret: p.turret, vehicle: p.vehicle,
+      jumpBuffer: p.jumpBuffer ?? 0, dodgeBuffer: p.dodgeBuffer ?? 0, coyote: p.coyote ?? 0,
       yaw: p.yaw, pitch: p.pitch, hp: p.hp, armor: p.armor, surge: Math.max(0, Math.ceil(p.surgeUntil - now)), weapon: p.weapon,
       loadout: ARMORY.map(key => p.loadout[key] ? [p.loadout[key].ammo, Number.isFinite(p.loadout[key].reserve) ? p.loadout[key].reserve : -1] : null), kills: p.kills, deaths: p.deaths, spawn: p.spawn, ack: p.ack,
       respawn: Math.max(0, p.respawnAt - now), reload: p.reloadAt > now, reloadRemaining: Math.max(0, p.reloadAt - now), shield: p.safeUntil > now,

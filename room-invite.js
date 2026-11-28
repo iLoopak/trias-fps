@@ -1,4 +1,4 @@
-import { roomCode } from './public/rules.js';
+import { roomCode } from './shared/rules.js';
 
 export function invitePage(link, headers, encrypted) {
   const code = roomCode(link.slice('/join/'.length));

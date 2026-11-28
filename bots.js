@@ -1,10 +1,10 @@
-import { PILOT_HP, TICK, TURRET, WEAPONS, aimVector, blocked, canDodge, distanceSquared, eyeHeight, floorBelow, radial, touchesHazard, turretYaw, wallDistance } from './public/rules.js';
+import { PILOT_HP, TICK, TURRET, WEAPONS, aimVector, blocked, canDodge, distanceSquared, eyeHeight, floorBelow, radial, touchesHazard, turretYaw, wallDistance } from './shared/rules.js';
 import { brainFor, roll, WEAPON_ROLES } from './bot-profiles.js';
 import { bearing, inView, senseBots, visible } from './bot-perception.js';
 import { chooseObjective, chooseWeapon, retreatPoint } from './bot-choices.js';
 export { visible } from './bot-perception.js';
 
-import { boardingVehicle, vehicleCockpit, VEHICLES, wrapAngle } from './public/vehicles.js';
+import { boardingVehicle, vehicleCockpit, VEHICLES, wrapAngle } from './shared/vehicles.js';
 const navigation = new WeakMap();
 
 function navigationFor(layout) {
