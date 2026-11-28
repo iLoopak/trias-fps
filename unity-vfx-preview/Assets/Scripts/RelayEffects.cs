@@ -136,44 +136,44 @@ namespace Trias.Preview
                 var male = Resources.Load<AudioClip>("TRIAS/Radio/" + key + "-male");
                 if (female != null || male != null) radio.Add(key,(female,male));
             }
-            foot = Trias.Preview.MatchSound.Foley("Boot impact", .115f, 89, 140);
-            hurtCue = Trias.Preview.MatchSound.Foley("Suit struck", .23f, 74, 250);
-            confirm = MatchSound.Mechanism("Hit telemetry", .083f, 181, .08f, .61f);
-            shield = MatchSound.Mechanism("Shield interrupted", .126f, 242, .22f, .76f);
-            kill = MatchSound.Mechanism("Elimination confirmed", .166f, 106, .09f, .66f, true);
-            infectedGrowl = MatchSound.Foley("Infected growl", .44f, 46, 183);
-            infectedSpit = MatchSound.Discharge("Corrosive spit", .23f, 92, 750, .52f);
-            infectedStrike = MatchSound.Foley("Infected strike", .23f, 51, 178);
-            waveCue = Trias.Preview.MatchSound.Wave("Horde inbound", true);
-            clearCue = Trias.Preview.MatchSound.Wave("Area clear", false);
-            menuClick = MatchSound.Foley("Console contact", .06f, 490, 1650);
+            foot = Sfx("boot-metal", Trias.Preview.MatchSound.Foley("Boot impact", .115f, 89, 140));
+            hurtCue = Sfx("suit-hit", Trias.Preview.MatchSound.Foley("Suit struck", .23f, 74, 250));
+            confirm = Sfx("hit-tick", MatchSound.Mechanism("Hit telemetry", .083f, 181, .08f, .61f));
+            shield = Sfx("shield-hit", MatchSound.Mechanism("Shield interrupted", .126f, 242, .22f, .76f));
+            kill = Sfx("elimination", MatchSound.Mechanism("Elimination confirmed", .166f, 106, .09f, .66f, true));
+            infectedGrowl = Sfx("robot-groan", MatchSound.Foley("Infected growl", .44f, 46, 183));
+            infectedSpit = Sfx("robot-spray", MatchSound.Discharge("Corrosive spit", .23f, 92, 750, .52f));
+            infectedStrike = Sfx("robot-strike", MatchSound.Foley("Infected strike", .23f, 51, 178));
+            waveCue = Sfx("wave-inbound", Trias.Preview.MatchSound.Wave("Horde inbound", true));
+            clearCue = Sfx("wave-clear", Trias.Preview.MatchSound.Wave("Area clear", false));
+            menuClick = Sfx("ui-click", MatchSound.Foley("Console contact", .06f, 490, 1650));
             menuBack = EffectPreview.Cue("Terminal back",420,290,.09f,94);
             menuInvalid = EffectPreview.Cue("Terminal error",400,138,.145f,90);
             menuDeploy = EffectPreview.Cue("Deploy committed",330,710,.18f,96);
-            menuResult = MatchSound.Wave("Round completed",false);
-            landing = MatchSound.Foley("Magnetic boots land", .28f, 61, 118);
-            focusedCue = MatchSound.Discharge("Scatter focused", .23f, 103, 720, .38f);
-            riftShot = MatchSound.Discharge("Rift discharge", .27f, 69, 288, .68f);
-            shieldBreak = MatchSound.Discharge("Shield fracture", .18f, 390, 2400, .58f);
+            menuResult = Sfx("match-end", MatchSound.Wave("Round completed",false));
+            landing = Sfx("landing", MatchSound.Foley("Magnetic boots land", .28f, 61, 118));
+            focusedCue = Sfx("scatter-alt", MatchSound.Discharge("Scatter focused", .23f, 103, 720, .38f));
+            riftShot = Sfx("rift-discharge", MatchSound.Discharge("Rift discharge", .27f, 69, 288, .68f));
+            shieldBreak = Sfx("shield-break", MatchSound.Discharge("Shield fracture", .18f, 390, 2400, .58f));
             dryClick = MatchSound.Foley("Empty chamber", .073f, 230, 2140);
             equipCue = MatchSound.Foley("Weapon seat", .115f, 160, 910);
-            soil = MatchSound.Foley("Soil footstep", .135f, 62, 440);
-            water = MatchSound.Discharge("Shallow water footstep", .15f, 78, 1330, .25f);
-            thruster = MatchSound.Foley("Jump kick", .09f, 113, 610);
-            dodge = MatchSound.Mechanism("Suit vent", .19f, 88, .79f, .31f);
-            airJump = MatchSound.Mechanism("Thruster kick", .166f, 114, .62f, .43f, true);
-            pad = MatchSound.Mechanism("Linear launch", .29f, 78, .68f, .48f, true);
-            grenadeBlast = MatchSound.Mechanism("Grenade concussion", .36f, 52, .53f, .95f);
-            phaseForm = MatchSound.Mechanism("Echo separation", .19f, 121, .82f, .22f);
-            phaseFire = MatchSound.Mechanism("Echo activation", .22f, 145, .60f, .61f, true);
-            phaseFade = MatchSound.Mechanism("Echo decay", .12f, 97, .58f, .05f);
-            phaseRupture = MatchSound.Mechanism("Echo rupture", .24f, 156, .82f, .93f, true);
+            soil = Sfx("boot-soil", MatchSound.Foley("Soil footstep", .135f, 62, 440));
+            water = Sfx("boot-water", MatchSound.Discharge("Shallow water footstep", .15f, 78, 1330, .25f));
+            thruster = Sfx("jump", MatchSound.Foley("Jump kick", .09f, 113, 610));
+            dodge = Sfx("dodge", MatchSound.Mechanism("Suit vent", .19f, 88, .79f, .31f));
+            airJump = Sfx("air-jump", MatchSound.Mechanism("Thruster kick", .166f, 114, .62f, .43f, true));
+            pad = Sfx("launch-pad", MatchSound.Mechanism("Linear launch", .29f, 78, .68f, .48f, true));
+            grenadeBlast = Sfx("grenade", MatchSound.Mechanism("Grenade concussion", .36f, 52, .53f, .95f));
+            phaseForm = Sfx("echo-form", MatchSound.Mechanism("Echo separation", .19f, 121, .82f, .22f));
+            phaseFire = Sfx("echo-fire", MatchSound.Mechanism("Echo activation", .22f, 145, .60f, .61f, true));
+            phaseFade = Sfx("echo-fade", MatchSound.Mechanism("Echo decay", .12f, 97, .58f, .05f));
+            phaseRupture = Sfx("echo-rupture", MatchSound.Mechanism("Echo rupture", .24f, 156, .82f, .93f, true));
             for (int i = 0; i < factionGlyphs.Length; i++) factionGlyphs[i] = Native.TriasMarkings.Emblem(i);
             factionEntry[0] = EffectPreview.Cue("ION deployment", 590, 990, .28f, 84);
             factionEntry[1] = EffectPreview.Cue("EMBER deployment", 345, 570, .28f, 104);
             factionEntry[2] = EffectPreview.Cue("VIOLET deployment", 510, 355, .28f, 77);
             BuildArsenalAudio();
-            nearMissCue = MatchSound.NearMiss();
+            nearMissCue = Sfx("near-miss", MatchSound.NearMiss());
             shieldReturnCue = EffectPreview.Cue("Shield online", 430, 890, .19f, 84);
             for (int i = 0; i < traces.Length; i++)
             {
@@ -244,13 +244,44 @@ namespace Trias.Preview
         readonly string[] arsenalKeys = { "pulse", "scatter", "lance", "arc", "rift" };
         readonly Dictionary<string,(AudioClip Primary,AudioClip Alternate,AudioClip[] Handling)> arsenalAudio = new();
 
+        // Handling cue order used by ArsenalHandling: reload open, payload in, reload close, equip, dry fire, impact.
+        static readonly string[] HandlingCues = { "open", "insert", "close", "equip", "dry", "impact" };
+
+        // ElevenLabs sound design (tools/audio/generate-sfx.mjs, Resources/TRIAS/Audio/Sfx) replaces the procedural
+        // clip when present. Each one-shot is level-matched to the RMS of the clip it replaces, so the established
+        // mix balance between weapons, feedback and ambience is preserved; the procedural clip stays the fallback.
+        public static AudioClip Sfx(string id, AudioClip fallback)
+        {
+            var clip = Resources.Load<AudioClip>("TRIAS/Audio/Sfx/" + id);
+            if (clip == null) return fallback;
+            if (fallback == null || clip.loadType != AudioClipLoadType.DecompressOnLoad) return clip;
+            static (float Rms, float Peak) Level(AudioClip c, float[] data)
+            {
+                double sum = 0; float peak = 0;
+                foreach (var v in data) { sum += v * v; peak = Mathf.Max(peak, Mathf.Abs(v)); }
+                return ((float)System.Math.Sqrt(sum / Mathf.Max(1, data.Length)), peak);
+            }
+            var source = new float[fallback.samples * fallback.channels];
+            var target = new float[clip.samples * clip.channels];
+            if (!fallback.GetData(source, 0) || !clip.GetData(target, 0)) return clip;
+            var reference = Level(fallback, source);
+            var level = Level(clip, target);
+            if (level.Rms < 1e-5f || reference.Rms < 1e-5f) return clip;
+            float gain = Mathf.Min(Mathf.Clamp(reference.Rms / level.Rms, .2f, 3f), .98f / Mathf.Max(1e-4f, level.Peak));
+            for (int i = 0; i < target.Length; i++) target[i] *= gain;
+            clip.SetData(target, 0);
+            return clip;
+        }
+
         void BuildArsenalAudio()
         {
             foreach (string key in arsenalKeys)
             {
                 var handling = new AudioClip[6];
-                for (int i = 0; i < handling.Length; i++) handling[i] = MatchSound.ArsenalFoley(key,i);
-                arsenalAudio.Add(key,(MatchSound.ArsenalShot(key,false),MatchSound.ArsenalShot(key,true),handling));
+                for (int i = 0; i < handling.Length; i++)
+                    handling[i] = Sfx(key + "-" + HandlingCues[i], MatchSound.ArsenalFoley(key,i));
+                arsenalAudio.Add(key,(Sfx(key + "-shot", MatchSound.ArsenalShot(key,false)),
+                    Sfx(key + "-alt", MatchSound.ArsenalShot(key,true)),handling));
             }
         }
 
@@ -640,7 +671,7 @@ namespace Trias.Preview
                 menuMusic.clip = Resources.Load<AudioClip>("TRIAS/Audio/hangar-loop");
             if (!beds.TryGetValue(arena, out var bed))
             {
-                bed = MatchSound.Ambience(arena);
+                bed = Sfx("amb-" + arena, null) ?? MatchSound.Ambience(arena);
                 beds.Add(arena, bed);
             }
             if (atmosphere.clip != bed) atmosphere.clip = bed;

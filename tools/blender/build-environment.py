@@ -38,7 +38,7 @@ ARCHITECTURE = (
     ("Machine",form.machine,1800,"Stabilizer Distribution Processor Cooling Maintenance Control Suspended Conduit Extraction"),
 )
 NATURE = (
-    ("Rock",form.geology,950,"Shelf Split Erased Outcrop Pebbles Cliff Seam Phase"),
+    ("Rock",form.geology,2600,"Shelf Split Erased Outcrop Pebbles Cliff Seam Phase"),
     ("Tree",form.tree,1750,"Sentinel Ridge Sapling Windward"),
     ("Plant",form.undergrowth,800,"Bramble Sedge Fern Bloom"),
     ("Site",lambda _,detail:form.ruin(detail),1450,"ReclaimedDeflector"),

@@ -318,6 +318,31 @@ def machine(style, detail):
         block("Disconnect switch",.64,.49,.68,.19,.10,.12,"Amber",.022)
 
 
+def weather(item, seed, size, detail):
+    """Break the lofted strata with deterministic fractal weathering. LOD0 is subdivided once so the
+    erosion reads as chipped rock; LOD1 displaces the same base vertices, keeping the silhouette."""
+    import bmesh
+    from mathutils import noise
+    bm=bmesh.new()
+    bm.from_mesh(item.data)
+    if detail:
+        bmesh.ops.subdivide_edges(bm,edges=bm.edges[:],cuts=1,use_grid_fill=True)
+    bm.normal_update()
+    offset=Vector((seed*1.7,seed*.31,seed*.73))
+    for vertex in bm.verts:
+        p=vertex.co*1.45+offset
+        erosion=noise.fractal(p,.85,2.1,4)
+        chips=noise.noise(vertex.co*4.6+offset)
+        vertex.co+=vertex.normal*(erosion*.075+chips*.028)*size
+        if vertex.co.z<0:
+            vertex.co.z=0
+    # Displaced quads are no longer planar: split them so every face keeps its own projection plane.
+    bmesh.ops.triangulate(bm,faces=bm.faces[:])
+    bm.to_mesh(item.data)
+    bm.free()
+    item.data.update()
+
+
 def geology(style, detail):
     w,h,d,seed = {
         "Shelf":(3.9,2.4,2.3,18),"Split":(3.45,2.05,2.65,32),"Erased":(3,1.63,2.42,49),
@@ -366,19 +391,27 @@ def geology(style, detail):
         sections.append((layer*h,points))
     # One closed stratigraphic core. Different beds are assigned on the same connected surface.
     loft("Inclined sediment with directional fracture",sections,"DryStone")
-    rock=mesh.parts[mesh.group][-1].data
+    item=mesh.parts[mesh.group][-1]
+    weather(item,seed,min(w,d),detail)
+    rock=item.data
     for finish in ("DarkStone","Moss","OchreStone"):
         rock.materials.append(mesh.paints[finish])
+    # Finishes follow geology, not polygon rows (rows read as camouflage stripes in review):
+    # moss only where water and soil settle on upward faces, dark stone on undercuts and the wet
+    # foot, one thin iron-stained bed, weathered dry stone everywhere else.
+    top=max(v.co.z for v in rock.vertices) or 1
+    band=.36+(seed%5)*.03
     for polygon in rock.polygons:
-        row=(polygon.index-1)//len(plan)
-        if polygon.index==len(rock.polygons)-1:
-            polygon.material_index=2 if style not in ("Seam","Phase","Cliff") else 0
-        elif row in (2,6) and (polygon.index + seed + row) % len(plan) < 3:
-            polygon.material_index=3
-        elif row%3==0 and polygon.index%len(plan) not in (2,5):
-            polygon.material_index=1
-        elif row in (7,8) and polygon.index%len(plan) in (0,1,7):
+        n,c=polygon.normal,polygon.center
+        rel=c.z/top
+        if n.z>.6 and rel>.3 and style not in ("Seam","Phase","Cliff"):
             polygon.material_index=2
+        elif n.z<-.15 or (n.z<.3 and rel<.16):
+            polygon.material_index=1
+        elif abs(rel-band)<.03 and n.z<.5:
+            polygon.material_index=3
+        else:
+            polygon.material_index=0
     if style=="Phase":
         loft("Suspended bedding fragment",[(h*.71,bedding(h*.71,.65,.31,.09)),
              (h*.83,bedding(h*.83,.69,.38,.14)),(h,bedding(h,.52,.52,.18))],"DryStone")

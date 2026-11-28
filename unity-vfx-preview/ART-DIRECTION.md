@@ -201,6 +201,27 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
   - Jiskry jsou protáhlé záblesky v kloubech. Bliká deterministicky podle času a pořadí robota.
 - **Zamítnuto:** organičtí „nakažení“ s anatomií z loftů. Světlá kůže splývala s keramikou pilotů a postavy působily jako dřevění manekýni (`output/visual-overhaul/z1`, `z2`). Zamítnutá je i původní plastelína z koulí.
 
+**Čtvrtá vlna (zvuk a další kola zdokonalení).** Rendery jsou v `output/visual-refine/`, spektrogramy v `output/audio-revamp/spectra/`.
+- **Zvuk.** `tools/audio/sfx-manifest.json` popisuje 71 zvuků:
+  - 40 zvuků zbraní: výstřel, alternativní výstřel, otevření, vložení, zavření, nasazení, prázdná komora a zásah.
+  - Pohyb, zásahy, události fáze, Horda jako roboti a UI.
+  - Čtyři smyčky ambience aren.
+
+  `tools/audio/generate-sfx.mjs` je generuje přes ElevenLabs Sound Effects. Klíč čte jen z proměnné `ELEVENLABS_API_KEY`. Krátké zvuky ořízne na začátku (výstřel zazní v prvním snímku), přidá dozvuk a normalizuje je na −1 dBFS. Smyčky aren normalizuje na −24 LUFS a nastaví na streamování.
+
+  `RelayEffects.Sfx` srovná každý klip na RMS procedurálního klipu, který nahrazuje. Původní mix tak zůstává a procedurální zvuk slouží jako záloha. `Trias.Preview.AudioReview` ověří import a načtení všech klipů.
+
+  Zvuky byly zkontrolovány technicky a podle spektrogramů: Pulse má krátký chirp, Scatter subbas, Lance harmonický hvizd, Arc široké praskání a Rift zvlněný tónový oblouk. **Poslechem je nikdo neschválil.**
+- **Skály Kordilery.**
+  - `weather()` v `trias_environment_forms.py` přidává deterministické fraktální zvětrání. LOD0 má jednu subdivizi navíc a sítě se po posunu rozdělí na trojúhelníky.
+  - Materiály se řídí geologií místo řad polygonů: mech na plochách obrácených nahoru, tmavý kámen na převisech a vlhké patě a jedna rezavá vrstva.
+  - Rozpočet skal je 2600 trojúhelníků, skutečnost 412–692.
+- **Meridian.** Výplň stínu ×1,28 a odrazy oblohy 1,6 nastavené absolutně podle arény, takže se nesčítají. Kryty s achátem ve stínu teď čtou jako břidlicová konstrukce.
+- **Zamítnuto:**
+  - Výškový gradient trávy na Kordileře: v šedi nepřinesl změnu.
+  - Globální zvýšení kontrastu a snížení ambientu ve Vantě a Meridianu (`l1`, `l2`): stíny zčernaly a achát zmizel.
+  - Násobení `reflectionIntensity`: hodnota by se při opakovaném načítání arén sčítala.
+
 **Zbývající slabiny.**
 - Pozadí Relay a Vanty tvoří hranaté bloky (megastruktury, komíny).
 - Zastíněná strana krytů v Meridianu je skoro černá.

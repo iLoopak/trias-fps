@@ -12,3 +12,5 @@ Use the existing Compact Avatar rig, and verify faction silhouettes at combat di
 Use [the weapon identity guide](../../../WEAPON-IDENTITY.md) for all five instruments. Preserve their pivots and compare their movement and sound with separate capture passes.
 
 Rift’s three ceramic vanes travel along the mid-angle of each modeled arc. When rotating an arc in the Blender recipe, update its chamber-local travel axis in WeaponHandling and inspect the aperture at rest, during both shots and with motion reduced.
+
+Sound effects come from `tools/audio/sfx-manifest.json` through `tools/audio/generate-sfx.mjs` (ElevenLabs). Set `ELEVENLABS_API_KEY` only in the environment and never write it to a file. `RelayEffects.Sfx(id, fallback)` loads `Resources/TRIAS/Audio/Sfx/<id>` and level-matches it to the procedural fallback. To add a sound, add a manifest entry and an `Sfx` call. Check new clips with `Trias.Preview.AudioReview` and spectrograms, and state in the evidence that nobody listened to them.
