@@ -30,6 +30,7 @@ namespace Trias.Native
                 "Ceramic" => Porcelain, "Secondary" => Insulation, "Graphite" => Graphite,
                 "Alloy" => MapSurface("#b7b9b3", "brushed-deck", .48f, .32f),
                 "Amber" => SafetyAmber, "Heat" => MaterialAt("#df591e", true),
+                "Mineral" => MineralSolid(),
                 "Refractory" => MapSurface("#a08069", "refractory", 0, .13f),
                 "DryStone" => MapSurface("#918e7f", "fractured-stone", 0, .11f),
                 "DarkStone" => MapSurface("#666b5c", "fractured-stone", 0, .14f),

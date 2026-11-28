@@ -333,7 +333,7 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
   - Plátové textury architektury mají trilineární filtrování.
   - Kontaktní a palubní obtisky (`RelayContact`, `DeckStencil`) mají depth offset.
 - **Neviditelná plocha nad lávou ve Vantě:** šlo o kontaktní lemy z PR #12, které přesahovaly okraj kanálu a visely nad lávou. `AddContactSkirt` teď paprskem ověří podlahu pod každým vnějším rohem; bez podlahy roh stáhne dovnitř.
-  - **Neopraveno:** sonda `TRIAS_ART_COLLIDERS` našla starší rekvizity, které mají vrch collideru nad viditelným tvarem: pece a struska ve Vantě, ruda na Meridianu.
+  - Rekvizity s colliderem nad viditelným tvarem řeší čtrnáctá vlna.
 - **Plynulost (nativní playtest s autopilotem, 60 Hz vsync):**
   - Parser paketů (`WireValue`) sdílí krátké řetězce, malá celá čísla a `true` a pole staví v přesné velikosti. Alokace parseru klesly z ≈ 1300 na 70–120 KB/s a GC běhů je ≈ 20–24 místo 40–46 za 10 s.
   - Texty HUD se skládají jen při změně hodnoty (`TextMemo`).
@@ -346,6 +346,26 @@ Přejímka v nativní macOS verzi při 1280 × 720 ověřila všech 135 aktivní
   - Simulace, síťový protokol ani pravidla se nezměnila.
 
 **Zbývající slabiny.**
-- Rekvizity s colliderem nad viditelným tvarem (pece a struska ve Vantě, ruda na Meridianu) tvoří neviditelné plochy, na které jde vyskočit.
 - Občasné snímky přes 25 ms (0–5 za 10 s, v jednom běhu 24) většinou nesouvisejí s GC a měřené části klienta je nevysvětlují. Zbývá je profilovat (vykreslování, fyzika, kompozitor).
-- Detailní revize zbraní a vedlejších rekvizit z FINAL 20 % zatím neproběhla. `remote_judder` ještě závisí na fázi příchodu paketů vůči snímkům.
+- `remote_judder` ještě závisí na fázi příchodu paketů vůči snímkům.
+
+**Čtrnáctá vlna (neviditelné plochy, zbraně a vedlejší rekvizity zblízka).** Záběry jsou v `output/craft/` (`h-colliders*` sonda, `i-review*` rekvizity a zbraně, `i-review3/scatter-compare.png`).
+- **Sonda colliderů lhala:** přeskakovala meshe bez Read/Write (MapProps), takže hlásila celý kvádr každé rekvizity z MapProps jako neviditelný a skutečné mezery skryla.
+  - V editoru teď používá i tyto meshe.
+  - Hlásí i `gap_m`, tedy jak hluboko pod herní plochou leží ta viditelná: centimetry znamenají nepřesné usazení, metry chybějící plochu.
+- **Pravidlo:** `Fit` napasuje bounding box modelu na herní kvádr. Model proto musí kvádr vyplnit, hlavně horní plochu a rohy. Kulatý nebo zúžený tvar nechá okraje kvádru neviditelné.
+  - **Pec a struska (Vanta):** komora a chladicí lože stojí v nosném rámu se sloupky v rozích, příčkami a plošinou přes celý půdorys. Sonda: z 70 a 33 zásahů na 0.
+  - **Ruda (Meridian):** místo zaobleného balvanu je to řezaný těžební blok. Achátová čepice a žíla jsou z `TRIAS/Mineral Solid` (nový slot `Mineral` v MapProps), na stěnách jsou vrtné stopy a zvedací pásy. Z 63–77 na 3–5 zásahů po hranách.
+  - **Středový podstavec Meridianu:** distribuční stroj má servisní plošinu přes celý půdorys na čtyřech sloupcích. Z 32 na 0.
+- **Skály Kordilery – zamítnuto:** skály z `Nature.fbx` mají ukloněné vrstvy a vrchol ustupující na stranu. Horní plochu kvádru tak pokrývají asi z třetiny (21–76 zásahů, mezera 1–2 m).
+  - Krycí deska přes celý půdorys snížila zásahy na polovinu, ale ze skal udělala hřiby na tenkých nohách a z blízké skály obří zelenou plochu.
+  - Oprava bez ztráty vzhledu vyžaduje změnit herní collidery skal (nižší nebo stupňovité kvádry v `public/rules.js`). To je herní rozhodnutí.
+- **Zbraně zblízka:** pět zbraní ve stejné klidové póze v chladném světle Relay a teplém světle Vanty (`weapon-*`).
+  - Lance, Arc a Rift jsou jednoznačné. Pulse a Scatter měly z pohledu hráče stejnou světlou keramickou střechu s jedním černým podélným prvkem.
+  - Scatter má teď čtyři příčná chladicí žebra a jeho jediná oranžová fázová mezera vede přes celou šířku střechy. Dřív byla zapuštěná a z oka neviditelná.
+- **Vedlejší rekvizity:** zdravotní kanystr, odpalovací rampa, vozidla, roboti Hordy i pilot jsou čitelní. Nejslabší je power-up štítu, plochá šedá deska s jednou tenkou azurovou linkou.
+
+**Zbývající slabiny.**
+- Skály Kordilery mají horní plochu collideru z velké části nad viditelným kamenem (viz výše). Řešení je herní změna colliderů.
+- Občasné snímky přes 25 ms zatím nikdo neprofiloval (vykreslování, fyzika, kompozitor).
+- Power-up štítu je ze všech sběratelných předmětů nejméně výrazný.
