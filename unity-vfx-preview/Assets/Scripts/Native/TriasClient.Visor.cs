@@ -118,17 +118,16 @@ namespace Trias.Native
         void PaintReticle(float w, float h)
         {
             if (!captured || scoreboard) return;
-            Vector2 centerPoint = new Vector2(w / 2, h / 2);
-            if (own[15].Int < 0 && own[16].Int < 0 && own[6].Int > 0 && !building)
-            {
-                Vector3 screen = view.WorldToViewportPoint(reticleWorld);
-                if (screen.z > 0) centerPoint = new Vector2(screen.x * w, (1 - screen.y) * h);
-            }
+            // One crosshair, fixed at the screen centre: the camera looks exactly along the aim. It used to be
+            // projected from a ray cast at the latest 30 Hz prediction step while the camera showed the
+            // interpolated position, so it swung between two places every frame while moving (up to ~290 px
+            // in dodges) and read as a doubled crosshair.
+            Vector2 centerPoint = ViewComposer.Reticle(w, h, Screen.height / h);
             if (Event.current.type == EventType.Repaint) NoteReticle(centerPoint, w, h);
             PaintPilotIdentification(centerPoint);
             Color accent = Catalog.Tint(Catalog.Find(catalog.weapons, weaponName)?.color ?? "#daffff");
             accent = Color.Lerp(accent, Fault, dryPulse);
-            float kick = tension * 4.6f + Mathf.Min(predicted.Velocity.magnitude * .15f, 2);
+            float kick = tension * 4.6f + Mathf.Min(viewVelocity.magnitude * .15f, 2);
             bool aimingBuild = building && CanBuild;
             int feet = aimingBuild ? 4 : weaponName == "scatter" ? 4 : 3;
             float origin = aimingBuild ? 45 : weaponName == "scatter" ? 45 : 0;

@@ -42,13 +42,15 @@ namespace Trias.Native
         // steps, timed on the step schedule rather than on the frame that sent it, so at 60 fps or more
         // the camera moves every frame by the same amount; chasing the raw step moved it .66 then .34 of
         // a step on alternate frames.
-        Vector3 stepFrom;
+        // That line is the only interpolation of the own view (no second smoothing on top of it). A server
+        // correction shifts the line with the prediction and its visible part fades in `correction`.
+        Vector3 stepFrom, stepFromVelocity, correction;
         float stepAt = -1;
 
-        Vector3 Stepped(float now) => stepAt < 0 ? predicted.Position
-            : Vector3.Lerp(stepFrom, predicted.Position, Mathf.Clamp01((now - stepAt) / Motor.Tick));
+        Vector3 Stepped(float now) => ViewComposer.Stepped(stepFrom, predicted.Position, stepAt, now);
+        Vector3 SteppedVelocity(float now) => ViewComposer.Stepped(stepFromVelocity, predicted.Velocity, stepAt, now);
 
-        void SnapDisplay() { display = predicted.Position; stepAt = -1; }
+        void SnapDisplay() { display = predicted.Position; stepAt = -1; correction = Vector3.zero; }
         Transform grip;
         string identity, mode, room, weaponName, requestedWeapon;
         float sendAt, pingAt, pingSent, joinedAt, lastPacket, yaw, pitch, tension, hurt, hit, toastUntil;
@@ -351,6 +353,7 @@ namespace Trias.Native
             if (commands.Count > 24) commands.RemoveAt(0);
             float scheduled = Mathf.Min(sendAt, Time.unscaledTime);
             stepFrom = Stepped(scheduled);
+            stepFromVelocity = SteppedVelocity(scheduled);
             stepAt = scheduled;
             var cue = predicted.Step(command, movement ?? world.Spec);
             if (cue != MotionCue.None) PlayLocalMotion(cue, predicted.Position);
@@ -536,7 +539,14 @@ namespace Trias.Native
             if (count > 0) commands.RemoveRange(0, count);
             if (own[6].Int > 0 && own[15].Int < 0 && own[16].Int < 0 && snapshot["winner"]["label"].Text == null)
                 foreach (var input in commands) predicted.Step(input, movement ?? world.Spec);
-            if (!spawn && !mountChange) { predictedCorrection = Vector3.Distance(beforeCorrection, predicted.Position); NoteCorrection(predictedCorrection); }
+            if (!spawn && !mountChange)
+            {
+                Vector3 shift = predicted.Position - beforeCorrection;
+                predictedCorrection = shift.magnitude;
+                NoteCorrection(predictedCorrection);
+                stepFrom += shift;
+                correction = ViewComposer.AddCorrection(correction, shift);
+            }
             if (previous != null)
             {
                 bool healthLost = own[6].Int < previous[6].Int;
@@ -1034,7 +1044,14 @@ namespace Trias.Native
             if (alive)
             {
                 followedPilot = null;
-                display = Vector3.Lerp(display, Stepped(now), 1 - Mathf.Exp(-dt * 60));
+                if (driving || mounted)
+                    // Vehicles and nests are not predicted: the view follows the 30 Hz server position.
+                    display = Vector3.Lerp(display, predicted.Position, 1 - Mathf.Exp(-dt * 60));
+                else
+                {
+                    correction = ViewComposer.FadeCorrection(correction, dt);
+                    display = Stepped(now) + correction;
+                }
                 UpdateFeel(now, dt, driving);
             }
             else if (replay)
